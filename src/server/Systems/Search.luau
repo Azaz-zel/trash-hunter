@@ -17,6 +17,7 @@ local Router = require(script.Parent.Parent.Router)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local Social = require(script.Parent.Social)
+local Progress = require(script.Parent.Progress)
 
 local S = Config.Search
 local T = Config.TOOL_EFFECT
@@ -232,6 +233,11 @@ pick = function(player: Player, index: any): (boolean, string?)
 	profile.sinceEpic = if roll.rarity >= 4 then 0 else profile.sinceEpic + 1
 	profile.sinceLegendary = if roll.rarity >= 5 then 0 else profile.sinceLegendary + 1
 	Data.discover(profile, roll.itemId, roll.mutation, player)
+	Progress.track(player, "search", {
+		district = session.dumpster:GetAttribute("DistrictId"),
+		red = session.dumpster:GetAttribute("Zone") == "Red",
+		rarity = roll.rarity,
+	})
 	if roll.rarity >= 3 then
 		showFindPop(session.dumpster, roll)
 	end
@@ -280,6 +286,10 @@ local function tryStart(player: Player, dumpster: Model): (boolean, string?)
 	end
 	if Guard.distance(player, dumpsterPos(dumpster)) > S.RANGE then
 		return false, "Get closer to the dumpster."
+	end
+	local locked = Progress.gateMessage(player, dumpster:GetAttribute("DistrictId"))
+	if locked then
+		return false, locked
 	end
 	local readyAt = cooldowns[player] and cooldowns[player][dumpster]
 	if readyAt and readyAt > os.clock() then
@@ -361,6 +371,7 @@ function Search.init()
 	if game:GetService("RunService"):IsStudio() then
 		Loot.selfCheck()
 		require(Shared.ItemModels).selfCheck()
+		require(Shared.Quests).selfCheck()
 	end
 	Router.on("pickBag", 0.2, pick)
 	Router.on("resolve", 0.2, resolve)

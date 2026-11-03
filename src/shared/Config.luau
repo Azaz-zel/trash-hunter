@@ -147,6 +147,138 @@ return table.freeze({
 			sells = "cars",
 			range = 14,
 		}),
+		realty = table.freeze({
+			name = "Maple Realty",
+			counter = v3(-690, 0, -600),
+			sells = "house",
+			range = 14,
+		}),
+	}),
+
+	-- Houses on Sunset Lane: a trophy room other players can visit and like.
+	-- Each level rebuilds the house bigger with more pedestals.
+	Houses = table.freeze({
+		table.freeze({ name = "Starter Home", price = 6000, slots = 4 }),
+		table.freeze({ name = "Family Home", price = 25000, slots = 8 }),
+		table.freeze({ name = "Collector's Villa", price = 90000, slots = 12 }),
+	}),
+	-- Lot fronts on Sunset Ln (z = -640). yaw 0 = house north of the road.
+	Lots = table.freeze({
+		table.freeze({ x = -1190, yaw = 0 }),
+		table.freeze({ x = -1090, yaw = 0 }),
+		table.freeze({ x = -870, yaw = 0 }),
+		table.freeze({ x = -770, yaw = 0 }),
+		table.freeze({ x = -1190, yaw = 180 }),
+		table.freeze({ x = -1090, yaw = 180 }),
+		table.freeze({ x = -990, yaw = 180 }),
+		table.freeze({ x = -890, yaw = 180 }),
+		table.freeze({ x = -790, yaw = 180 }),
+		table.freeze({ x = -690, yaw = 180 }),
+	}),
+	LOT_ROAD_Z = -640,
+
+	-- Higher-tier districts need a permit: their dumpsters stay locked until the
+	-- stat reaches the target. Stats only grow, so a permit is never lost. The
+	-- Meridian yard has guards instead of a permit.
+	Gates = table.freeze({
+		maple = table.freeze({ stat = "searches", need = 12, text = "Search 12 dumpsters" }),
+		hillcrest = table.freeze({ stat = "rares", need = 4, text = "Find 4 Rare-or-better items" }),
+		business = table.freeze({ stat = "earned", need = 5000, text = "Earn $5,000 from sales" }),
+	}),
+
+	-- Daily login streak reward by streak day (repeats after day 7).
+	STREAK = table.freeze({ 100, 150, 200, 300, 400, 500, 1000 }),
+
+	-- Quest givers hand out one quest each per day (same for everyone).
+	Quests = table.freeze({
+		RANGE = 14,
+		givers = table.freeze({
+			table.freeze({
+				id = "earl",
+				name = "Old Earl",
+				pos = v3(-40, 0, 24),
+				yaw = 180,
+				line = "Back in my day we found treasure in every can.",
+			}),
+			table.freeze({
+				id = "rosa",
+				name = "Rosa",
+				pos = v3(-560, 0, -216),
+				yaw = 0,
+				line = "I pay well for help. Interested?",
+			}),
+			table.freeze({
+				id = "vic",
+				name = "Vic",
+				pos = v3(300, 0, 322),
+				yaw = 0,
+				line = "That yard's full of goodies. Got the nerve?",
+			}),
+		}),
+		pool = table.freeze({
+			table.freeze({ kind = "search", n = 5, reward = 250, text = "Search 5 dumpsters" }),
+			table.freeze({ kind = "search", n = 12, reward = 600, text = "Search 12 dumpsters" }),
+			table.freeze({
+				kind = "find",
+				rarity = 3,
+				n = 2,
+				reward = 600,
+				text = "Find 2 Rare-or-better items",
+			}),
+			table.freeze({
+				kind = "find",
+				rarity = 4,
+				n = 1,
+				reward = 1200,
+				text = "Find an Epic-or-better item",
+			}),
+			table.freeze({
+				kind = "earn",
+				n = 1500,
+				reward = 400,
+				text = "Sell $1,500 worth of stuff",
+			}),
+			table.freeze({
+				kind = "earn",
+				n = 5000,
+				reward = 1000,
+				text = "Sell $5,000 worth of stuff",
+			}),
+			table.freeze({
+				kind = "district",
+				district = "eastside",
+				n = 4,
+				reward = 350,
+				text = "Search 4 dumpsters in Eastside",
+			}),
+			table.freeze({
+				kind = "district",
+				district = "maple",
+				n = 4,
+				reward = 500,
+				text = "Search 4 dumpsters in Maple Grove",
+			}),
+			table.freeze({
+				kind = "district",
+				district = "hillcrest",
+				n = 3,
+				reward = 700,
+				text = "Search 3 dumpsters in Hillcrest",
+			}),
+			table.freeze({
+				kind = "yard",
+				n = 2,
+				reward = 900,
+				text = "Search 2 dumpsters inside the Meridian yard",
+			}),
+			table.freeze({
+				kind = "find",
+				rarity = 2,
+				n = 4,
+				reward = 300,
+				text = "Find 4 Uncommon-or-better items",
+			}),
+		}),
 	}),
 
 	-- One district a day gets extra loot ("Hot District"), the same for every server.
@@ -254,7 +386,7 @@ return table.freeze({
 			boost = 1.2,
 			x0 = 640,
 			x1 = 1300,
-			z0 = -500,
+			z0 = -1080,
 			z1 = 300,
 		}),
 		table.freeze({
@@ -266,6 +398,16 @@ return table.freeze({
 			x1 = 1300,
 			z0 = 300,
 			z1 = 900,
+		}),
+		table.freeze({
+			id = "sunset",
+			name = "Sunset Lane",
+			tier = 0, -- homes, no dumpsters
+			boost = 0,
+			x0 = -1300,
+			x1 = -640,
+			z0 = -1080,
+			z1 = -500,
 		}),
 	}),
 
@@ -326,6 +468,11 @@ return table.freeze({
 			table.freeze({ pos = v3(-666, 0, 500), zone = "Green", yaw = 90, pad = "wall" }),
 			table.freeze({ pos = v3(-1014, 0, 600), zone = "Green", yaw = 90, pad = "wall" }),
 			table.freeze({ pos = v3(944, 0, 500), zone = "Green", yaw = -90, pad = "wall" }),
+			-- Corporate Park, beside the office towers
+			table.freeze({ pos = v3(960, 0, -560), zone = "Green", yaw = 90, pad = "enclosure" }),
+			table.freeze({ pos = v3(1222, 0, -560), zone = "Green", yaw = -90, pad = "enclosure" }),
+			table.freeze({ pos = v3(960, 0, -850), zone = "Green", yaw = 90, pad = "enclosure" }),
+			table.freeze({ pos = v3(1222, 0, -850), zone = "Green", yaw = -90, pad = "enclosure" }),
 			-- Meridian yard: by the dock doors, the guard booth and the back fence
 			table.freeze({ pos = v3(-150, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),
 			table.freeze({ pos = v3(-80, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),

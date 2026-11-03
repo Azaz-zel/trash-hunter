@@ -22,7 +22,7 @@ local TABS = { "bag", "trunk", "shop", "book" }
 -- What the shop tab lists: "gear", "cars" or "robux" at a store counter or
 -- the R$ button; nil (everything) only with the Shop Anywhere pass.
 local storeFilter: string? = nil
-local STORE_TAB = { gear = "Hardware", cars = "Motors" }
+local STORE_TAB = { gear = "Hardware", cars = "Motors", house = "Realty" }
 local TAB_NAMES = { bag = "Bag", trunk = "Trunk", shop = "Shop", book = "Book" }
 
 type Action = { text: string, style: string, enabled: boolean, fn: () -> () }
@@ -231,6 +231,18 @@ local function renderBag(state: any)
 	for i, e in state.shelf do
 		itemCard(s, i, e.id, e.mutation, { selectable = { uid = e.uid, from = "shelf" } })
 	end
+	local atHome = player:GetAttribute("InOwnHouse") == true
+	local homeSlots = if state.houseLevel > 0 then Config.Houses[state.houseLevel].slots else 0
+	if state.houseLevel > 0 then
+		heading("House pedestals", 14, `{#state.home}/{homeSlots} · ♥ {state.likes}`)
+		if not atHome then
+			note("Stand inside your house on Sunset Lane to change the pedestals.", 15)
+		end
+		local h = grid(16, 150)
+		for i, e in state.home do
+			itemCard(h, i, e.id, e.mutation, { selectable = { uid = e.uid, from = "home" } })
+		end
+	end
 	if not inHideout then
 		note("Selling and displaying work at the Hideout.", 13)
 	end
@@ -238,6 +250,7 @@ local function renderBag(state: any)
 	local sel = selected
 	local bagEntry = sel and sel.from == "backpack" and find(state.backpack, sel.uid)
 	local shelfEntry = sel and sel.from == "shelf" and find(state.shelf, sel.uid)
+	local homeEntry = sel and sel.from == "home" and find(state.home, sel.uid)
 	if bagEntry then
 		local e = bagEntry
 		actions({
@@ -250,15 +263,25 @@ local function renderBag(state: any)
 					Store.action("sell", e.uid)
 				end,
 			},
-			{
-				text = "Display",
-				style = "secondary",
-				enabled = inHideout and #state.shelf < state.shelfSlots,
-				fn = function()
-					selected = nil
-					Store.action("display", e.uid)
-				end,
-			},
+			if atHome
+				then {
+					text = "Pedestal",
+					style = "secondary",
+					enabled = #state.home < homeSlots,
+					fn = function()
+						selected = nil
+						Store.action("homeDisplay", e.uid)
+					end,
+				}
+				else {
+					text = "Display",
+					style = "secondary",
+					enabled = inHideout and #state.shelf < state.shelfSlots,
+					fn = function()
+						selected = nil
+						Store.action("display", e.uid)
+					end,
+				},
 			{
 				text = "To trunk",
 				style = "secondary",
@@ -269,6 +292,19 @@ local function renderBag(state: any)
 				end,
 			},
 		}, `{Items.label(e.id, e.mutation)} · {Ui.money(Items.value(e.id, e.mutation))}`)
+	elseif homeEntry then
+		local e = homeEntry
+		actions({
+			{
+				text = "Take back",
+				style = "secondary",
+				enabled = atHome and #state.backpack < state.capacity,
+				fn = function()
+					selected = nil
+					Store.action("homeTake", e.uid)
+				end,
+			},
+		}, Items.label(e.id, e.mutation))
 	elseif shelfEntry then
 		local e = shelfEntry
 		actions({
@@ -497,6 +533,27 @@ local function renderRobux(state: any)
 	end
 end
 
+local function renderHouses(state: any)
+	heading("Sunset Lane homes", 2, Ui.money(state.cash))
+	note("Show off your best finds on pedestals. Visitors can like your house.", 3)
+	for i, house in Config.Houses do
+		local owned = state.houseLevel >= i
+		local isNext = state.houseLevel + 1 == i
+		local text = if owned then "Owned" elseif isNext then Ui.money(house.price) else "Locked"
+		shopRow(
+			3 + i,
+			house.name,
+			`{house.slots} pedestals`,
+			text,
+			"primary",
+			isNext and state.cash >= house.price,
+			function()
+				Store.action("buyHouse")
+			end
+		)
+	end
+end
+
 local function renderShop(state: any)
 	-- The server re-checks the store distance on every purchase.
 	local atCounter = storeFilter ~= nil or state.passes.shopanywhere == true
@@ -510,6 +567,9 @@ local function renderShop(state: any)
 	end
 	if shows("cars") then
 		renderCars(state, atCounter)
+	end
+	if storeFilter == "house" then
+		renderHouses(state)
 	end
 	if shows("robux") then
 		renderRobux(state)
@@ -717,11 +777,13 @@ end
 function Panels.start()
 	Store.on("openPanel", open)
 	Store.on("state", Panels.render)
-	player:GetAttributeChangedSignal("InHideout"):Connect(function()
-		if current then
-			Panels.render()
-		end
-	end)
+	for _, attr in { "InHideout", "InOwnHouse" } do
+		player:GetAttributeChangedSignal(attr):Connect(function()
+			if current then
+				Panels.render()
+			end
+		end)
+	end
 	ProximityPromptService.PromptTriggered:Connect(function(prompt)
 		if prompt.Name == "SellPrompt" then
 			open("bag")
@@ -747,7 +809,7 @@ function Panels.start()
 			local state = Store.get()
 			if
 				current == "shop"
-				and (storeFilter == "gear" or storeFilter == "cars")
+				and (storeFilter == "gear" or storeFilter == "cars" or storeFilter == "house")
 				and not (state and state.passes.shopanywhere)
 			then
 				local character = player.Character

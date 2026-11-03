@@ -1055,6 +1055,7 @@ local function dumpster(
 	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 	model:SetAttribute("Zone", spec.zone)
 	model:SetAttribute("District", if district then district.name else "Town Center")
+	model:SetAttribute("DistrictId", if district then district.id else "town")
 	model:SetAttribute("Tier", tier)
 	model:SetAttribute("DistrictBoost", if district then district.boost else 0)
 	model:SetAttribute("Tutorial", spec.tutorial == true)
@@ -2533,6 +2534,30 @@ end
 
 -- ─── entry points ──────────────────────────────────────────────────────────
 
+local STORE_LOOK = {
+	gear = {
+		w = 50,
+		wall = Color3.fromRGB(150, 70, 52),
+		material = M.Brick,
+		awning = Color3.fromRGB(176, 40, 32),
+		action = "Shop gear",
+	},
+	cars = {
+		w = 60,
+		wall = Color3.fromRGB(196, 200, 206),
+		material = M.Concrete,
+		awning = Color3.fromRGB(30, 80, 160),
+		action = "Browse cars",
+	},
+	house = {
+		w = 50,
+		wall = Color3.fromRGB(226, 218, 200),
+		material = M.Plaster,
+		awning = Color3.fromRGB(40, 92, 70),
+		action = "Browse homes",
+	},
+}
+
 local function buildStores(parent: Instance)
 	local folder = Instance.new("Folder")
 	folder.Name = "Stores"
@@ -2540,6 +2565,7 @@ local function buildStores(parent: Instance)
 	for id, store in Config.Stores do
 		local counterPos = store.counter
 		local isMotors = store.sells == "cars"
+		local look = STORE_LOOK[store.sells]
 		-- The storefront sits behind its counter; Hank's faces Main St (-Z), Maple Motors faces north.
 		local yaw = if isMotors then 180 else 0
 		local facing = CFrame.Angles(0, math.rad(yaw), 0)
@@ -2547,13 +2573,13 @@ local function buildStores(parent: Instance)
 		storefront(
 			folder,
 			shopCf,
-			if isMotors then 60 else 50,
+			look.w,
 			44,
 			22,
-			if isMotors then Color3.fromRGB(196, 200, 206) else Color3.fromRGB(150, 70, 52),
-			if isMotors then M.Concrete else M.Brick,
+			look.wall,
+			look.material,
 			string.upper(store.name),
-			if isMotors then Color3.fromRGB(30, 80, 160) else Color3.fromRGB(176, 40, 32)
+			look.awning
 		)
 		-- Counter out front under the awning, so the prompt is reachable from the sidewalk.
 		local counter = box(
@@ -2567,7 +2593,7 @@ local function buildStores(parent: Instance)
 		counter:SetAttribute("Store", id)
 		local prompt = Instance.new("ProximityPrompt")
 		prompt.Name = "StorePrompt"
-		prompt.ActionText = if isMotors then "Browse cars" else "Shop gear"
+		prompt.ActionText = look.action
 		prompt.ObjectText = store.name
 		prompt.HoldDuration = 0
 		prompt.MaxActivationDistance = store.range - 2
@@ -2633,6 +2659,9 @@ local kit = {
 }
 
 local stalls: { CFrame } = {}
+
+-- Housing builds homes with the same parts and palette as the rest of town.
+World.kit = kit
 
 function World.init()
 	local old = workspace:FindFirstChild("Town")
@@ -2741,7 +2770,7 @@ end
 local function updateHotDistrict()
 	local candidates = {}
 	for _, d in Config.Districts do
-		if d.id ~= "town" then
+		if d.id ~= "town" and d.tier > 0 then
 			table.insert(candidates, d.name)
 		end
 	end

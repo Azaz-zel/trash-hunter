@@ -11,6 +11,7 @@ local Router = require(script.Parent.Parent.Router)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local Avatar = require(script.Parent.Avatar)
+local Progress = require(script.Parent.Progress)
 
 local stations: { Model } = {}
 local assigned: { [Player]: Model } = {}
@@ -123,6 +124,7 @@ local function sell(player: Player, payload: any): (boolean, string?)
 		return false, "Nothing to sell."
 	end
 	profile.cash += earned
+	Progress.track(player, "earn", { amount = earned })
 	Data.advanceTutorial(profile, 1, player)
 	Data.push(player)
 	Router.send(player, "sold", { amount = earned, count = count })

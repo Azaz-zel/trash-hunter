@@ -1051,3 +1051,37 @@ Spec: `docs/superpowers/specs/2026-11-04-phase1-feel-navigation-design.md`.
     untuk peta penuh.
 -   Kartu lokasi muncul saat masuk distrik: nama, bintang loot, "HOT TODAY".
     Kartu merah "PRIVATE PROPERTY" saat masuk yard.
+
+# Lampiran G — Phase 2: Rumah, Quest, Streak, Izin Distrik
+
+## Rumah (Sunset Lane)
+-   Kompleks baru di barat daya peta, 10 kavling. Beli dan upgrade di counter
+    Maple Realty (toko fisik): Starter Home $6.000 (4 pedestal), Family Home
+    $25.000 (8), Collector's Villa $90.000 (12).
+-   Saat pemain online, rumahnya muncul di kavling kosong. Item dipajang di
+    pedestal sebagai model 3D, dengan jendela besar sehingga terlihat dari jalan.
+-   Pajang atau ambil item lewat tab Bag saat berdiri di dalam rumah.
+-   Pemain lain bisa Like di kotak surat (sekali per server). Jumlah like
+    tersimpan di profil.
+
+## Quest NPC
+-   Old Earl (Main St), Rosa (Maple Ave), Vic (Industrial Rd). Masing-masing
+    memberi 1 quest harian; isinya sama untuk semua pemain hari itu.
+-   Jenis quest: cari N tempat sampah, temukan item Rare+/Epic+, jual senilai $X,
+    cari di distrik tertentu, cari di yard Meridian. Hadiah $250–$1.200.
+-   Tracker quest ada di kiri atas, di bawah chip Cash/Backpack.
+
+## Login streak
+-   Hadiah harian: $100, 150, 200, 300, 400, 500, lalu $1.000 di hari ke-7
+    (setelah itu berulang). Kalau bolos sehari, streak kembali ke 1.
+
+## Izin distrik
+-   Maple Grove: cari 12 tempat sampah. Hillcrest: temukan 4 item Rare+.
+    Business District: total penjualan $5.000.
+-   Sebelum izin didapat, tempat sampah di distrik itu terkunci (abu-abu di
+    peta). Yard Meridian tidak butuh izin karena sudah dijaga satpam.
+
+## Distrik lebih besar
+-   Business District diperluas ke selatan: Corporate Park (4 gedung kantor,
+    Corporate Dr) dengan 4 tempat sampah baru.
+-   Jalan baru: Sunset Ln dan Corporate Dr.

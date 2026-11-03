@@ -11,6 +11,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Districts = require(Shared:WaitForChild("Districts"))
 local MapData = require(Shared:WaitForChild("MapData"))
+local Quests = require(Shared:WaitForChild("Quests"))
 local Ui = require(script.Parent.Parent.Ui)
 local Store = require(script.Parent.Parent.Store)
 
@@ -192,6 +193,17 @@ local function drawWorld(parent: Instance, scale: number, labels: boolean): Canv
 			6
 		)
 	end
+	for _, giver in Config.Quests.givers do
+		marker(
+			world,
+			scale,
+			giver.pos,
+			Color3.fromRGB(190, 120, 255),
+			if labels then 11 else 7,
+			if labels then giver.name else nil,
+			6
+		)
+	end
 	-- From config, not workspace: streaming leaves far dumpsters unloaded.
 	local dots: { Frame } = {}
 	for i, d in Config.World.Dumpsters do
@@ -232,11 +244,27 @@ local function drawWorld(parent: Instance, scale: number, labels: boolean): Canv
 	return { world = world, scale = scale, dots = dots, arrow = arrow }
 end
 
+-- District id per dumpster, for permit locks.
+local dumpsterDistrict: { string } = {}
+for i, d in Config.World.Dumpsters do
+	local district = Districts.at(d.pos)
+	dumpsterDistrict[i] = if district then district.id else "town"
+end
+
 local function refreshDots(canvas: Canvas)
 	local now = os.clock()
+	local state = Store.get()
 	for i, dot in canvas.dots do
 		local ready = (cooling[i] or 0) <= now
-		dot.BackgroundTransparency = if ready then 0 else 0.75
+		local locked = state ~= nil and not Quests.permitted(state.stats, dumpsterDistrict[i])
+		dot.BackgroundTransparency = if ready and not locked then 0 else 0.75
+		if locked then
+			dot.BackgroundColor3 = Color3.fromRGB(150, 150, 156)
+		elseif Config.World.Dumpsters[i].zone == "Red" then
+			dot.BackgroundColor3 = Color3.fromRGB(255, 120, 110)
+		else
+			dot.BackgroundColor3 = Color3.fromRGB(120, 230, 140)
+		end
 	end
 end
 
@@ -309,14 +337,18 @@ local function build()
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = fullFrame,
 	})
-	Ui.label("Green: dumpster ready · Red: guarded · Blue: store · Yellow: Hideout", 13, {
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -96, 0, 18),
-		Size = UDim2.new(0.6, -96, 0, 18),
-		TextColor3 = C.muted,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Parent = fullFrame,
-	})
+	Ui.label(
+		"Green: ready · Gray: permit needed · Red: guarded · Blue: store · Purple: quests",
+		13,
+		{
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -96, 0, 18),
+			Size = UDim2.new(0.6, -96, 0, 18),
+			TextColor3 = C.muted,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			Parent = fullFrame,
+		}
+	)
 	local close = Ui.button("Close", "secondary", UDim2.fromOffset(72, 36), function()
 		fullFrame.Visible = false
 	end)
@@ -435,7 +467,7 @@ function MapUi.start()
 			if canvas then
 				local px, py = toPixel(canvas.scale, pos.X, pos.Z)
 				canvas.arrow.Position = UDim2.fromOffset(px, py)
-				canvas.arrow.Rotation = 180 - heading
+				canvas.arrow.Rotation = heading -- map up is +Z, clockwise is +X
 			end
 		end
 		local px, py = toPixel(mini.scale, pos.X, pos.Z)
@@ -458,7 +490,15 @@ function MapUi.start()
 		local d = Districts.at(pos)
 		if d and d.id ~= lastDistrict then
 			lastDistrict = d.id
-			if not red then
+			local state = Store.get()
+			local gate = Config.Gates[d.id]
+			if red then
+				return -- the private-property card already showed
+			elseif d.tier == 0 then
+				showCard(d.name, "Homes for sale at Maple Realty", Color3.fromRGB(196, 120, 60))
+			elseif gate and state and not Quests.permitted(state.stats, d.id) then
+				showCard(d.name, `Permit needed: {gate.text}`, Color3.fromRGB(150, 150, 156))
+			else
 				local stars = string.rep("★", d.tier)
 					.. string.rep("☆", Districts.MAX_TIER - d.tier)
 				local hot = workspace:GetAttribute("HotDistrict") == d.name

@@ -25,6 +25,20 @@ export type PlayerProfile = {
 	sinceEpic: number, -- searches since the last Epic+ pick (pity)
 	sinceLegendary: number, -- searches since the last Legendary+ pick (pity)
 	receipts: { string }, -- recent Robux purchase ids, newest last
+	houseLevel: number, -- 0 = no house, else index into Config.Houses
+	home: { BagItem }, -- items on the house pedestals
+	likes: number, -- likes other players gave the house
+	stats: { [string]: number }, -- searches, rares, earned (only grow; permits read them)
+	streak: number, -- consecutive login days
+	lastLogin: number, -- UTC day number of the last streak reward
+	quests: { [string]: Quest }, -- by giver id; only today's entries matter
+}
+
+export type Quest = {
+	day: number,
+	q: number, -- index into Config.Quests.pool
+	progress: number,
+	claimed: boolean,
 }
 
 -- Snapshot pushed to the owning client after every change.
@@ -44,6 +58,12 @@ export type State = {
 	trunk: { BagItem },
 	trunkCapacity: number,
 	passes: { [string]: boolean },
+	houseLevel: number,
+	home: { BagItem },
+	likes: number,
+	stats: { [string]: number },
+	streak: number,
+	quests: { [string]: Quest },
 }
 
 return nil

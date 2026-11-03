@@ -95,6 +95,30 @@ local function reconcile(raw: any): Profile
 			end
 		end
 	end
+	local stats: { [string]: number } = {}
+	for _, stat in { "searches", "rares", "earned" } do
+		local value = typeof(data.stats) == "table" and tonumber(data.stats[stat]) or 0
+		stats[stat] = math.max(math.floor(value or 0), 0)
+	end
+	local quests: { [string]: Types.Quest } = {}
+	if typeof(data.quests) == "table" then
+		for _, giver in Config.Quests.givers do
+			local q = data.quests[giver.id]
+			if
+				typeof(q) == "table"
+				and tonumber(q.day)
+				and Config.Quests.pool[tonumber(q.q) or 0]
+			then
+				quests[giver.id] = {
+					day = math.floor(tonumber(q.day) :: number),
+					q = math.floor(tonumber(q.q) :: number),
+					progress = math.max(tonumber(q.progress) or 0, 0),
+					claimed = q.claimed == true,
+				}
+			end
+		end
+	end
+	local houseLevel = math.clamp(math.floor(tonumber(data.houseLevel) or 0), 0, #Config.Houses)
 	return {
 		version = VERSION,
 		cash = math.max(math.floor(tonumber(data.cash) or 0), 0),
@@ -116,6 +140,13 @@ local function reconcile(raw: any): Profile
 		receipts = receipts,
 		sinceEpic = math.max(math.floor(tonumber(data.sinceEpic) or 0), 0),
 		sinceLegendary = math.max(math.floor(tonumber(data.sinceLegendary) or 0), 0),
+		houseLevel = houseLevel,
+		home = sanitizeBag(data.home, Config.Houses[#Config.Houses].slots),
+		likes = math.max(math.floor(tonumber(data.likes) or 0), 0),
+		stats = stats,
+		streak = math.max(math.floor(tonumber(data.streak) or 0), 0),
+		lastLogin = math.floor(tonumber(data.lastLogin) or 0),
+		quests = quests,
 	}
 end
 
@@ -331,6 +362,12 @@ function Data.snapshot(profile: Profile, player: Player?): Types.State
 		trunk = profile.trunk,
 		trunkCapacity = Data.trunkCapacity(profile),
 		passes = passes,
+		houseLevel = profile.houseLevel,
+		home = profile.home,
+		likes = profile.likes,
+		stats = profile.stats,
+		streak = profile.streak,
+		quests = profile.quests,
 	}
 end
 
@@ -392,6 +429,20 @@ function Data.init()
 end
 
 function Data.start()
+	if RunService:IsStudio() then
+		-- Playtest helper (Studio only, server-side bindable): set a player's cash.
+		local grant = Instance.new("BindableFunction")
+		grant.Name = "StudioSetCash"
+		grant.OnInvoke = function(player: Player, cash: number)
+			local profile = profiles[player]
+			if profile then
+				profile.cash = cash
+				Data.push(player)
+			end
+			return profile ~= nil
+		end
+		grant.Parent = game:GetService("ServerStorage")
+	end
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	for _, player in Players:GetPlayers() do
 		task.spawn(onPlayerAdded, player)

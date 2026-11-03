@@ -1185,6 +1185,56 @@ local function buildTownInfill(k: Kit, parent: Instance)
 	end
 end
 
+-- ─── Sunset Lane: player house lots (Housing builds the homes) ─────────────
+
+local function buildSunset(k: Kit, parent: Instance)
+	local folder = Instance.new("Folder")
+	folder.Name = "SunsetLane"
+	folder.Parent = parent
+	welcomeSign(
+		k,
+		folder,
+		at(-1262, -606, 90),
+		"SUNSET LANE",
+		"Homes by Maple Realty",
+		Color3.fromRGB(196, 120, 60)
+	)
+	-- Front-lawn trees in the gaps between lots, and a row behind each side
+	-- (lots reach about 60 studs back from the sidewalk).
+	for _, x in { -1240, -1140, -1040, -940 } do
+		for _, side in { -1, 1 } do
+			k.tree(folder, Vector3.new(x, 0, -640 + side * 36), 1)
+		end
+	end
+	k.tree(folder, Vector3.new(-840, 0, -676), 1)
+	for x = -1240, -740, 100 do
+		k.tree(folder, Vector3.new(x + 50, 0, -514), 1.2)
+		k.tree(folder, Vector3.new(x + 50, 0, -770), 1.2)
+	end
+end
+
+-- ─── Corporate Park: southern half of the Business District ────────────────
+
+local function buildCorporatePark(k: Kit, parent: Instance)
+	local M = k.M
+	local folder = Instance.new("Folder")
+	folder.Name = "CorporatePark"
+	folder.Parent = parent
+	local paving = Color3.fromRGB(168, 164, 156)
+	slab(k, folder, 787, 1013, -673, -520, paving, M.Concrete)
+	slab(k, folder, 1067, 1240, -673, -520, paving, M.Concrete)
+	slab(k, folder, 787, 1013, -900, -727, paving, M.Concrete)
+	slab(k, folder, 1067, 1240, -900, -727, paving, M.Concrete)
+	tower(k, folder, at(880, -600), 80, 60, 132, Color3.fromRGB(64, 96, 118), "PINNACLE TECH")
+	tower(k, folder, at(1150, -600), 70, 56, 96, Color3.fromRGB(78, 98, 120), "BAYVIEW MEDIA")
+	tower(k, folder, at(880, -810, 180), 90, 60, 84, Color3.fromRGB(70, 90, 104), "CORPORATE PLAZA")
+	tower(k, folder, at(1150, -810, 180), 70, 60, 168, Color3.fromRGB(58, 84, 110), "ATLAS HQ")
+	for _, x in { 700, 1100 } do
+		k.bench(folder, at(x, -676))
+	end
+	streetTrees(k, folder, "X", -700, 680, 1230, 60, { 760, 1040 })
+end
+
 -- ─── tree belt around the map ──────────────────────────────────────────────
 
 local function buildTreeBelt(k: Kit, parent: Instance)
@@ -1223,6 +1273,8 @@ function CityDistricts.build(parent: Instance, k: Kit): { CFrame }
 	local stalls = buildBusiness(k, parent)
 	buildIndustrial(k, parent)
 	buildTownInfill(k, parent)
+	buildSunset(k, parent)
+	buildCorporatePark(k, parent)
 	buildTreeBelt(k, parent)
 	return stalls
 end

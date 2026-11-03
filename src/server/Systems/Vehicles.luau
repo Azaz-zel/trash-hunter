@@ -14,6 +14,7 @@ local Items = require(Shared.Items)
 local Router = require(script.Parent.Parent.Router)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
+local Progress = require(script.Parent.Progress)
 
 local CAR_ASSET = 6418230807 -- Roblox-owned drivable "Police Car" from the vehicle kit
 local CAR = Config.CAR
@@ -283,6 +284,7 @@ local function sellTrunk(player: Player): (boolean, string?)
 	end
 	table.clear(profile.trunk)
 	profile.cash += earned
+	Progress.track(player, "earn", { amount = earned })
 	Data.advanceTutorial(profile, 1, player)
 	Data.push(player)
 	Router.send(player, "sold", { amount = earned, count = count })
