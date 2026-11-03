@@ -805,3 +805,30 @@ polisi dibangun setelah fondasi itu terbukti.
 -   Paid Random Items — https://devforum.roblox.com/t/clarifying-requirements-for-paid-random-items/4654622
 -   Content maturity — https://create.roblox.com/docs/production/promotion/content-maturity
 -   Age data — https://about.roblox.com/newsroom/2026/02/moving-beyond-self-reported-age
+
+------------------------------------------------------------------------
+
+# Lampiran B — Catatan Implementasi Prototipe (2026-11-03)
+
+Perbedaan antara prototipe yang dibangun dan teks GDD di atas:
+
+-   **Search dimulai dengan tap, bukan hold.** Pemain menekan prompt
+    sekali, lalu karakter menggali otomatis selama 2 detik sambil bar
+    dig layer berjalan. Alasannya: di mobile, menahan prompt sambil
+    menekan tombol DIG membutuhkan dua jempol.
+-   **Dig deeper menukar temuan.** Barang yang sedang ditampilkan dibuang,
+    lalu roll baru dilakukan dengan peluang lebih baik. Tanpa aturan ini,
+    Dig deeper selalu menjadi pilihan terbaik dan tidak ada keputusan.
+-   **Terlihat penjaga tanpa menggali** juga menaikkan suspicion, tetapi
+    lebih lambat (10/detik, dibanding 25/detik saat menggali).
+-   **Collection book mencatat barang saat reveal**, bukan saat diambil.
+    Barang yang ditinggal atau ditukar lewat Dig deeper tetap dihitung
+    sudah ditemukan.
+-   **Reset karakter saat dikejar** diperlakukan sama dengan tertangkap.
+-   **Peta dibangun dari kode** (`World.luau`) saat server mulai, sehingga
+    peta ikut tersimpan di git.
+-   **Rak pajangan:** Hideout punya 8 rak, satu per pemain. Atur Max
+    Players server ke 8.
+-   **Audio** memakai aset Creator Store berlisensi dari ProSoundEffects
+    dan APM Music. Musik tegang saat dikejar belum ada; yang ada baru
+    peluit.
