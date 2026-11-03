@@ -8,7 +8,6 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Items = require(Shared:WaitForChild("Items"))
-local Districts = require(Shared:WaitForChild("Districts"))
 local Ui = require(script.Parent.Parent.Ui)
 local Store = require(script.Parent.Parent.Store)
 
@@ -30,12 +29,8 @@ local toastHolder: Frame
 local announceLabel: TextLabel
 local busted: Frame
 local bustedBody: TextLabel
-local districtLabel: TextLabel
-local districtBanner: Frame
-local districtTitle: TextLabel
-local districtSub: TextLabel
 local homeButton: TextButton
-local hotLabel: TextLabel
+local shopButton: TextButton
 
 local function pill(name: string, caption: string, order: number): TextLabel
 	local frame = Ui.panel({
@@ -111,6 +106,7 @@ local function renderState()
 	end
 	lastCash, lastBag = state.cash, #state.backpack
 	homeButton.Visible = state.passes.homerun == true
+	shopButton.Visible = state.passes.shopanywhere == true
 	bagLabel.Text = `{#state.backpack}/{state.capacity}`
 	bagLabel.TextColor3 = if #state.backpack >= state.capacity then C.accent else C.cream
 end
@@ -166,47 +162,6 @@ local function build()
 	cashLabel.TextColor3 = C.accent
 	bagLabel = pill("Bag", "Backpack", 2)
 	bagLabel.Parent.Parent = stats
-
-	-- Where am I, and how good is the trash here.
-	districtLabel = Ui.label("", 14, {
-		Name = "District",
-		Position = UDim2.fromOffset(16, 74),
-		Size = UDim2.fromOffset(300, 18),
-		TextColor3 = C.muted,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextStrokeTransparency = 0.6,
-		Parent = gui,
-	})
-	hotLabel = Ui.label("", 14, {
-		Name = "HotDistrict",
-		Position = UDim2.fromOffset(16, 92),
-		Size = UDim2.fromOffset(320, 18),
-		TextColor3 = C.accent,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextStrokeTransparency = 0.6,
-		Parent = gui,
-	})
-	districtBanner = Ui.new("CanvasGroup", {
-		Name = "DistrictBanner",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 92),
-		Size = UDim2.fromOffset(360, 64),
-		BackgroundTransparency = 1,
-		GroupTransparency = 1,
-		Parent = gui,
-	})
-	districtTitle = Ui.label("", 30, {
-		Size = UDim2.new(1, 0, 0, 34),
-		TextStrokeTransparency = 0.5,
-		Parent = districtBanner,
-	})
-	districtSub = Ui.label("", 15, {
-		Position = UDim2.fromOffset(0, 36),
-		Size = UDim2.new(1, 0, 0, 20),
-		TextColor3 = C.accent,
-		TextStrokeTransparency = 0.6,
-		Parent = districtBanner,
-	})
 
 	suspicionFrame = Ui.panel({
 		Name = "Suspicion",
@@ -304,9 +259,10 @@ local function build()
 	local side = Ui.new("Frame", {
 		Name = "Side",
 		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -16, 0.5, 0),
-		Size = UDim2.fromOffset(72, 330),
+		-- Below the minimap (MapUi, 168px at top right).
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -16, 0, 196),
+		Size = UDim2.fromOffset(72, 360),
 		Parent = gui,
 	}, { Ui.list(Enum.FillDirection.Vertical, 8, Enum.HorizontalAlignment.Right) })
 	local function sideButton(text: string, order: number, fn: () -> ()): TextButton
@@ -319,9 +275,11 @@ local function build()
 	sideButton("Bag", 1, function()
 		Store.emit("openPanel", "bag")
 	end)
-	sideButton("Shop", 2, function()
+	-- Without the Shop Anywhere pass, buying happens at the store counters.
+	shopButton = sideButton("Shop", 2, function()
 		Store.emit("openPanel", "shop")
 	end)
+	shopButton.Visible = false
 	sideButton("Book", 3, function()
 		Store.emit("openPanel", "book")
 	end)
@@ -332,6 +290,9 @@ local function build()
 		Store.action("homeRun")
 	end)
 	homeButton.Visible = false
+	sideButton("R$", 6, function()
+		Store.emit("openPanel", "robux")
+	end)
 
 	busted = Ui.new("Frame", {
 		Name = "Busted",
@@ -440,13 +401,6 @@ function Hud.start()
 		Store.play(Config.Sounds.RARE, 0.6)
 		toast(`Collection reward: {payload.found} items found, +{Ui.money(payload.cash)}`, C.accent)
 	end)
-	local function renderHot()
-		local hot = workspace:GetAttribute("HotDistrict")
-		hotLabel.Text = if hot then `Hot today: {hot} (better loot)` else ""
-	end
-	workspace:GetAttributeChangedSignal("HotDistrict"):Connect(renderHot)
-	renderHot()
-
 	for _, attr in { "Suspicion", "Chased", "InRedZone" } do
 		player:GetAttributeChangedSignal(attr):Connect(renderSuspicion)
 	end
@@ -464,34 +418,6 @@ function Hud.start()
 	end)
 	renderState()
 	renderSuspicion()
-
-	-- District check at 2 Hz; the banner fades in and out on change.
-	task.spawn(function()
-		local current: string? = nil
-		local token = 0
-		while true do
-			task.wait(0.5)
-			local character = player.Character
-			local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-			local d = root and Districts.at(root.Position)
-			if d and d.id ~= current then
-				current = d.id
-				local stars = string.rep("★", d.tier)
-					.. string.rep("☆", Districts.MAX_TIER - d.tier)
-				districtLabel.Text = `{d.name}  ·  Loot {stars}`
-				districtTitle.Text = string.upper(d.name)
-				districtSub.Text = `Loot tier {d.tier} of {Districts.MAX_TIER}`
-				token += 1
-				local mine = token
-				Ui.tween(districtBanner, 0.4, { GroupTransparency = 0 })
-				task.delay(2.8, function()
-					if token == mine then
-						Ui.tween(districtBanner, 0.6, { GroupTransparency = 1 })
-					end
-				end)
-			end
-		end
-	end)
 end
 
 return Hud

@@ -72,7 +72,25 @@ function Loot.selfCheck()
 		return hits / n
 	end
 	local base, boosted = rarePlusShare(0), rarePlusShare(Config.Boost.RED_ZONE)
-	assert(base > 0.12 and base < 0.18, `Rare+ share at boost 0 is {base}, expected about 0.15`)
+	assert(base > 0.10 and base < 0.16, `Rare+ share at boost 0 is {base}, expected about 0.13`)
+	-- Legendary-or-better per search when the player picks the best of 3 bags
+	-- (spec 2026-11-04): about 0.4% in Town Center, 2.5% in the Industrial
+	-- Park, 6% in the Meridian yard. Computed exactly from the weights.
+	local function legendaryPerSearch(boost: number): number
+		local total, top = 0, 0
+		for i, w in Loot.weights(boost) do
+			total += w
+			if i >= 5 then
+				top += w
+			end
+		end
+		return 1 - (1 - top / total) ^ 3
+	end
+	local town, industrial, yard =
+		legendaryPerSearch(0), legendaryPerSearch(1.6), legendaryPerSearch(2.6)
+	assert(town > 0.002 and town < 0.006, `town legendary/search {town}`)
+	assert(industrial > 0.0125 and industrial < 0.0375, `industrial legendary/search {industrial}`)
+	assert(yard > 0.03 and yard < 0.09, `yard legendary/search {yard}`)
 	assert(boosted > base * 1.5, `boost does not raise Rare+ odds ({base} -> {boosted})`)
 	local forced = Loot.roll(rng, 0, 3)
 	assert(forced.rarity == 3 and Items.ById[forced.itemId].rarity == 3, "forced rarity ignored")

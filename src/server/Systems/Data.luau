@@ -114,6 +114,8 @@ local function reconcile(raw: any): Profile
 		trunk = sanitizeBag(data.trunk, 40),
 		milestones = math.clamp(math.floor(tonumber(data.milestones) or 0), 0, #Config.Milestones),
 		receipts = receipts,
+		sinceEpic = math.max(math.floor(tonumber(data.sinceEpic) or 0), 0),
+		sinceLegendary = math.max(math.floor(tonumber(data.sinceLegendary) or 0), 0),
 	}
 end
 

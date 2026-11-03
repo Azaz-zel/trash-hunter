@@ -14,6 +14,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Districts = require(ReplicatedStorage.Shared.Districts)
+local MapData = require(ReplicatedStorage.Shared.MapData)
 local CityDistricts = require(script.Parent.Parent.CityDistricts)
 
 local W = Config.World
@@ -408,27 +409,7 @@ end
 
 type Road = { axis: string, at: number, from: number, to: number }
 
-local ROADS: { Road } = {
-	{ axis = "X", at = 0, from = -1240, to = 1240 }, -- Main St
-	{ axis = "X", at = 300, from = -1240, to = 1240 }, -- Industrial Rd
-	{ axis = "X", at = -240, from = -1240, to = 1240 }, -- Maple Ave
-	{ axis = "X", at = 700, from = -1240, to = 1240 }, -- Rail Rd (Industrial Park)
-	{ axis = "X", at = -120, from = -1240, to = -640 }, -- Elm St (Eastside)
-	{ axis = "X", at = -120, from = 640, to = 1240 }, -- Commerce Ave (Business District)
-	{ axis = "X", at = -640, from = -620, to = 620 }, -- Hillcrest Dr
-	{ axis = "X", at = -880, from = -620, to = 620 }, -- Ridge Ln
-	{ axis = "Z", at = -400, from = -480, to = 300 },
-	{ axis = "Z", at = -130, from = -480, to = 300 },
-	{ axis = "Z", at = 150, from = -480, to = 300 },
-	{ axis = "Z", at = 420, from = -480, to = 300 },
-	{ axis = "Z", at = -980, from = -480, to = 300 }, -- Eastside
-	{ axis = "Z", at = -700, from = -480, to = 300 },
-	{ axis = "Z", at = 760, from = -480, to = 300 }, -- Business District
-	{ axis = "Z", at = 1040, from = -480, to = 300 },
-	{ axis = "Z", at = 0, from = -900, to = -240 }, -- Hillcrest Blvd
-	{ axis = "Z", at = -560, from = 300, to = 820 }, -- Industrial Park
-	{ axis = "Z", at = 560, from = 300, to = 820 },
-}
+local ROADS: { Road } = MapData.ROADS :: any
 
 local function crossings(road: Road): { number }
 	local out = {}
@@ -487,6 +468,32 @@ local function buildRoad(parent: Instance, road: Road)
 	local cuts = crossings(road)
 	local half = ROAD_W / 2 + WALK_W
 	for _, s in spans(road.from, road.to, cuts, half) do
+		-- Raised concrete curb between road and sidewalk.
+		for _, side in { -1, 1 } do
+			local cf, len = alongCF(road, s[1], s[2], side * (ROAD_W / 2 + 0.3), 0.45)
+			part(parent, {
+				Name = "Curb",
+				Size = Vector3.new(len, 0.9, 0.6),
+				CFrame = cf,
+				Color = Color3.fromRGB(196, 194, 188),
+				Material = M.Concrete,
+			})
+		end
+		-- A manhole cover every so often in the right lane.
+		local along = s[1] + 30
+		while along < s[2] - 30 do
+			local cf = alongCF(road, along - 1, along + 1, 6, ROAD_TOP + 0.02)
+			part(parent, {
+				Name = "Manhole",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(0.05, 3.2, 3.2),
+				CFrame = cf * CFrame.Angles(0, 0, math.rad(90)),
+				Color = Color3.fromRGB(70, 70, 72),
+				Material = M.DiamondPlate,
+				CanCollide = false,
+			})
+			along += 140
+		end
 		for _, z in { -0.35, 0.35 } do
 			local cf, len = alongCF(road, s[1] + 2, s[2] - 2, z, ROAD_TOP + 0.01)
 			part(parent, {
@@ -587,67 +594,137 @@ local function storefront(
 )
 	local model = Instance.new("Model")
 	model.Name = "Shop"
-	box(model, "Walls", cf, Vector3.new(w, h, d), wall, material)
+	local height = math.max(h, 22) -- two storeys: shop below, apartment above
+	box(model, "Walls", cf, Vector3.new(w, height, d), wall, material)
+	local front = cf * CFrame.new(0, 0, -d / 2 - 0.1)
+	local trim = wall:Lerp(Color3.fromRGB(240, 236, 226), 0.55)
+	-- Pilasters at both edges and a cornice on top.
+	for _, x in { -w / 2 + 0.6, w / 2 - 0.6 } do
+		box(
+			model,
+			"Pilaster",
+			front * CFrame.new(x, 0, -0.3),
+			Vector3.new(1.4, height, 0.8),
+			trim,
+			material
+		)
+	end
+	box(
+		model,
+		"Cornice",
+		front * CFrame.new(0, height, -0.4),
+		Vector3.new(w + 0.8, 1.2, 1.4),
+		trim,
+		M.Concrete
+	)
 	box(
 		model,
 		"Parapet",
-		cf * CFrame.new(0, h, -d / 2 + 0.6),
-		Vector3.new(w, 2.4, 1.2),
+		cf * CFrame.new(0, height + 1.2, -d / 2 + 0.6),
+		Vector3.new(w, 1.6, 1.2),
 		wall,
 		material
 	)
-	local front = cf * CFrame.new(0, 0, -d / 2 - 0.1)
+	-- Ground floor: lit display windows either side of a recessed door.
+	box(
+		model,
+		"Bulkhead",
+		front * CFrame.new(0, 0, -0.15),
+		Vector3.new(w - 3, 1.6, 0.4),
+		trim,
+		M.Concrete
+	)
 	local glass = box(
 		model,
-		"Storefront",
-		front * CFrame.new(0, 1.5, 0),
-		Vector3.new(w - 4, 9, 0.3),
+		"Display",
+		front * CFrame.new(0, 1.6, 0),
+		Vector3.new(w - 3, 7.4, 0.25),
 		C.glass,
 		M.Glass
 	)
-	glass.Transparency = 0.25
-	glass.Reflectance = 0.2
+	glass.Transparency = 0.35
+	glass.Reflectance = 0.25
 	box(
 		model,
 		"Door",
-		front * CFrame.new(w / 4, 0.2, -0.2),
-		Vector3.new(4, 8, 0.2),
+		front * CFrame.new(w / 4, 0, 0.8),
+		Vector3.new(4, 8.6, 0.3),
 		C.darkMetal,
 		M.Metal
 	)
 	local inside = box(
 		model,
 		"Interior",
-		front * CFrame.new(0, 1.5, 2),
-		Vector3.new(w - 6, 9, 0.2),
-		Color3.fromRGB(230, 220, 196)
+		front * CFrame.new(0, 0.6, 2.5),
+		Vector3.new(w - 5, 9, 0.2),
+		Color3.fromRGB(236, 226, 204)
 	)
 	light(inside, "SurfaceLight", {
 		Face = Enum.NormalId.Front,
-		Range = 10,
-		Brightness = 0.8,
-		Color = Color3.fromRGB(255, 236, 210),
+		Range = 12,
+		Brightness = 1,
+		Color = Color3.fromRGB(255, 232, 200),
 	})
-	wedge(
-		model,
-		"Awning",
-		front * CFrame.new(0, 12, -2) * CFrame.Angles(0, math.rad(180), 0),
-		Vector3.new(w - 2, 2, 4),
-		awning,
-		M.Fabric
-	)
+	for i = 0, 2 do
+		box(
+			model,
+			"ShelfUnit",
+			front * CFrame.new(-w / 2 + 4 + i * ((w - 8) / 2), 0.4, 2),
+			Vector3.new(2.5, 5, 1),
+			Color3.fromRGB(150 + i * 20, 110, 90)
+		)
+	end
+	-- Striped canvas awning and a sign band.
+	local stripes = math.max(4, math.floor((w - 2) / 3))
+	local stripeW = (w - 2) / stripes
+	for i = 0, stripes - 1 do
+		wedge(
+			model,
+			"Awning",
+			front
+				* CFrame.new(-w / 2 + 1 + stripeW * (i + 0.5), 10.4, -2)
+				* CFrame.Angles(0, math.rad(180), 0),
+			Vector3.new(stripeW, 1.8, 4),
+			if i % 2 == 0 then awning else Color3.fromRGB(240, 236, 226),
+			M.Fabric
+		)
+	end
 	local board = box(
 		model,
 		"SignBoard",
-		front * CFrame.new(0, 14, -0.1),
-		Vector3.new(w - 6, 3.6, 0.4),
+		front * CFrame.new(0, 11.6, -0.2),
+		Vector3.new(w - 4, 2.6, 0.4),
 		C.ink
 	)
 	sign(board, Enum.NormalId.Front, name, C.ink, Color3.fromRGB(250, 240, 220))
+	-- Projecting blade sign, readable from down the street.
+	box(
+		model,
+		"BladeArm",
+		front * CFrame.new(-w / 2 + 2.5, 15.5, -1.2),
+		Vector3.new(0.2, 0.2, 2.6),
+		C.darkMetal,
+		M.Metal
+	)
+	local blade = box(
+		model,
+		"BladeSign",
+		front * CFrame.new(-w / 2 + 2.5, 13.2, -2.2),
+		Vector3.new(0.3, 4, 2.4),
+		awning
+	)
+	sign(blade, Enum.NormalId.Left, name, awning, C.white)
+	sign(blade, Enum.NormalId.Right, name, awning, C.white)
+	-- Upper floor: a row of sash windows.
+	local count = math.max(2, math.floor(w / 9))
+	for i = 1, count do
+		local x = -w / 2 + i * (w / (count + 1))
+		window(model, front * CFrame.new(x, 14, -0.1), 3.6, 4.4)
+	end
 	box(
 		model,
 		"BackDoor",
-		cf * CFrame.new(-w / 4, 0.2, d / 2 + 0.1),
+		cf * CFrame.new(-w / 4, 0, d / 2 + 0.1),
 		Vector3.new(4, 8, 0.2),
 		C.darkMetal,
 		M.Metal
@@ -655,7 +732,7 @@ local function storefront(
 	box(
 		model,
 		"RoofAC",
-		cf * CFrame.new(rng:NextNumber(-w / 4, w / 4), h, rng:NextNumber(0, d / 4)),
+		cf * CFrame.new(rng:NextNumber(-w / 4, w / 4), height, rng:NextNumber(0, d / 4)),
 		Vector3.new(6, 3, 5),
 		C.concrete,
 		M.Metal
@@ -815,7 +892,13 @@ end
 
 local function dumpster(
 	parent: Instance,
-	spec: { pos: Vector3, zone: string, tutorial: boolean?, yaw: number? }
+	spec: {
+		pos: Vector3,
+		zone: string,
+		tutorial: boolean?,
+		yaw: number?,
+		pad: string?,
+	}
 ): Model
 	local model = Instance.new("Model")
 	model.Name = if spec.tutorial then "TutorialDumpster" else "Dumpster"
@@ -823,6 +906,46 @@ local function dumpster(
 	local base = CFrame.new(spec.pos + Vector3.new(0, ROAD_TOP, 0))
 		* CFrame.Angles(0, math.rad(spec.yaw or 0), 0)
 	local steel = if private then C.dumpsterBlue else C.dumpsterGreen
+
+	-- Concrete pad, and a three-sided block pen when the spec asks for one.
+	-- The dumpster's open front is local -Z; the pen closes the back and sides.
+	box(
+		model,
+		"Pad",
+		base * CFrame.new(0, -0.15, 1),
+		Vector3.new(12, 0.3, 10),
+		C.concreteDark,
+		M.Concrete
+	)
+	if spec.pad == "enclosure" then
+		local block = Color3.fromRGB(176, 170, 160)
+		box(
+			model,
+			"PenBack",
+			base * CFrame.new(0, 0, 4.4),
+			Vector3.new(12, 6.5, 0.8),
+			block,
+			M.Brick
+		)
+		for _, x in { -5.6, 5.6 } do
+			box(
+				model,
+				"PenSide",
+				base * CFrame.new(x, 0, 0.5),
+				Vector3.new(0.8, 6.5, 8.6),
+				block,
+				M.Brick
+			)
+		end
+		box(
+			model,
+			"PenGate",
+			base * CFrame.new(-5.9, 0, -4.6) * CFrame.Angles(0, math.rad(-70), 0),
+			Vector3.new(0.3, 5.5, 5),
+			C.metal,
+			M.CorrodedMetal
+		)
+	end
 
 	local body =
 		box(model, "Body", base * CFrame.new(0, 0.6, 0), Vector3.new(8, 5, 6), steel, M.Metal)
@@ -1140,30 +1263,118 @@ local function buildHideout(parent: Instance)
 	sellPrompt.RequiresLineOfSight = false
 	sellPrompt.Parent = counter
 
-	local shop = box(
+	-- Hideout dressing: OPEN sign, pegboard, TV, floor lines, a tow truck out front.
+	local openSign = box(
 		folder,
-		"UpgradeShop",
-		CFrame.new(W.SHOP_POINT + Vector3.new(0, ROAD_TOP + 0.5, 0)),
-		Vector3.new(10, 3.6, 3),
-		Color3.fromRGB(60, 70, 84),
+		"OpenSign",
+		front * CFrame.new(20, 9, -0.7),
+		Vector3.new(6, 2, 0.3),
+		Color3.fromRGB(255, 70, 90),
+		M.Neon
+	)
+	sign(openSign, Enum.NormalId.Front, "OPEN", Color3.fromRGB(255, 70, 90), C.white, true)
+	light(
+		openSign,
+		"PointLight",
+		{ Range = 12, Brightness = 1.2, Color = Color3.fromRGB(255, 90, 110) }
+	)
+	box(
+		folder,
+		"Pegboard",
+		base * CFrame.new(18, 3.5, d / 2 - 1.2),
+		Vector3.new(16, 7, 0.3),
+		Color3.fromRGB(196, 168, 120),
+		M.WoodPlanks
+	)
+	for i = 0, 5 do
+		box(
+			folder,
+			"HangingTool",
+			base * CFrame.new(11 + i * 2.6, 6.5, d / 2 - 1.5),
+			Vector3.new(0.4, 2.4, 0.2),
+			C.metal,
+			M.Metal
+		)
+	end
+	local tv =
+		box(folder, "TV", base * CFrame.new(-8, 8, d / 2 - 1.2), Vector3.new(7, 4, 0.4), C.ink)
+	local screen = box(
+		folder,
+		"Screen",
+		base * CFrame.new(-8, 8.3, d / 2 - 1.45),
+		Vector3.new(6.4, 3.4, 0.05),
+		Color3.fromRGB(70, 130, 190),
+		M.Neon
+	)
+	screen.Transparency = 0.2
+	tv.Name = "TV"
+	for _, x in { -13.5, 13.5 } do
+		part(folder, {
+			Name = "FloorLine",
+			Size = Vector3.new(0.4, 0.02, d - 6),
+			CFrame = base * CFrame.new(x - 8, 0.52, 0),
+			Color = Color3.fromRGB(230, 190, 50),
+			CanCollide = false,
+		})
+	end
+	-- Fenced parking out front, where player cars arrive.
+	local lot = base * CFrame.new(0, 0, -d / 2 - 22)
+	for _, x in { -42, 42 } do
+		box(
+			folder,
+			"LotFence",
+			lot * CFrame.new(x, 0, 0),
+			Vector3.new(0.4, 4, 28),
+			C.metal,
+			M.DiamondPlate
+		)
+	end
+	for i = -3, 3 do
+		part(folder, {
+			Name = "LotStripe",
+			Size = Vector3.new(0.3, 0.02, 12),
+			CFrame = lot * CFrame.new(i * 11, 0.22, 6),
+			Color = C.lineWhite,
+			CanCollide = false,
+		})
+	end
+	local tow = lot * CFrame.new(-30, 0, -4)
+	box(
+		folder,
+		"TowCab",
+		tow * CFrame.new(0, 1.2, -5),
+		Vector3.new(7, 6, 7),
+		Color3.fromRGB(196, 150, 40),
+		M.Metal
+	)
+	box(
+		folder,
+		"TowBed",
+		tow * CFrame.new(0, 1.2, 4),
+		Vector3.new(7, 2, 12),
+		Color3.fromRGB(60, 62, 66),
 		M.DiamondPlate
 	)
-	local shopSign = box(
+	box(
 		folder,
-		"ShopSign",
-		CFrame.new(W.SHOP_POINT + Vector3.new(0, ROAD_TOP + 9, 3)),
-		Vector3.new(10, 2.6, 0.3),
-		Color3.fromRGB(60, 120, 180)
+		"TowBoom",
+		tow * CFrame.new(0, 3.2, 9) * CFrame.Angles(math.rad(-25), 0, 0),
+		Vector3.new(0.8, 0.8, 7),
+		C.darkMetal,
+		M.Metal
 	)
-	sign(shopSign, Enum.NormalId.Front, "PARTS & GEAR", Color3.fromRGB(60, 120, 180), C.white)
-	local shopPrompt = Instance.new("ProximityPrompt")
-	shopPrompt.Name = "ShopPrompt"
-	shopPrompt.ActionText = "Upgrades"
-	shopPrompt.ObjectText = "Gear Bench"
-	shopPrompt.HoldDuration = 0
-	shopPrompt.MaxActivationDistance = 10
-	shopPrompt.RequiresLineOfSight = false
-	shopPrompt.Parent = shop
+	for _, z in { -5, 6 } do
+		for _, x in { -3.6, 3.6 } do
+			part(folder, {
+				Name = "TowWheel",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(1, 2.6, 2.6),
+				CFrame = tow * CFrame.new(x, 1.3, z),
+				Color = C.ink,
+				Material = M.Rubber,
+			})
+		end
+	end
 
 	-- Display shelves along the side walls: one per player (Economy assigns them).
 	local shelves = Instance.new("Folder")
@@ -2240,6 +2451,29 @@ local function setupEnvironment()
 		ground.TopSurface = Enum.SurfaceType.Smooth
 		ground.Parent = lawn
 	end
+	local patchRng = Random.new(7)
+	for _ = 1, 70 do
+		local size = patchRng:NextNumber(60, 180)
+		local patch = Instance.new("Part")
+		patch.Name = "LawnPatch"
+		patch.Anchored = true
+		patch.CanCollide = false
+		patch.CastShadow = false
+		patch.Size = Vector3.new(size, 0.04, size * patchRng:NextNumber(0.5, 1))
+		patch.CFrame = CFrame.new(
+			patchRng:NextNumber(-1280, 1280),
+			-0.0,
+			patchRng:NextNumber(-1100, 880)
+		) * CFrame.Angles(0, patchRng:NextNumber(0, 6.28), 0)
+		patch.Color = Color3.fromRGB(92, 124, 64):Lerp(
+			if patchRng:NextNumber() < 0.5
+				then Color3.fromRGB(70, 104, 50)
+				else Color3.fromRGB(122, 140, 76),
+			patchRng:NextNumber(0.3, 0.7)
+		)
+		patch.Material = M.Grass
+		patch.Parent = lawn
+	end
 	if not terrain:FindFirstChildOfClass("Clouds") then
 		local clouds = Instance.new("Clouds")
 		clouds.Cover = 0.5
@@ -2298,6 +2532,77 @@ local function setupEnvironment()
 end
 
 -- ─── entry points ──────────────────────────────────────────────────────────
+
+local function buildStores(parent: Instance)
+	local folder = Instance.new("Folder")
+	folder.Name = "Stores"
+	folder.Parent = parent
+	for id, store in Config.Stores do
+		local counterPos = store.counter
+		local isMotors = store.sells == "cars"
+		-- The storefront sits behind its counter; Hank's faces Main St (-Z), Maple Motors faces north.
+		local yaw = if isMotors then 180 else 0
+		local facing = CFrame.Angles(0, math.rad(yaw), 0)
+		local shopCf = CFrame.new(counterPos) * facing * CFrame.new(0, ROAD_TOP, 27)
+		storefront(
+			folder,
+			shopCf,
+			if isMotors then 60 else 50,
+			44,
+			22,
+			if isMotors then Color3.fromRGB(196, 200, 206) else Color3.fromRGB(150, 70, 52),
+			if isMotors then M.Concrete else M.Brick,
+			string.upper(store.name),
+			if isMotors then Color3.fromRGB(30, 80, 160) else Color3.fromRGB(176, 40, 32)
+		)
+		-- Counter out front under the awning, so the prompt is reachable from the sidewalk.
+		local counter = box(
+			folder,
+			id .. "Counter",
+			CFrame.new(counterPos + Vector3.new(0, ROAD_TOP, 0)) * facing,
+			Vector3.new(8, 3.6, 2.6),
+			Color3.fromRGB(86, 62, 46),
+			M.WoodPlanks
+		)
+		counter:SetAttribute("Store", id)
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "StorePrompt"
+		prompt.ActionText = if isMotors then "Browse cars" else "Shop gear"
+		prompt.ObjectText = store.name
+		prompt.HoldDuration = 0
+		prompt.MaxActivationDistance = store.range - 2
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = counter
+		if isMotors then
+			-- A small front lot with flags so it reads as a dealership.
+			part(folder, {
+				Name = "Ground",
+				Size = Vector3.new(60, ROAD_TOP, 22),
+				CFrame = CFrame.new(counterPos + Vector3.new(0, ROAD_TOP / 2, 14)),
+				Color = C.asphaltLight,
+				Material = M.Asphalt,
+			})
+			for i = -2, 2 do
+				box(
+					folder,
+					"FlagPole",
+					CFrame.new(counterPos + Vector3.new(i * 14, ROAD_TOP, 24)),
+					Vector3.new(0.3, 12, 0.3),
+					C.metal,
+					M.Metal
+				)
+				box(
+					folder,
+					"Pennant",
+					CFrame.new(counterPos + Vector3.new(i * 14 + 1.4, 10, 24)),
+					Vector3.new(2.6, 1.6, 0.05),
+					if i % 2 == 0 then C.signRed else Color3.fromRGB(30, 80, 160),
+					M.Fabric
+				)
+			end
+		end
+	end
+end
 
 local kit = {
 	part = part,
@@ -2384,6 +2689,7 @@ function World.init()
 	buildPark(districts)
 	buildResidential(districts)
 	buildMeridianYard(town)
+	buildStores(districts)
 	for _, cf in CityDistricts.build(districts, kit) do
 		table.insert(stalls, cf)
 	end

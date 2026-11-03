@@ -109,6 +109,12 @@ return table.freeze({
 				price = 199,
 				desc = "Teleport to the Hideout (not during a chase).",
 			}),
+			shopanywhere = table.freeze({
+				id = 0,
+				name = "Shop Anywhere",
+				price = 249,
+				desc = "Buy gear and cars from any spot on the map.",
+			}),
 		}),
 		Products = table.freeze({
 			cash_small = table.freeze({ id = 0, name = "Cash Stack", price = 49, cash = 600 }),
@@ -124,12 +130,31 @@ return table.freeze({
 		table.freeze({ found = 20, cash = 4000 }),
 	}),
 
+	-- Guaranteed drops after a dry streak (searches without that rarity or better).
+	PITY = table.freeze({ EPIC = 30, LEGENDARY = 120 }),
+
+	-- Physical stores. Buying needs standing at the counter (or the Shop Anywhere pass).
+	Stores = table.freeze({
+		hardware = table.freeze({
+			name = "Hank's Hardware",
+			counter = v3(85, 0, 62),
+			sells = "gear",
+			range = 14,
+		}),
+		motors = table.freeze({
+			name = "Maple Motors",
+			counter = v3(100, 0, -78),
+			sells = "cars",
+			range = 14,
+		}),
+	}),
+
 	-- One district a day gets extra loot ("Hot District"), the same for every server.
 	HOT_DISTRICT_BOOST = 0.5,
 
 	-- Rarity weight for tier i is base * (1 + BIAS_STEP * boost) ^ i.
 	Boost = table.freeze({
-		BIAS_STEP = 0.55,
+		BIAS_STEP = 0.5,
 		RED_ZONE = 1,
 		PER_DEEPER = 1,
 		FRIEND = 0.25,
@@ -256,51 +281,58 @@ return table.freeze({
 		HIDEOUT_RADIUS = 30, -- "inside the Hideout" for selling and ending chases
 		SPAWN = v3(10, 0, 104),
 		SELL_POINT = v3(-8, 0, 108),
-		SHOP_POINT = v3(28, 0, 108),
 		-- Meridian Logistics yard: the fenced private property.
 		RED_CENTER = v3(0, 0, 465),
 		RED_SIZE = Vector2.new(460, 270),
+		-- yaw turns the dumpster's open front; pad "wall" backs it against a wall,
+		-- "enclosure" builds a three-sided block pen around it.
 		Dumpsters = table.freeze({
-			table.freeze({ pos = v3(-34, 0, 72), zone = "Green", tutorial = true, yaw = 90 }),
-			-- Downtown service alley
-			table.freeze({ pos = v3(-370, 0, 112), zone = "Green", yaw = 0 }),
-			table.freeze({ pos = v3(-280, 0, 112), zone = "Green", yaw = 0 }),
-			table.freeze({ pos = v3(-190, 0, 112), zone = "Green", yaw = 0 }),
-			-- Strip mall loading lane
-			table.freeze({ pos = v3(205, 0, 232), zone = "Green", yaw = 180 }),
-			table.freeze({ pos = v3(290, 0, 232), zone = "Green", yaw = 180 }),
-			table.freeze({ pos = v3(375, 0, 232), zone = "Green", yaw = 180 }),
-			-- Motel, gas station, apartments
-			table.freeze({ pos = v3(-520, 0, 160), zone = "Green", yaw = 0 }),
-			table.freeze({ pos = v3(578, 0, 120), zone = "Green", yaw = 90 }),
-			table.freeze({ pos = v3(-170, 0, -118), zone = "Green", yaw = 0 }),
+			table.freeze({
+				pos = v3(-26, 0, 80),
+				zone = "Green",
+				tutorial = true,
+				yaw = 90,
+				pad = "wall",
+			}),
+			-- Main St service alley, against the shops' back walls
+			table.freeze({ pos = v3(-350, 0, 90), zone = "Green", yaw = 180, pad = "enclosure" }),
+			table.freeze({ pos = v3(-266, 0, 90), zone = "Green", yaw = 180, pad = "wall" }),
+			table.freeze({ pos = v3(-184, 0, 90), zone = "Green", yaw = 180, pad = "enclosure" }),
+			-- Strip mall loading lane, beside the dock doors
+			table.freeze({ pos = v3(214, 0, 190), zone = "Green", yaw = 180, pad = "wall" }),
+			table.freeze({ pos = v3(296, 0, 190), zone = "Green", yaw = 180, pad = "enclosure" }),
+			table.freeze({ pos = v3(372, 0, 190), zone = "Green", yaw = 180, pad = "wall" }),
+			-- Behind the motel, the gas station and by the apartments
+			table.freeze({ pos = v3(-500, 0, 154), zone = "Green", yaw = 180, pad = "enclosure" }),
+			table.freeze({ pos = v3(540, 0, 133), zone = "Green", yaw = 180, pad = "wall" }),
+			table.freeze({ pos = v3(-170, 0, -120), zone = "Green", yaw = 0, pad = "enclosure" }),
 			-- Eastside
-			table.freeze({ pos = v3(-860, 0, 104), zone = "Green", yaw = 0 }),
-			table.freeze({ pos = v3(-1080, 0, 150), zone = "Green", yaw = 90 }),
-			table.freeze({ pos = v3(-745, 0, 175), zone = "Green", yaw = 90 }),
-			-- Maple Grove back alley
-			table.freeze({ pos = v3(-330, 0, -356), zone = "Green", yaw = 0 }),
-			table.freeze({ pos = v3(110, 0, -356), zone = "Green", yaw = 0 }),
-			table.freeze({ pos = v3(470, 0, -356), zone = "Green", yaw = 0 }),
-			-- Hillcrest Estates service lane and country club
-			table.freeze({ pos = v3(-300, 0, -760), zone = "Green", yaw = 0 }),
-			table.freeze({ pos = v3(300, 0, -760), zone = "Green", yaw = 0 }),
-			table.freeze({ pos = v3(70, 0, -968), zone = "Green", yaw = 90 }),
-			-- Business District loading areas
-			table.freeze({ pos = v3(880, 0, 254), zone = "Green", yaw = 180 }),
-			table.freeze({ pos = v3(1150, 0, 254), zone = "Green", yaw = 180 }),
-			table.freeze({ pos = v3(1000, 0, -196), zone = "Green", yaw = 90 }),
+			table.freeze({ pos = v3(-862, 0, 87), zone = "Green", yaw = 180, pad = "enclosure" }),
+			table.freeze({ pos = v3(-1040, 0, 150), zone = "Green", yaw = 90, pad = "enclosure" }),
+			table.freeze({ pos = v3(-745, 0, 215), zone = "Green", yaw = 90, pad = "enclosure" }),
+			-- Maple Grove back alley, against the backyard fences
+			table.freeze({ pos = v3(-330, 0, -346), zone = "Green", yaw = 0, pad = "wall" }),
+			table.freeze({ pos = v3(110, 0, -346), zone = "Green", yaw = 0, pad = "wall" }),
+			table.freeze({ pos = v3(470, 0, -346), zone = "Green", yaw = 0, pad = "wall" }),
+			-- Hillcrest service lane and the country club kitchen
+			table.freeze({ pos = v3(-300, 0, -760), zone = "Green", yaw = 0, pad = "enclosure" }),
+			table.freeze({ pos = v3(300, 0, -760), zone = "Green", yaw = 0, pad = "enclosure" }),
+			table.freeze({ pos = v3(60, 0, -968), zone = "Green", yaw = -90, pad = "wall" }),
+			-- Business District, behind the towers and by the garage
+			table.freeze({ pos = v3(965, 0, 232), zone = "Green", yaw = 180, pad = "enclosure" }),
+			table.freeze({ pos = v3(1150, 0, 174), zone = "Green", yaw = 180, pad = "wall" }),
+			table.freeze({ pos = v3(994, 0, -196), zone = "Green", yaw = -90, pad = "wall" }),
 			-- Industrial Park (outside the Meridian fence)
-			table.freeze({ pos = v3(-760, 0, 592), zone = "Green", yaw = 180 }),
-			table.freeze({ pos = v3(-990, 0, 600), zone = "Green", yaw = 90 }),
-			table.freeze({ pos = v3(880, 0, 592), zone = "Green", yaw = 180 }),
-			-- Meridian yard, by the loading docks
-			table.freeze({ pos = v3(-150, 0, 496), zone = "Red", yaw = 180 }),
-			table.freeze({ pos = v3(-80, 0, 496), zone = "Red", yaw = 180 }),
-			table.freeze({ pos = v3(80, 0, 496), zone = "Red", yaw = 180 }),
-			table.freeze({ pos = v3(150, 0, 496), zone = "Red", yaw = 180 }),
-			table.freeze({ pos = v3(-60, 0, 372), zone = "Red", yaw = 0 }),
-			table.freeze({ pos = v3(-214, 0, 590), zone = "Red", yaw = 90 }),
+			table.freeze({ pos = v3(-666, 0, 500), zone = "Green", yaw = 90, pad = "wall" }),
+			table.freeze({ pos = v3(-1014, 0, 600), zone = "Green", yaw = 90, pad = "wall" }),
+			table.freeze({ pos = v3(944, 0, 500), zone = "Green", yaw = -90, pad = "wall" }),
+			-- Meridian yard: by the dock doors, the guard booth and the back fence
+			table.freeze({ pos = v3(-150, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),
+			table.freeze({ pos = v3(-80, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),
+			table.freeze({ pos = v3(80, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),
+			table.freeze({ pos = v3(150, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),
+			table.freeze({ pos = v3(-36, 0, 340), zone = "Red", yaw = 90, pad = "wall" }),
+			table.freeze({ pos = v3(-214, 0, 590), zone = "Red", yaw = 90, pad = "enclosure" }),
 		}),
 		-- Open ground inside the yard the guards walk between (warehouses excluded).
 		GUARD_POINTS = table.freeze({
@@ -338,7 +370,7 @@ return table.freeze({
 
 	-- One full day takes DAY_LENGTH seconds; night runs NIGHT_SPEED times faster.
 	DayCycle = table.freeze({
-		DAY_LENGTH = 480,
+		DAY_LENGTH = 1440, -- 24 minutes per in-game day
 		NIGHT_SPEED = 1.8,
 		START = 15,
 		LIGHTS_ON = 17.6,

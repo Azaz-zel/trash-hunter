@@ -24,12 +24,12 @@ export type Mutation = {
 }
 
 local Rarities: { Rarity } = {
-	{ name = "Common", color = Color3.fromRGB(176, 176, 176), weight = 60 },
+	{ name = "Common", color = Color3.fromRGB(176, 176, 176), weight = 62 },
 	{ name = "Uncommon", color = Color3.fromRGB(88, 204, 96), weight = 25 },
-	{ name = "Rare", color = Color3.fromRGB(64, 148, 255), weight = 10 },
-	{ name = "Epic", color = Color3.fromRGB(176, 96, 255), weight = 4 },
-	{ name = "Legendary", color = Color3.fromRGB(255, 152, 40), weight = 0.9 },
-	{ name = "Jackpot", color = Color3.fromRGB(255, 216, 0), weight = 0.1 },
+	{ name = "Rare", color = Color3.fromRGB(64, 148, 255), weight = 9 },
+	{ name = "Epic", color = Color3.fromRGB(176, 96, 255), weight = 3.2 },
+	{ name = "Legendary", color = Color3.fromRGB(255, 152, 40), weight = 0.12 },
+	{ name = "Jackpot", color = Color3.fromRGB(255, 216, 0), weight = 0.012 },
 }
 
 local List: { Item } = {

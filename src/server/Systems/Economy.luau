@@ -178,7 +178,7 @@ local function buyUpgrade(player: Player): (boolean, string?)
 	if not profile then
 		return false, nil
 	end
-	local ok, message = atHideout(player)
+	local ok, message = Guard.atStore(player, "gear") -- bags are sold at Hank's
 	if not ok then
 		return false, message
 	end

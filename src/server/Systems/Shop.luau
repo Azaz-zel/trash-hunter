@@ -21,23 +21,13 @@ local lastHome: { [Player]: number } = {}
 
 local Shop = {}
 
-local function atHideout(player: Player): (boolean, string?)
-	if Guard.isFlagged(player) then
-		return false, "Hold on..."
-	end
-	if not Guard.inHideout(player) then
-		return false, "Buy gear at the Hideout."
-	end
-	return true, nil
-end
-
 local function buyTool(player: Player, id: any): (boolean, string?)
 	local profile = Data.get(player)
 	local tool = typeof(id) == "string" and Config.Tools[id]
 	if not profile or not tool then
 		return false, nil
 	end
-	local ok, message = atHideout(player)
+	local ok, message = Guard.atStore(player, "gear")
 	if not ok then
 		return false, message
 	end
@@ -70,7 +60,7 @@ local function buyCar(player: Player, id: any): (boolean, string?)
 	if not profile or not car then
 		return false, nil
 	end
-	local ok, message = atHideout(player)
+	local ok, message = Guard.atStore(player, "cars")
 	if not ok then
 		return false, message
 	end

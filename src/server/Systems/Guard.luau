@@ -45,6 +45,27 @@ function Guard.inRedZone(position: Vector3): boolean
 	return math.abs(offset.X) <= World.RED_SIZE.X / 2 and math.abs(offset.Z) <= World.RED_SIZE.Y / 2
 end
 
+-- At a store counter that sells this kind of thing, or holding Shop Anywhere.
+function Guard.atStore(player: Player, sells: string): (boolean, string?)
+	if Guard.isFlagged(player) then
+		return false, "Hold on..."
+	end
+	if player:GetAttribute("Pass_shopanywhere") then
+		return true, nil
+	end
+	for _, store in Config.Stores do
+		if store.sells == sells and Guard.distance(player, store.counter) <= store.range then
+			return true, nil
+		end
+	end
+	for _, store in Config.Stores do
+		if store.sells == sells then
+			return false, `Visit {store.name} to buy this.`
+		end
+	end
+	return false, nil
+end
+
 function Guard.isFlagged(player: Player): boolean
 	return (flaggedUntil[player] or 0) > os.clock()
 end

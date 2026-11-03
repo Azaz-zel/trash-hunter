@@ -1016,3 +1016,38 @@ Semua kantong di-roll di server. Client hanya menerima petunjuk berat.
     item yang belum ditemukan tampil sebagai siluet.
 -   Tanah memakai lantai rumput yang rapi, bukan terrain. Terrain
     menumbuhkan rumput tinggi yang menembus jalan.
+
+# Lampiran F — Phase 1: Feel, Navigasi, Toko Fisik
+
+Spec: `docs/superpowers/specs/2026-11-04-phase1-feel-navigation-design.md`.
+
+## Loot lebih langka
+-   Bobot rarity: Common 62, Uncommon 25, Rare 9, Epic 3.2, Legendary 0.12,
+    Jackpot 0.012. `BIAS_STEP` 0.5.
+-   Peluang Legendary+ per pencarian (pilih yang terbaik dari 3 kantong):
+    Town Center 0.4%, Industrial Park 2.8%, yard Meridian 5.8%. Dicek oleh
+    `Loot.selfCheck`.
+-   Pity: 30 pencarian tanpa Epic menjamin 1 kantong Epic; 120 tanpa
+    Legendary menjamin 1 kantong Legendary. Counter disimpan di profil.
+
+## Dunia
+-   Satu hari = 24 menit (`DAY_LENGTH` 1440).
+-   Jalan punya trotoar tinggi dan tutup manhole. Rumput punya variasi warna.
+-   Ruko dua lantai: pilaster, kanopi bergaris, etalase menyala, papan nama.
+-   Tempat sampah ada di gang belakang gedung, di atas pad beton; sebagian
+    di dalam pagar bata.
+-   Hideout: neon OPEN, pegboard alat, TV, parkiran berpagar, truk derek.
+
+## Toko fisik
+-   Belanja hanya di counter toko: Hank's Hardware (alat + tas) di Main St,
+    Maple Motors (mobil). Server mengecek jarak ke counter (`Guard.atStore`).
+-   Game pass "Shop Anywhere" (R$ 249) membuka tombol Shop dari mana saja.
+-   Tombol R$ membuka daftar produk Robux. Robux tidak pernah menjual loot
+    atau peluang.
+
+## Navigasi
+-   Minimap kanan atas (utara di atas): jalan, distrik, yard merah, Hideout,
+    toko, dan titik tempat sampah (redup saat cooldown). Ketuk atau tekan M
+    untuk peta penuh.
+-   Kartu lokasi muncul saat masuk distrik: nama, bintang loot, "HOT TODAY".
+    Kartu merah "PRIVATE PROPERTY" saat masuk yard.

@@ -22,6 +22,8 @@ export type PlayerProfile = {
 	ownedCars: { [string]: boolean },
 	trunk: { BagItem },
 	milestones: number, -- collection milestones already paid out
+	sinceEpic: number, -- searches since the last Epic+ pick (pity)
+	sinceLegendary: number, -- searches since the last Legendary+ pick (pity)
 	receipts: { string }, -- recent Robux purchase ids, newest last
 }
 

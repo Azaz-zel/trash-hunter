@@ -155,6 +155,18 @@ local function finishDig(player: Player, token: number)
 		bags[i] = Loot.roll(rng, boost, force)
 		looks[i] = { weight = weightOf(bags[i]) }
 	end
+	-- Pity: after a long dry streak one bag is guaranteed to be good.
+	if not force then
+		local pityRarity = if profile.sinceLegendary >= Config.PITY.LEGENDARY
+			then 5
+			elseif profile.sinceEpic >= Config.PITY.EPIC then 4
+			else nil
+		if pityRarity then
+			local lucky = rng:NextInteger(1, count)
+			bags[lucky] = Loot.roll(rng, boost, pityRarity)
+			looks[lucky] = { weight = weightOf(bags[lucky]) }
+		end
+	end
 	if Data.hasTool(profile, "flashlight") then
 		local lit = rng:NextInteger(1, count)
 		looks[lit].rarity = bags[lit].rarity
@@ -216,6 +228,9 @@ pick = function(player: Player, index: any): (boolean, string?)
 	local roll = bags[index]
 	session.bags = nil
 	session.pending = roll
+	-- Pity counters move only on picks, so a player always benefits from them.
+	profile.sinceEpic = if roll.rarity >= 4 then 0 else profile.sinceEpic + 1
+	profile.sinceLegendary = if roll.rarity >= 5 then 0 else profile.sinceLegendary + 1
 	Data.discover(profile, roll.itemId, roll.mutation, player)
 	if roll.rarity >= 3 then
 		showFindPop(session.dumpster, roll)
