@@ -343,11 +343,19 @@ local function confiscate(player: Player): (number, number)
 	if not profile then
 		return 0, 0
 	end
-	local count, value = #profile.backpack, 0
-	for _, entry in profile.backpack do
-		value += Items.value(entry.id, entry.mutation)
+	-- The guard lets you keep your best find(s) so a bust stings, not crushes.
+	local order = table.clone(profile.backpack)
+	table.sort(order, function(a, b)
+		return Items.value(a.id, a.mutation) > Items.value(b.id, b.mutation)
+	end)
+	local count, value = 0, 0
+	for i, entry in order do
+		if i > P.KEEP_ON_CAPTURE then
+			Data.removeItem(profile.backpack, entry.uid)
+			count += 1
+			value += Items.value(entry.id, entry.mutation)
+		end
 	end
-	table.clear(profile.backpack)
 	Data.push(player)
 	return count, value
 end
@@ -408,7 +416,7 @@ local function updateSuspicion(player: Player, dt: number, now: number)
 	local inRed = Guard.inRedZone(hrp.Position)
 	local profile = Data.get(player)
 	if inRed and profile and profile.tutorial == 3 then
-		Data.advanceTutorial(profile, 3)
+		Data.advanceTutorial(profile, 3, player)
 		Data.push(player)
 	end
 

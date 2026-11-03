@@ -17,6 +17,12 @@ export type PlayerProfile = {
 	collection: { [string]: boolean },
 	tutorial: number, -- 0 search, 1 sell, 2 upgrade, 3 visit red zone, 4 done
 	nextUid: number,
+	tools: { [string]: boolean },
+	car: string, -- id from Config.Cars
+	ownedCars: { [string]: boolean },
+	trunk: { BagItem },
+	milestones: number, -- collection milestones already paid out
+	receipts: { string }, -- recent Robux purchase ids, newest last
 }
 
 -- Snapshot pushed to the owning client after every change.
@@ -30,6 +36,12 @@ export type State = {
 	shelfSlots: number,
 	collection: { [string]: boolean },
 	tutorial: number,
+	tools: { [string]: boolean },
+	car: string,
+	ownedCars: { [string]: boolean },
+	trunk: { BagItem },
+	trunkCapacity: number,
+	passes: { [string]: boolean },
 }
 
 return nil

@@ -9,26 +9,129 @@ return table.freeze({
 	AUTOSAVE_INTERVAL = 60,
 	DATASTORE_NAME = "TrashHunter_v1",
 
+	-- Rummage: dig for a moment, then pick one of several trash bags. Each bag
+	-- shows how heavy it is (a noisy hint of what is inside); tools add bags,
+	-- speed up the dig, or reveal one bag's rarity.
 	Search = table.freeze({
-		TIME = 2, -- seconds for the first dig
-		DEEPER_TIME = 1.5,
+		TIME = 1.2, -- seconds of rummaging before the bags show up
+		DEEPER_TIME = 1,
+		BAGS = 3,
 		MAX_DEEPER = 2,
 		COOLDOWN = 90, -- per player, per dumpster
 		RANGE = 10, -- studs from dumpster to start
-		KEEP_RANGE = 14, -- studs allowed while digging
-		SWEET_WIDTH = 0.16, -- fraction of the dig bar
-		SWEET_MIN = 0.45,
-		SWEET_MAX = 0.75,
-		TAP_GRACE = 0.25, -- seconds of network latency allowed after the sweet spot
-		CHOICE_TIMEOUT = 20, -- auto-resolve an ignored reveal
+		KEEP_RANGE = 14, -- studs allowed while rummaging
+		CHOICE_TIMEOUT = 20, -- auto-resolve an ignored choice
 	}),
+
+	-- Cash tools bought at the Hideout gear bench. Cash sinks with a clear effect.
+	Tools = table.freeze({
+		gloves = table.freeze({
+			name = "Work Gloves",
+			price = 80,
+			order = 1,
+			desc = "Rummage 40% faster.",
+		}),
+		shoes = table.freeze({
+			name = "Running Shoes",
+			price = 250,
+			order = 2,
+			desc = "+3 walk speed.",
+		}),
+		flashlight = table.freeze({
+			name = "Flashlight",
+			price = 450,
+			order = 3,
+			desc = "Shows what one bag is hiding.",
+		}),
+		crowbar = table.freeze({
+			name = "Crowbar",
+			price = 900,
+			order = 4,
+			desc = "Pry open a 4th bag every search.",
+		}),
+		detector = table.freeze({
+			name = "Metal Detector",
+			price = 2500,
+			order = 5,
+			desc = "Better odds in every dumpster.",
+		}),
+	}),
+	TOOL_EFFECT = table.freeze({
+		GLOVES_SPEED = 0.6, -- rummage time multiplier
+		SHOES_SPEED = 3,
+		DETECTOR_BOOST = 0.3,
+	}),
+
+	-- Index 1 is the free starter car. Trunk items are safe from guards.
+	Cars = table.freeze({
+		table.freeze({
+			id = "sedan",
+			name = "Old Sedan",
+			price = 0,
+			trunk = 8,
+			color = Color3.fromRGB(122, 116, 104),
+		}),
+		table.freeze({
+			id = "wagon",
+			name = "Station Wagon",
+			price = 1200,
+			trunk = 16,
+			color = Color3.fromRGB(40, 66, 98),
+		}),
+		table.freeze({
+			id = "pickup",
+			name = "Work Truck",
+			price = 4000,
+			trunk = 30,
+			color = Color3.fromRGB(150, 28, 30),
+		}),
+	}),
+	CAR = table.freeze({
+		SPAWN_COOLDOWN = 12,
+		TRUNK_RANGE = 16, -- studs from the car to use the trunk
+		SELL_RANGE = 90, -- the car must be this close to the Hideout to sell the trunk
+	}),
+
+	-- Robux: convenience only, never random items or odds. Set real ids from the
+	-- Creator Dashboard; an id of 0 shows the item as "Coming soon".
+	Robux = table.freeze({
+		POCKETS_BONUS = 6,
+		Passes = table.freeze({
+			pockets = table.freeze({
+				id = 0,
+				name = "Bigger Pockets",
+				price = 149,
+				desc = "+6 backpack slots, forever.",
+			}),
+			homerun = table.freeze({
+				id = 0,
+				name = "Home Run",
+				price = 199,
+				desc = "Teleport to the Hideout (not during a chase).",
+			}),
+		}),
+		Products = table.freeze({
+			cash_small = table.freeze({ id = 0, name = "Cash Stack", price = 49, cash = 600 }),
+			cash_large = table.freeze({ id = 0, name = "Cash Briefcase", price = 199, cash = 3000 }),
+		}),
+	}),
+
+	-- Collection book rewards, paid once when the number of different items found is reached.
+	Milestones = table.freeze({
+		table.freeze({ found = 5, cash = 100 }),
+		table.freeze({ found = 10, cash = 400 }),
+		table.freeze({ found = 15, cash = 1200 }),
+		table.freeze({ found = 20, cash = 4000 }),
+	}),
+
+	-- One district a day gets extra loot ("Hot District"), the same for every server.
+	HOT_DISTRICT_BOOST = 0.5,
 
 	-- Rarity weight for tier i is base * (1 + BIAS_STEP * boost) ^ i.
 	Boost = table.freeze({
 		BIAS_STEP = 0.55,
 		RED_ZONE = 1,
 		PER_DEEPER = 1,
-		PERFECT = 0.5,
 		FRIEND = 0.25,
 	}),
 
@@ -66,6 +169,7 @@ return table.freeze({
 		LEASH = 70, -- studs guards may follow a target outside the compound fence
 		BACKUP_RADIUS = 140, -- other guards this close join a chase
 		IMMUNITY_AFTER_CAPTURE = 5,
+		KEEP_ON_CAPTURE = 1, -- most valuable items the guard lets you keep
 		IMMUNITY_AFTER_DROP = 3,
 		SUSPICION_AFTER_DROP = 30,
 	}),
@@ -142,6 +246,7 @@ return table.freeze({
 
 	Guard = table.freeze({
 		MAX_SPEED = 48, -- studs/s horizontal; anything faster counts as a teleport
+		MAX_VEHICLE_SPEED = 170, -- while sitting in a car
 		FLAG_SECONDS = 2,
 	}),
 

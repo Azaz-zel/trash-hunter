@@ -943,3 +943,76 @@ Perubahan pendukung:
 -   **Tampilan UI** sekarang minimalis: panel grafit transparan dengan
     garis tipis, font Builder Sans, tombol utama putih, dan aksen amber
     yang hanya dipakai untuk uang.
+
+------------------------------------------------------------------------
+
+# Lampiran E — Rummage, Mobil, Shop, dan Retensi (2026-11-03)
+
+## Mekanik pencarian baru: Rummage
+
+Alurnya diganti dari "tahan tombol, lalu tap timing":
+
+1.  Pemain menggali sebentar, sekitar 1,2 detik.
+2.  Muncul 3 kantong sampah. Kalau pemain punya Crowbar, muncul 4.
+3.  Setiap kantong menunjukkan beratnya (Light, Medium, atau Heavy).
+    Kantong yang lebih berat biasanya berisi barang lebih bagus, tetapi
+    tidak selalu. Petunjuk berat ini sengaja diberi noise.
+4.  Pemain memilih satu kantong. Kartu hasil menampilkan gambar 3D
+    barangnya, ditambah isi kantong lain yang tidak dipilih ("Other
+    bags"), supaya pemain tahu nyaris dapat apa.
+5.  Pemain memilih Keep, Dig deeper (kantong baru dengan peluang lebih
+    baik, tetapi temuan sekarang hilang), atau Leave.
+
+Semua kantong di-roll di server. Client hanya menerima petunjuk berat.
+
+## Alat (dibeli dengan cash di Hideout)
+
+  Alat             Harga    Efek
+  ---------------- -------- -----------------------------------------------
+  Work Gloves      $80      Menggali 40% lebih cepat
+  Running Shoes    $250     Kecepatan jalan +3
+  Flashlight       $450     Menunjukkan rarity salah satu kantong
+  Crowbar          $900     Membuka kantong ke-4 di setiap pencarian
+  Metal Detector   $2.500   Peluang loot lebih bagus di semua dumpster
+
+## Mobil
+
+-   Tombol "Car" memunculkan mobil milik pemain. Di dalam Hideout,
+    mobil muncul di apron depan.
+-   Mobil bisa dikendarai dengan keyboard, gamepad, atau stik di HP.
+-   Bagasi (trunk) adalah penyimpanan tambahan yang aman dari penjaga.
+-   Isi bagasi bisa langsung dijual kalau mobil diparkir di Hideout.
+-   Pilihan mobil: Old Sedan (gratis, bagasi 8), Station Wagon ($1.200,
+    bagasi 16), Work Truck ($4.000, bagasi 30).
+-   Hanya pemilik yang bisa mengemudi. Teman bisa ikut menumpang.
+
+## Robux (hanya kenyamanan)
+
+-   **Game pass:** Bigger Pockets (+6 slot) dan Home Run (teleport ke
+    Hideout, tidak bisa dipakai saat dikejar).
+-   **Developer product:** paket cash.
+-   Tidak ada item acak dan tidak ada pembelian luck.
+-   ID produk diisi di `Config.Robux`. Selama ID bernilai 0, item tampil
+    sebagai "Coming soon".
+-   Receipt bersifat idempoten dan disimpan sebelum produk diberikan.
+
+## Retensi (dari LLM Council)
+
+-   **Hot District:** setiap hari satu distrik mendapat loot lebih bagus.
+    Distriknya sama di semua server.
+-   **Collection milestones:** hadiah cash saat pemain menemukan 5, 10,
+    15, dan 20 jenis barang.
+-   **Penalti tertangkap dilunakkan:** barang paling berharga tetap
+    dibawa pemain.
+-   **Funnel analytics:** setiap langkah tutorial tercatat di Creator
+    Analytics.
+-   **Ditunda sampai ada data pemain:** trading, co-op heist, dan event
+    terjadwal tambahan.
+
+## Visual
+
+-   Tas di punggung karakter ikut membesar sesuai level backpack.
+-   Item tampil sebagai gambar 3D di Bag, Book, dan kartu reveal. Di Book,
+    item yang belum ditemukan tampil sebagai siluet.
+-   Tanah memakai lantai rumput yang rapi, bukan terrain. Terrain
+    menumbuhkan rumput tinggi yang menembus jalan.

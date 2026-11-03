@@ -55,10 +55,17 @@ local function allow(player: Player, action: string, rate: number): boolean
 	return true
 end
 
--- Every payload in this game is nil or a short string (an item uid, "all",
--- or a choice name). Anything else is rejected before a handler sees it.
+-- Every payload in this game is nil, a short string (an item uid, "all", a
+-- choice or an id) or a small finite integer (a bag index). Anything else is
+-- rejected before a handler sees it; handlers still range-check the value.
 local function validPayload(payload: any): boolean
-	return payload == nil or (typeof(payload) == "string" and #payload <= MAX_PAYLOAD_STRING)
+	if payload == nil then
+		return true
+	end
+	if typeof(payload) == "string" then
+		return #payload <= MAX_PAYLOAD_STRING
+	end
+	return typeof(payload) == "number" and payload == payload and math.abs(payload) <= 1000
 end
 
 Net.Action.OnServerInvoke = function(player: Player, action: any, payload: any)

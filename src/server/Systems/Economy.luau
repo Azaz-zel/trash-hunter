@@ -10,6 +10,7 @@ local Items = require(Shared.Items)
 local Router = require(script.Parent.Parent.Router)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
+local Avatar = require(script.Parent.Avatar)
 
 local stations: { Model } = {}
 local assigned: { [Player]: Model } = {}
@@ -122,7 +123,7 @@ local function sell(player: Player, payload: any): (boolean, string?)
 		return false, "Nothing to sell."
 	end
 	profile.cash += earned
-	Data.advanceTutorial(profile, 1)
+	Data.advanceTutorial(profile, 1, player)
 	Data.push(player)
 	Router.send(player, "sold", { amount = earned, count = count })
 	return true, nil
@@ -159,7 +160,7 @@ local function undisplay(player: Player, uid: any): (boolean, string?)
 	if not ok then
 		return false, message
 	end
-	if #profile.backpack >= Data.capacity(profile) then
+	if #profile.backpack >= Data.capacity(profile, player) then
 		return false, "Backpack full."
 	end
 	local entry = Data.removeItem(profile.shelf, uid)
@@ -190,7 +191,8 @@ local function buyUpgrade(player: Player): (boolean, string?)
 	end
 	profile.cash -= next.price
 	profile.backpackLevel += 1
-	Data.advanceTutorial(profile, 2)
+	Data.advanceTutorial(profile, 2, player)
+	Avatar.refresh(player)
 	Data.push(player)
 	Router.send(player, "upgraded", { capacity = next.capacity })
 	return true, nil

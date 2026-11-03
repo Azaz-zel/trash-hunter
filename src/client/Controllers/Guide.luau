@@ -84,8 +84,8 @@ function Guide.init()
 	})
 	Ui.autoScale(gui)
 	hint = Ui.label("", 20, {
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -160),
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 164),
 		Size = UDim2.new(0.86, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		BackgroundTransparency = Ui.PANEL_ALPHA,

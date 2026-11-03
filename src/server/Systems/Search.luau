@@ -1,6 +1,10 @@
 --!strict
--- Dumpster searching: dig timer, Perfect Dig tap, server-side loot roll,
--- the take / dig deeper / leave choice, and per-player dumpster cooldowns.
+-- Dumpster searching, "rummage" style: dig for a moment, then pick one of
+-- several trash bags. Every bag is rolled on the server up front; the client
+-- only learns how heavy each bag looks (a noisy hint) and, with the
+-- Flashlight, the rarity of one bag. After the pick, the other bags are shown
+-- so near-misses are visible. Then: keep / dig deeper (new bags, better odds,
+-- lose this find) / leave. Per-player cooldown per dumpster.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -15,19 +19,15 @@ local Guard = require(script.Parent.Guard)
 local Social = require(script.Parent.Social)
 
 local S = Config.Search
+local T = Config.TOOL_EFFECT
 local rng = Random.new()
 
 type Session = {
 	dumpster: Model,
 	depth: number,
 	token: number,
-	startedAt: number,
-	duration: number,
-	sweetStart: number,
-	sweetEnd: number,
-	tapped: boolean,
-	perfect: boolean,
-	pending: Loot.Roll?,
+	bags: { Loot.Roll }?, -- rolled, waiting for a pick
+	pending: Loot.Roll?, -- picked, waiting for keep / deeper / leave
 }
 
 local sessions: { [Player]: Session } = {}
@@ -41,7 +41,7 @@ local function dumpsterPos(dumpster: Model): Vector3
 	return dumpster:GetPivot().Position
 end
 
--- Police reads this attribute: 0 = not digging, otherwise the suspicion multiplier.
+-- Police reads this attribute: 0 = not rummaging, otherwise the suspicion multiplier.
 local function setDigging(player: Player, mult: number)
 	player:SetAttribute("Digging", mult)
 end
@@ -73,10 +73,7 @@ function Search.cancel(player: Player, reason: string)
 	Router.send(player, "searchCancelled", { reason = reason, dumpster = session.dumpster })
 end
 
-local resolve: (Player, any) -> (boolean, string?)
-
--- Rare+ finds float above the dumpster for everyone nearby: other players see
--- what came out of the trash, which is what makes a dumpster look worth trying.
+-- Rare+ finds float above the dumpster for everyone nearby.
 local function showFindPop(dumpster: Model, roll: Loot.Roll)
 	local body = dumpster:FindFirstChild("Body")
 	if not body then
@@ -90,15 +87,45 @@ local function showFindPop(dumpster: Model, roll: Loot.Roll)
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.GothamBold
+	label.Font = Enum.Font.BuilderSansBold
 	label.TextScaled = true
 	label.TextColor3 = Items.Rarities[roll.rarity].color
 	label.TextStrokeTransparency = 0
-	label.Text = Items.label(roll.itemId, roll.mutation) .. "!"
+	label.Text = Items.label(roll.itemId, roll.mutation)
 	label.Parent = pop
 	pop.Parent = body
 	game:GetService("Debris"):AddItem(pop, 3)
 end
+
+local function boostFor(player: Player, session: Session): number
+	local boost = session.depth * Config.Boost.PER_DEEPER
+	local dumpster = session.dumpster
+	if dumpster:GetAttribute("Zone") == "Red" then
+		boost += Config.Boost.RED_ZONE
+	end
+	-- Richer districts throw out better stuff (set by World from Config.Districts).
+	boost += tonumber(dumpster:GetAttribute("DistrictBoost")) or 0
+	if dumpster:GetAttribute("District") == workspace:GetAttribute("HotDistrict") then
+		boost += Config.HOT_DISTRICT_BOOST
+	end
+	if Social.hasFriendHere(player) then
+		boost += Config.Boost.FRIEND
+	end
+	local profile = Data.get(player)
+	if profile and Data.hasTool(profile, "detector") then
+		boost += T.DETECTOR_BOOST
+	end
+	return boost
+end
+
+-- A bag's look: 1 light, 2 medium, 3 heavy. Correlates with rarity, but noisy.
+local function weightOf(roll: Loot.Roll): number
+	local score = roll.rarity + rng:NextNumber(-1.6, 1.6)
+	return if score < 2.2 then 1 elseif score < 3.8 then 2 else 3
+end
+
+local resolve: (Player, any) -> (boolean, string?)
+local pick: (Player, any) -> (boolean, string?)
 
 local function finishDig(player: Player, token: number)
 	local session = sessions[player]
@@ -117,48 +144,32 @@ local function finishDig(player: Player, token: number)
 		Search.cancel(player, "moved")
 		return
 	end
-	setDigging(player, 0)
 
-	local boost = session.depth * Config.Boost.PER_DEEPER
-	if session.dumpster:GetAttribute("Zone") == "Red" then
-		boost += Config.Boost.RED_ZONE
-	end
-	-- Richer districts throw out better stuff (set by World from Config.Districts).
-	boost += tonumber(session.dumpster:GetAttribute("DistrictBoost")) or 0
-	if session.perfect then
-		boost += Config.Boost.PERFECT
-	end
-	if Social.hasFriendHere(player) then
-		boost += Config.Boost.FRIEND
-	end
-	-- The very first search is a guaranteed Rare (GDD FTUE).
+	local count = S.BAGS + (if Data.hasTool(profile, "crowbar") then 1 else 0)
+	local boost = boostFor(player, session)
+	-- The very first search is a guaranteed Rare whichever bag is picked (GDD FTUE).
 	local force = if profile.tutorial == 0 and session.depth == 0 then 3 else nil
-	local roll = Loot.roll(rng, boost, force)
-	session.pending = roll
-	Data.discover(profile, roll.itemId, roll.mutation)
-	if roll.rarity >= 3 then
-		showFindPop(session.dumpster, roll)
+	local bags: { Loot.Roll } = {}
+	local looks = {}
+	for i = 1, count do
+		bags[i] = Loot.roll(rng, boost, force)
+		looks[i] = { weight = weightOf(bags[i]) }
 	end
-	if roll.rarity >= 5 then
-		Social.announce(player, roll.itemId, roll.mutation, roll.rarity)
+	if Data.hasTool(profile, "flashlight") then
+		local lit = rng:NextInteger(1, count)
+		looks[lit].rarity = bags[lit].rarity
 	end
-
-	Router.send(player, "searchResult", {
-		dumpster = session.dumpster,
-		itemId = roll.itemId,
-		mutation = roll.mutation,
-		rarity = roll.rarity,
-		value = roll.value,
-		perfect = session.perfect,
-		depth = session.depth,
-		canDeeper = session.depth < S.MAX_DEEPER,
-	})
-	Data.push(player)
+	session.bags = bags
+	Router.send(
+		player,
+		"searchBags",
+		{ dumpster = session.dumpster, bags = looks, depth = session.depth }
+	)
 
 	task.delay(S.CHOICE_TIMEOUT, function()
 		local current = sessions[player]
-		if current and current.token == token and current.pending then
-			resolve(player, "take")
+		if current and current.token == token and current.bags then
+			pick(player, rng:NextInteger(1, #bags))
 		end
 	end)
 end
@@ -166,24 +177,76 @@ end
 local function beginDig(player: Player, session: Session)
 	tokenCounter += 1
 	local token = tokenCounter
-	local sweetStart = rng:NextNumber(S.SWEET_MIN, S.SWEET_MAX)
 	session.token = token
-	session.startedAt = os.clock()
-	session.duration = if session.depth == 0 then S.TIME else S.DEEPER_TIME
-	session.sweetStart = sweetStart
-	session.sweetEnd = sweetStart + S.SWEET_WIDTH
-	session.tapped = false
-	session.perfect = false
+	session.bags = nil
 	session.pending = nil
+	local profile = Data.get(player)
+	local duration = if session.depth == 0 then S.TIME else S.DEEPER_TIME
+	if profile and Data.hasTool(profile, "gloves") then
+		duration *= T.GLOVES_SPEED
+	end
 	setDigging(player, if session.depth == 0 then 1 else Config.Suspicion.DEEPER_MULT)
-	Router.send(player, "searchStarted", {
+	Router.send(
+		player,
+		"searchStarted",
+		{ dumpster = session.dumpster, duration = duration, depth = session.depth }
+	)
+	task.delay(duration, finishDig, player, token)
+end
+
+pick = function(player: Player, index: any): (boolean, string?)
+	local session = sessions[player]
+	local bags = session and session.bags
+	if not session or not bags then
+		return false, nil
+	end
+	if
+		typeof(index) ~= "number"
+		or index ~= index
+		or index % 1 ~= 0
+		or index < 1
+		or index > #bags
+	then
+		return false, nil
+	end
+	local profile = Data.get(player)
+	if not profile then
+		return false, nil
+	end
+	local roll = bags[index]
+	session.bags = nil
+	session.pending = roll
+	Data.discover(profile, roll.itemId, roll.mutation, player)
+	if roll.rarity >= 3 then
+		showFindPop(session.dumpster, roll)
+	end
+	if roll.rarity >= 5 then
+		Social.announce(player, roll.itemId, roll.mutation, roll.rarity)
+	end
+	local all = {}
+	for i, b in bags do
+		all[i] = { itemId = b.itemId, mutation = b.mutation, rarity = b.rarity, value = b.value }
+	end
+	Router.send(player, "searchResult", {
 		dumpster = session.dumpster,
-		duration = session.duration,
-		sweetStart = session.sweetStart,
-		sweetEnd = session.sweetEnd,
+		itemId = roll.itemId,
+		mutation = roll.mutation,
+		rarity = roll.rarity,
+		value = roll.value,
+		picked = index,
+		bags = all,
 		depth = session.depth,
+		canDeeper = session.depth < S.MAX_DEEPER,
 	})
-	task.delay(session.duration, finishDig, player, token)
+	Data.push(player)
+	local token = session.token
+	task.delay(S.CHOICE_TIMEOUT, function()
+		local current = sessions[player]
+		if current and current.token == token and current.pending then
+			resolve(player, "take")
+		end
+	end)
+	return true, nil
 end
 
 local function tryStart(player: Player, dumpster: Model): (boolean, string?)
@@ -207,21 +270,11 @@ local function tryStart(player: Player, dumpster: Model): (boolean, string?)
 	if readyAt and readyAt > os.clock() then
 		return false, `Picked clean. Back in {math.ceil(readyAt - os.clock())}s.`
 	end
-	if #profile.backpack >= Data.capacity(profile) then
-		return false, "Backpack full! Sell at the Hideout."
+	if #profile.backpack >= Data.capacity(profile, player) then
+		return false, "Backpack full! Stash it in your car or sell at the Hideout."
 	end
-	local session: Session = {
-		dumpster = dumpster,
-		depth = 0,
-		token = 0,
-		startedAt = 0,
-		duration = 0,
-		sweetStart = 0,
-		sweetEnd = 0,
-		tapped = false,
-		perfect = false,
-		pending = nil,
-	}
+	local session: Session =
+		{ dumpster = dumpster, depth = 0, token = 0, bags = nil, pending = nil }
 	sessions[player] = session
 	beginDig(player, session)
 	return true, nil
@@ -238,11 +291,11 @@ resolve = function(player: Player, choice: any): (boolean, string?)
 	end
 	local found = session.pending :: Loot.Roll
 	if choice == "take" then
-		if #profile.backpack >= Data.capacity(profile) then
+		if #profile.backpack >= Data.capacity(profile, player) then
 			return false, "Backpack full"
 		end
 		Data.addItem(profile, found.itemId, found.mutation)
-		Data.advanceTutorial(profile, 0)
+		Data.advanceTutorial(profile, 0, player)
 		endSession(player, true)
 		Data.push(player)
 		return true, nil
@@ -292,21 +345,9 @@ end
 function Search.init()
 	if game:GetService("RunService"):IsStudio() then
 		Loot.selfCheck()
+		require(Shared.ItemModels).selfCheck()
 	end
-
-	Router.on("digTap", 0.1, function(player)
-		local session = sessions[player]
-		if not session or session.pending or session.tapped then
-			return false, nil
-		end
-		session.tapped = true
-		local elapsed = os.clock() - session.startedAt
-		local from = session.sweetStart * session.duration - 0.05
-		local to = session.sweetEnd * session.duration + S.TAP_GRACE
-		session.perfect = elapsed >= from and elapsed <= to
-		return true, session.perfect
-	end)
-
+	Router.on("pickBag", 0.2, pick)
 	Router.on("resolve", 0.2, resolve)
 end
 

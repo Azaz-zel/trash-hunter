@@ -34,6 +34,8 @@ local districtLabel: TextLabel
 local districtBanner: Frame
 local districtTitle: TextLabel
 local districtSub: TextLabel
+local homeButton: TextButton
+local hotLabel: TextLabel
 
 local function pill(name: string, caption: string, order: number): TextLabel
 	local frame = Ui.panel({
@@ -108,6 +110,7 @@ local function renderState()
 		Ui.bump(bagLabel.Parent :: GuiObject)
 	end
 	lastCash, lastBag = state.cash, #state.backpack
+	homeButton.Visible = state.passes.homerun == true
 	bagLabel.Text = `{#state.backpack}/{state.capacity}`
 	bagLabel.TextColor3 = if #state.backpack >= state.capacity then C.accent else C.cream
 end
@@ -170,6 +173,15 @@ local function build()
 		Position = UDim2.fromOffset(16, 74),
 		Size = UDim2.fromOffset(300, 18),
 		TextColor3 = C.muted,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextStrokeTransparency = 0.6,
+		Parent = gui,
+	})
+	hotLabel = Ui.label("", 14, {
+		Name = "HotDistrict",
+		Position = UDim2.fromOffset(16, 92),
+		Size = UDim2.fromOffset(320, 18),
+		TextColor3 = C.accent,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextStrokeTransparency = 0.6,
 		Parent = gui,
@@ -294,19 +306,32 @@ local function build()
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -16, 0.5, 0),
-		Size = UDim2.fromOffset(72, 170),
+		Size = UDim2.fromOffset(72, 330),
 		Parent = gui,
-	}, { Ui.list(Enum.FillDirection.Vertical, 10, Enum.HorizontalAlignment.Right) })
-	local bagButton = Ui.button("Bag", "secondary", UDim2.fromOffset(72, 52), function()
+	}, { Ui.list(Enum.FillDirection.Vertical, 8, Enum.HorizontalAlignment.Right) })
+	local function sideButton(text: string, order: number, fn: () -> ()): TextButton
+		local b = Ui.button(text, "secondary", UDim2.fromOffset(72, 52), fn)
+		b.TextSize = 16
+		b.LayoutOrder = order
+		b.Parent = side
+		return b
+	end
+	sideButton("Bag", 1, function()
 		Store.emit("openPanel", "bag")
 	end)
-	bagButton.LayoutOrder = 1
-	bagButton.Parent = side
-	local bookButton = Ui.button("Book", "secondary", UDim2.fromOffset(72, 52), function()
+	sideButton("Shop", 2, function()
+		Store.emit("openPanel", "shop")
+	end)
+	sideButton("Book", 3, function()
 		Store.emit("openPanel", "book")
 	end)
-	bookButton.LayoutOrder = 2
-	bookButton.Parent = side
+	sideButton("Car", 4, function()
+		Store.action("spawnCar")
+	end)
+	homeButton = sideButton("Home", 5, function()
+		Store.action("homeRun")
+	end)
+	homeButton.Visible = false
 
 	busted = Ui.new("Frame", {
 		Name = "Busted",
@@ -348,10 +373,9 @@ end
 local function onBusted(payload: { count: number, value: number })
 	if payload.count > 0 then
 		bustedBody.Text =
-			`The guard took {payload.count} item(s) worth {Ui.money(payload.value)}.\nYour cash, shelf and upgrades are safe.`
+			`The guard took {payload.count} item(s) worth {Ui.money(payload.value)}. You kept your best find.\nCash, trunk, shelf and upgrades are safe.`
 	else
-		bustedBody.Text =
-			"Your bag was empty, so you lost nothing.\nYour cash, shelf and upgrades are safe."
+		bustedBody.Text = "You lost nothing this time.\nCash, trunk, shelf and upgrades are safe."
 	end
 	busted.Visible = true
 	Ui.pop(busted:FindFirstChildWhichIsA("Frame") :: Frame, 0.6)
@@ -408,6 +432,20 @@ function Hud.start()
 	end)
 	Store.on("busted", onBusted)
 	Store.on("announce", onAnnounce)
+	Store.on("bought", function(payload)
+		Store.play(Config.Sounds.CASH, 0.5)
+		toast(`Bought {payload.name}!`, C.safe)
+	end)
+	Store.on("milestone", function(payload)
+		Store.play(Config.Sounds.RARE, 0.6)
+		toast(`Collection reward: {payload.found} items found, +{Ui.money(payload.cash)}`, C.accent)
+	end)
+	local function renderHot()
+		local hot = workspace:GetAttribute("HotDistrict")
+		hotLabel.Text = if hot then `Hot today: {hot} (better loot)` else ""
+	end
+	workspace:GetAttributeChangedSignal("HotDistrict"):Connect(renderHot)
+	renderHot()
 
 	for _, attr in { "Suspicion", "Chased", "InRedZone" } do
 		player:GetAttributeChangedSignal(attr):Connect(renderSuspicion)

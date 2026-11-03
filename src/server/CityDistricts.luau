@@ -340,16 +340,13 @@ local function mansion(k: Kit, parent: Instance, cf: CFrame)
 			M.Wood
 		)
 	end
-	k.part(
-		model,
-		{
-			Name = "Driveway",
-			Size = Vector3.new(30, 0.3, 30),
-			CFrame = cf * CFrame.new(w / 2 + 16, 0.15, -11),
-			Color = Color3.fromRGB(196, 186, 170),
-			Material = M.Cobblestone,
-		}
-	)
+	k.part(model, {
+		Name = "Driveway",
+		Size = Vector3.new(30, 0.3, 30),
+		CFrame = cf * CFrame.new(w / 2 + 16, 0.15, -11),
+		Color = Color3.fromRGB(196, 186, 170),
+		Material = M.Cobblestone,
+	})
 	-- Pool behind the house.
 	local pool = cf * CFrame.new(0, 0, d + 14)
 	k.box(
@@ -435,16 +432,13 @@ local function buildHillcrest(k: Kit, parent: Instance)
 
 	-- Boulevard median with trees.
 	for z = -520, -870, -30 do
-		k.part(
-			folder,
-			{
-				Name = "Median",
-				Size = Vector3.new(6, 0.6, 26),
-				CFrame = CFrame.new(0, 0.5, z),
-				Color = Color3.fromRGB(72, 110, 58),
-				Material = M.LeafyGrass,
-			}
-		)
+		k.part(folder, {
+			Name = "Median",
+			Size = Vector3.new(6, 0.6, 26),
+			CFrame = CFrame.new(0, 0.5, z),
+			Color = Color3.fromRGB(72, 110, 58),
+			Material = M.LeafyGrass,
+		})
 		k.tree(folder, Vector3.new(0, 0.6, z), 1)
 	end
 
@@ -458,16 +452,13 @@ local function buildHillcrest(k: Kit, parent: Instance)
 		end
 	end
 	-- Service lane between the rows (where the bins go out).
-	k.part(
-		folder,
-		{
-			Name = "ServiceLane",
-			Size = Vector3.new(1240, k.ROAD_TOP, 16),
-			CFrame = CFrame.new(0, k.ROAD_TOP / 2, -760),
-			Color = C.asphaltLight,
-			Material = M.Asphalt,
-		}
-	)
+	k.part(folder, {
+		Name = "ServiceLane",
+		Size = Vector3.new(1240, k.ROAD_TOP, 16),
+		CFrame = CFrame.new(0, k.ROAD_TOP / 2, -760),
+		Color = C.asphaltLight,
+		Material = M.Asphalt,
+	})
 	streetTrees(k, folder, "X", -640, -600, 600, 40, { 0 })
 	streetTrees(k, folder, "X", -880, -600, 600, 40, { 0 })
 
@@ -499,16 +490,13 @@ local function buildHillcrest(k: Kit, parent: Instance)
 		Color3.fromRGB(40, 56, 46),
 		Color3.fromRGB(230, 214, 160)
 	)
-	k.part(
-		folder,
-		{
-			Name = "Green",
-			Size = Vector3.new(300, 0.3, 60),
-			CFrame = CFrame.new(0, 0.15, -1040),
-			Color = Color3.fromRGB(86, 150, 66),
-			Material = M.Grass,
-		}
-	)
+	k.part(folder, {
+		Name = "Green",
+		Size = Vector3.new(300, 0.3, 60),
+		CFrame = CFrame.new(0, 0.15, -1040),
+		Color = Color3.fromRGB(86, 150, 66),
+		Material = M.Grass,
+	})
 	k.box(folder, "FlagPin", at(60, -1040), Vector3.new(0.2, 8, 0.2), C.white)
 	k.box(
 		folder,
@@ -619,28 +607,22 @@ local function buildBusiness(k: Kit, parent: Instance): { CFrame }
 
 	-- Plaza: fountain, planters, benches.
 	local fountain = at(960, 80)
-	k.part(
-		folder,
-		{
-			Name = "FountainBasin",
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(2, 22, 22),
-			CFrame = fountain * CFrame.new(0, 1, 0) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = Color3.fromRGB(190, 186, 178),
-			Material = M.Granite,
-		}
-	)
-	local water = k.part(
-		folder,
-		{
-			Name = "FountainWater",
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(0.2, 20, 20),
-			CFrame = fountain * CFrame.new(0, 2, 0) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = Color3.fromRGB(70, 150, 190),
-			Material = M.Glass,
-		}
-	)
+	k.part(folder, {
+		Name = "FountainBasin",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(2, 22, 22),
+		CFrame = fountain * CFrame.new(0, 1, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(190, 186, 178),
+		Material = M.Granite,
+	})
+	local water = k.part(folder, {
+		Name = "FountainWater",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.2, 20, 20),
+		CFrame = fountain * CFrame.new(0, 2, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(70, 150, 190),
+		Material = M.Glass,
+	})
 	water.Transparency = 0.25
 	local jet = Instance.new("ParticleEmitter")
 	jet.Rate = 40
@@ -997,40 +979,31 @@ local function buildIndustrial(k: Kit, parent: Instance)
 	end
 
 	-- Rail line north of Rail Rd with parked boxcars.
-	k.part(
-		folder,
-		{
-			Name = "Ballast",
-			Size = Vector3.new(2480, 0.8, 14),
-			CFrame = CFrame.new(0, 0.4, 780),
-			Color = Color3.fromRGB(110, 104, 96),
-			Material = M.Pebble,
-		}
-	)
+	k.part(folder, {
+		Name = "Ballast",
+		Size = Vector3.new(2480, 0.8, 14),
+		CFrame = CFrame.new(0, 0.4, 780),
+		Color = Color3.fromRGB(110, 104, 96),
+		Material = M.Pebble,
+	})
 	for _, z in { 777.5, 782.5 } do
-		k.part(
-			folder,
-			{
-				Name = "Rail",
-				Size = Vector3.new(2480, 0.5, 0.4),
-				CFrame = CFrame.new(0, 1.05, z),
-				Color = Color3.fromRGB(90, 84, 80),
-				Material = M.Metal,
-			}
-		)
+		k.part(folder, {
+			Name = "Rail",
+			Size = Vector3.new(2480, 0.5, 0.4),
+			CFrame = CFrame.new(0, 1.05, z),
+			Color = Color3.fromRGB(90, 84, 80),
+			Material = M.Metal,
+		})
 	end
 	for x = -1236, 1236, 8 do
-		k.part(
-			folder,
-			{
-				Name = "Tie",
-				Size = Vector3.new(1.2, 0.3, 9),
-				CFrame = CFrame.new(x, 0.9, 780),
-				Color = Color3.fromRGB(70, 56, 44),
-				Material = M.Wood,
-				CanCollide = false,
-			}
-		)
+		k.part(folder, {
+			Name = "Tie",
+			Size = Vector3.new(1.2, 0.3, 9),
+			CFrame = CFrame.new(x, 0.9, 780),
+			Color = Color3.fromRGB(70, 56, 44),
+			Material = M.Wood,
+			CanCollide = false,
+		})
 	end
 	local boxcarColors =
 		{ Color3.fromRGB(140, 54, 40), Color3.fromRGB(60, 80, 110), Color3.fromRGB(120, 110, 60) }

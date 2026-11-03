@@ -81,7 +81,12 @@ function Guard.start()
 			lastPos[player] = pos
 			if prev and (ignoreUntil[player] or 0) < now then
 				local speed = (pos - prev).Magnitude / elapsed
-				if speed > Config.Guard.MAX_SPEED then
+				local humanoid = (root.Parent :: Instance):FindFirstChildOfClass("Humanoid")
+				local seated = humanoid ~= nil and humanoid.SeatPart ~= nil
+				if
+					speed
+					> (if seated then Config.Guard.MAX_VEHICLE_SPEED else Config.Guard.MAX_SPEED)
+				then
 					flaggedUntil[player] = now + Config.Guard.FLAG_SECONDS
 					warn(`[Guard] {player.Name} moved at {math.floor(speed)} studs/s`)
 				end

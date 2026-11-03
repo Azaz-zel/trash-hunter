@@ -2223,7 +2223,23 @@ end
 
 local function setupEnvironment()
 	local terrain = workspace.Terrain
-	terrain:FillBlock(CFrame.new(0, -3, -90), Vector3.new(2800, 6, 2160), M.Grass)
+	-- Ground is a mowed-lawn Part, not terrain: terrain grass grows tall blades
+	-- (decoration) that poke through roads and cannot be turned off by script.
+	terrain:Clear()
+	local lawn = workspace:WaitForChild("Town"):FindFirstChild("Ground") or Instance.new("Folder")
+	lawn.Name = "Ground"
+	lawn.Parent = workspace:WaitForChild("Town")
+	for _, x in { -700, 700 } do
+		local ground = Instance.new("Part")
+		ground.Name = "Lawn"
+		ground.Anchored = true
+		ground.Size = Vector3.new(1400, 2, 2200)
+		ground.Position = Vector3.new(x, -1.02, -110)
+		ground.Color = Color3.fromRGB(92, 124, 64)
+		ground.Material = M.Grass
+		ground.TopSurface = Enum.SurfaceType.Smooth
+		ground.Parent = lawn
+	end
 	if not terrain:FindFirstChildOfClass("Clouds") then
 		local clouds = Instance.new("Clouds")
 		clouds.Cover = 0.5
@@ -2416,8 +2432,26 @@ local function setSignals(lit: string)
 	end
 end
 
+local function updateHotDistrict()
+	local candidates = {}
+	for _, d in Config.Districts do
+		if d.id ~= "town" then
+			table.insert(candidates, d.name)
+		end
+	end
+	local day = math.floor(DateTime.now().UnixTimestamp / 86400)
+	workspace:SetAttribute("HotDistrict", candidates[day % #candidates + 1])
+end
+
 function World.start()
 	task.spawn(loadVehicles, workspace:WaitForChild("Town"), stalls)
+	updateHotDistrict()
+	task.spawn(function()
+		while true do
+			task.wait(60)
+			updateHotDistrict()
+		end
+	end)
 
 	local D = Config.DayCycle
 	local STEP = 0.5

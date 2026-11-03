@@ -68,15 +68,52 @@ local function reconcile(raw: any): Profile
 			end
 		end
 	end
+	local tools: { [string]: boolean } = {}
+	if typeof(data.tools) == "table" then
+		for id in Config.Tools do
+			if data.tools[id] == true then
+				tools[id] = true
+			end
+		end
+	end
+	local ownedCars: { [string]: boolean } = { [Config.Cars[1].id] = true }
+	if typeof(data.ownedCars) == "table" then
+		for _, car in Config.Cars do
+			if data.ownedCars[car.id] == true then
+				ownedCars[car.id] = true
+			end
+		end
+	end
+	local car = if typeof(data.car) == "string" and ownedCars[data.car]
+		then data.car
+		else Config.Cars[1].id
+	local receipts: { string } = {}
+	if typeof(data.receipts) == "table" then
+		for _, r in data.receipts do
+			if typeof(r) == "string" then
+				table.insert(receipts, r)
+			end
+		end
+	end
 	return {
 		version = VERSION,
 		cash = math.max(math.floor(tonumber(data.cash) or 0), 0),
 		backpackLevel = level,
-		backpack = sanitizeBag(data.backpack, Config.Backpack[level].capacity),
+		-- Extra room covers the Bigger Pockets pass; capacity is enforced on insert.
+		backpack = sanitizeBag(
+			data.backpack,
+			Config.Backpack[level].capacity + Config.Robux.POCKETS_BONUS
+		),
 		shelf = sanitizeBag(data.shelf, Config.SHELF_SLOTS),
 		collection = collection,
 		tutorial = math.clamp(math.floor(tonumber(data.tutorial) or 0), 0, 4),
 		nextUid = math.max(math.floor(tonumber(data.nextUid) or 1), 1),
+		tools = tools,
+		car = car,
+		ownedCars = ownedCars,
+		trunk = sanitizeBag(data.trunk, 40),
+		milestones = math.clamp(math.floor(tonumber(data.milestones) or 0), 0, #Config.Milestones),
+		receipts = receipts,
 	}
 end
 
@@ -201,8 +238,25 @@ function Data.onRelease(cb: (Player, Profile) -> ())
 	table.insert(releaseCallbacks, cb)
 end
 
-function Data.capacity(profile: Profile): number
-	return Config.Backpack[profile.backpackLevel].capacity
+-- Players owning a game pass have it cached as an attribute by Shop.
+function Data.capacity(profile: Profile, player: Player?): number
+	local bonus = if player and player:GetAttribute("Pass_pockets")
+		then Config.Robux.POCKETS_BONUS
+		else 0
+	return Config.Backpack[profile.backpackLevel].capacity + bonus
+end
+
+function Data.trunkCapacity(profile: Profile): number
+	for _, car in Config.Cars do
+		if car.id == profile.car then
+			return car.trunk
+		end
+	end
+	return 0
+end
+
+function Data.hasTool(profile: Profile, id: string): boolean
+	return profile.tools[id] == true
 end
 
 function Data.addItem(profile: Profile, itemId: string, mutation: string?): BagItem
@@ -224,25 +278,57 @@ function Data.removeItem(list: { BagItem }, uid: any): BagItem?
 	return nil
 end
 
-function Data.discover(profile: Profile, itemId: string, mutation: string?)
+function Data.discover(profile: Profile, itemId: string, mutation: string?, player: Player?)
 	profile.collection[itemId] = true
 	if mutation then
 		profile.collection[Items.collectionKey(itemId, mutation)] = true
 	end
+	-- Collection milestones pay out once each.
+	local found = 0
+	for _, item in Items.List do
+		if profile.collection[item.id] then
+			found += 1
+		end
+	end
+	local nextMilestone = Config.Milestones[profile.milestones + 1]
+	while nextMilestone and found >= nextMilestone.found do
+		profile.milestones += 1
+		profile.cash += nextMilestone.cash
+		if player then
+			Router.send(
+				player,
+				"milestone",
+				{ found = nextMilestone.found, cash = nextMilestone.cash }
+			)
+		end
+		nextMilestone = Config.Milestones[profile.milestones + 1]
+	end
 end
 
-function Data.snapshot(profile: Profile): Types.State
+function Data.snapshot(profile: Profile, player: Player?): Types.State
 	local next = Config.Backpack[profile.backpackLevel + 1]
+	local passes: { [string]: boolean } = {}
+	if player then
+		for id in Config.Robux.Passes do
+			passes[id] = player:GetAttribute("Pass_" .. id) == true
+		end
+	end
 	return {
 		cash = profile.cash,
 		backpack = profile.backpack,
-		capacity = Data.capacity(profile),
+		capacity = Data.capacity(profile, player),
 		backpackLevel = profile.backpackLevel,
 		nextUpgrade = if next then { capacity = next.capacity, price = next.price } else nil,
 		shelf = profile.shelf,
 		shelfSlots = Config.SHELF_SLOTS,
 		collection = profile.collection,
 		tutorial = profile.tutorial,
+		tools = profile.tools,
+		car = profile.car,
+		ownedCars = profile.ownedCars,
+		trunk = profile.trunk,
+		trunkCapacity = Data.trunkCapacity(profile),
+		passes = passes,
 	}
 end
 
@@ -256,13 +342,28 @@ function Data.push(player: Player)
 	if cash and cash:IsA("IntValue") then
 		cash.Value = profile.cash
 	end
-	Router.send(player, "state", Data.snapshot(profile))
+	Router.send(player, "state", Data.snapshot(profile, player))
 end
 
-function Data.advanceTutorial(profile: Profile, fromStep: number)
+local FUNNEL = { "First search", "First sale", "First upgrade", "Entered the yard" }
+
+-- Also logs the onboarding funnel so drop-off shows in Creator Analytics.
+function Data.advanceTutorial(profile: Profile, fromStep: number, player: Player?)
 	if profile.tutorial == fromStep then
 		profile.tutorial = fromStep + 1
+		if player then
+			pcall(function()
+				game:GetService("AnalyticsService")
+					:LogOnboardingFunnelStepEvent(player, fromStep + 1, FUNNEL[fromStep + 1])
+			end)
+		end
 	end
+end
+
+-- Saves right away; used before granting Robux purchases.
+function Data.saveNow(player: Player): boolean
+	local profile = profiles[player]
+	return if profile then save(player, profile, false) else false
 end
 
 function Data.init()
