@@ -191,7 +191,8 @@ local function showRevealCard(payload: any)
 	local stroke = reveal:FindFirstChildOfClass("UIStroke")
 	if stroke then
 		stroke.Color = rarity.color
-		stroke.Thickness = if payload.rarity >= 3 then 5 else 3
+		stroke.Thickness = if payload.rarity >= 3 then 2 else 1
+		stroke.Transparency = 0
 		local old = stroke:FindFirstChildOfClass("UIGradient")
 		if old then
 			old:Destroy()
@@ -432,7 +433,7 @@ local function build()
 		Position = UDim2.new(0, 12, 0, 50),
 		Size = UDim2.new(1, -150, 0, 30),
 		Parent = digFrame,
-	}, { Ui.corner(6), Ui.stroke(2) })
+	}, { Ui.corner(6), Ui.stroke() })
 	sweet = Ui.new("Frame", { BackgroundColor3 = C.accent, BorderSizePixel = 0, Parent = track })
 	marker = Ui.new("Frame", {
 		BackgroundColor3 = C.cream,
@@ -441,7 +442,7 @@ local function build()
 		Size = UDim2.new(0, 6, 1, 0),
 		ZIndex = 3,
 		Parent = track,
-	}, { Ui.stroke(2) })
+	}, { Ui.stroke() })
 	digButton = Ui.button("DIG!", "primary", UDim2.fromOffset(120, 64), tapDig)
 	digButton.AnchorPoint = Vector2.new(1, 0)
 	digButton.Position = UDim2.new(1, -12, 0, 36)

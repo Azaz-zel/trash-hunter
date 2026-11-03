@@ -88,14 +88,14 @@ function Guide.init()
 		Position = UDim2.new(0.5, 0, 1, -160),
 		Size = UDim2.new(0.86, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = 0.1,
+		BackgroundTransparency = Ui.PANEL_ALPHA,
 		BackgroundColor3 = C.panel,
 		TextColor3 = C.accent,
 		Visible = false,
 		Parent = gui,
 	})
-	Ui.corner(8).Parent = hint
-	Ui.stroke(3).Parent = hint
+	Ui.corner(10).Parent = hint
+	Ui.stroke().Parent = hint
 	Ui.padding(10).Parent = hint
 	Ui.new("UISizeConstraint", { MaxSize = Vector2.new(520, 200) }).Parent = hint
 

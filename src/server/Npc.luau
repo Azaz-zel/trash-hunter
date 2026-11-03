@@ -77,36 +77,27 @@ local function describe(kind: string, rng: Random): HumanoidDescription
 	desc.RightLegColor = skin
 	local accessories = {}
 	if kind == "police" then
-		table.insert(
-			accessories,
-			{
-				AssetId = CLOTHING.policePants,
-				AccessoryType = Enum.AccessoryType.Pants,
-				IsLayered = true,
-				Order = 1,
-			}
-		)
-		table.insert(
-			accessories,
-			{
-				AssetId = CLOTHING.policeShirt,
-				AccessoryType = Enum.AccessoryType.Shirt,
-				IsLayered = true,
-				Order = 2,
-			}
-		)
+		table.insert(accessories, {
+			AssetId = CLOTHING.policePants,
+			AccessoryType = Enum.AccessoryType.Pants,
+			IsLayered = true,
+			Order = 1,
+		})
+		table.insert(accessories, {
+			AssetId = CLOTHING.policeShirt,
+			AccessoryType = Enum.AccessoryType.Shirt,
+			IsLayered = true,
+			Order = 2,
+		})
 		desc.HatAccessory = CLOTHING.policeHat
 	else
 		local top = CLOTHING.tops[rng:NextInteger(1, #CLOTHING.tops)]
-		table.insert(
-			accessories,
-			{
-				AssetId = CLOTHING.pants[rng:NextInteger(1, #CLOTHING.pants)],
-				AccessoryType = Enum.AccessoryType.Pants,
-				IsLayered = true,
-				Order = 1,
-			}
-		)
+		table.insert(accessories, {
+			AssetId = CLOTHING.pants[rng:NextInteger(1, #CLOTHING.pants)],
+			AccessoryType = Enum.AccessoryType.Pants,
+			IsLayered = true,
+			Order = 1,
+		})
 		table.insert(
 			accessories,
 			{ AssetId = top.id, AccessoryType = top.kind, IsLayered = true, Order = 2 }

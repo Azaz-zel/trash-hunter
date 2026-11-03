@@ -13,6 +13,8 @@ local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Districts = require(ReplicatedStorage.Shared.Districts)
+local CityDistricts = require(script.Parent.Parent.CityDistricts)
 
 local W = Config.World
 local FONT = Enum.Font.GothamBold
@@ -186,7 +188,7 @@ end
 
 -- ─── trees & street props ──────────────────────────────────────────────────
 
-local function tree(parent: Instance, pos: Vector3, scale: number?)
+local function tree(parent: Instance, pos: Vector3, scale: number?, leaves: number?)
 	local s = (scale or 1) * rng:NextNumber(0.85, 1.2)
 	local trunkH = 12 * s
 	part(parent, {
@@ -199,7 +201,7 @@ local function tree(parent: Instance, pos: Vector3, scale: number?)
 		Material = M.Wood,
 	})
 	local leafColor = C.leaf:Lerp(Color3.fromRGB(96, 120, 60), rng:NextNumber(0, 0.6))
-	for i = 1, 5 do
+	for i = 1, leaves or 4 do
 		local r = rng:NextNumber(7, 10) * s
 		local offset = if i == 1
 			then Vector3.new(0, trunkH + 2 * s, 0)
@@ -407,19 +409,33 @@ end
 type Road = { axis: string, at: number, from: number, to: number }
 
 local ROADS: { Road } = {
-	{ axis = "X", at = 0, from = -640, to = 640 }, -- Main St
-	{ axis = "X", at = 300, from = -640, to = 640 }, -- Industrial Rd
-	{ axis = "X", at = -240, from = -640, to = 640 }, -- Maple Ave
+	{ axis = "X", at = 0, from = -1240, to = 1240 }, -- Main St
+	{ axis = "X", at = 300, from = -1240, to = 1240 }, -- Industrial Rd
+	{ axis = "X", at = -240, from = -1240, to = 1240 }, -- Maple Ave
+	{ axis = "X", at = 700, from = -1240, to = 1240 }, -- Rail Rd (Industrial Park)
+	{ axis = "X", at = -120, from = -1240, to = -640 }, -- Elm St (Eastside)
+	{ axis = "X", at = -120, from = 640, to = 1240 }, -- Commerce Ave (Business District)
+	{ axis = "X", at = -640, from = -620, to = 620 }, -- Hillcrest Dr
+	{ axis = "X", at = -880, from = -620, to = 620 }, -- Ridge Ln
 	{ axis = "Z", at = -400, from = -480, to = 300 },
 	{ axis = "Z", at = -130, from = -480, to = 300 },
 	{ axis = "Z", at = 150, from = -480, to = 300 },
 	{ axis = "Z", at = 420, from = -480, to = 300 },
+	{ axis = "Z", at = -980, from = -480, to = 300 }, -- Eastside
+	{ axis = "Z", at = -700, from = -480, to = 300 },
+	{ axis = "Z", at = 760, from = -480, to = 300 }, -- Business District
+	{ axis = "Z", at = 1040, from = -480, to = 300 },
+	{ axis = "Z", at = 0, from = -900, to = -240 }, -- Hillcrest Blvd
+	{ axis = "Z", at = -560, from = 300, to = 820 }, -- Industrial Park
+	{ axis = "Z", at = 560, from = 300, to = 820 },
 }
 
 local function crossings(road: Road): { number }
 	local out = {}
 	for _, other in ROADS do
-		if other.axis ~= road.axis and road.at >= other.from - 1 and road.at <= other.to + 1 then
+		local meets = road.at >= other.from - 1 and road.at <= other.to + 1
+		local onSpan = other.at >= road.from - 1 and other.at <= road.to + 1
+		if other.axis ~= road.axis and meets and onSpan then
 			table.insert(out, other.at)
 		end
 	end
@@ -904,7 +920,9 @@ local function dumpster(
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.Name = "SearchPrompt"
 	prompt.ActionText = "Search"
-	prompt.ObjectText = if private then "Private Dumpster" else "Dumpster"
+	local district = Districts.at(spec.pos)
+	local tier = if district then district.tier else 1
+	prompt.ObjectText = (if private then "Private dumpster" else "Dumpster") .. ` · Tier {tier}`
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = Config.Search.RANGE - 1
 	prompt.RequiresLineOfSight = false
@@ -913,6 +931,9 @@ local function dumpster(
 	model.PrimaryPart = body
 	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
 	model:SetAttribute("Zone", spec.zone)
+	model:SetAttribute("District", if district then district.name else "Town Center")
+	model:SetAttribute("Tier", tier)
+	model:SetAttribute("DistrictBoost", if district then district.boost else 0)
 	model:SetAttribute("Tutorial", spec.tutorial == true)
 	model.Parent = parent
 	CollectionService:AddTag(model, "Dumpster")
@@ -1643,13 +1664,33 @@ local function buildResidential(parent: Instance)
 			if northRow then
 				house(parent, CFrame.new(x, 0, -240 + curbOffset + 22), 22, rng:NextNumber() < 0.45)
 			end
-			house(
-				parent,
-				CFrame.new(x + 4, 0, -240 - curbOffset - 22) * CFrame.Angles(0, math.rad(180), 0),
-				22,
-				rng:NextNumber() < 0.45
-			)
+			if math.abs(x + 4) > 70 then -- Hillcrest Blvd runs south from here
+				house(
+					parent,
+					CFrame.new(x + 4, 0, -240 - curbOffset - 22)
+						* CFrame.Angles(0, math.rad(180), 0),
+					22,
+					rng:NextNumber() < 0.45
+				)
+			end
 			x += 74
+		end
+	end
+	-- Back alley behind the south row (dumpsters live here).
+	for _, span in { { -620, -24 }, { 24, 620 } } do
+		part(parent, {
+			Name = "Alley",
+			Size = Vector3.new(span[2] - span[1], ROAD_TOP, 16),
+			CFrame = CFrame.new((span[1] + span[2]) / 2, ROAD_TOP / 2, -356),
+			Color = C.asphaltLight,
+			Material = M.Asphalt,
+		})
+	end
+	-- Street trees on both Maple Ave sidewalks.
+	for x = -610, 610, 38 do
+		if math.abs(x) > 40 then
+			tree(parent, Vector3.new(x, 0, -240 + ROAD_W / 2 + WALK_W - 2), 0.9)
+			tree(parent, Vector3.new(x + 19, 0, -240 - ROAD_W / 2 - WALK_W + 2), 0.9)
 		end
 	end
 	local last: Vector3? = nil
@@ -2182,7 +2223,7 @@ end
 
 local function setupEnvironment()
 	local terrain = workspace.Terrain
-	terrain:FillBlock(CFrame.new(0, -3, 60), Vector3.new(1400, 6, 1240), M.Grass)
+	terrain:FillBlock(CFrame.new(0, -3, -90), Vector3.new(2800, 6, 2160), M.Grass)
 	if not terrain:FindFirstChildOfClass("Clouds") then
 		local clouds = Instance.new("Clouds")
 		clouds.Cover = 0.5
@@ -2242,6 +2283,34 @@ end
 
 -- ─── entry points ──────────────────────────────────────────────────────────
 
+local kit = {
+	part = part,
+	box = box,
+	wedge = wedge,
+	sign = sign,
+	light = light,
+	window = window,
+	tree = tree,
+	streetLight = streetLight,
+	hydrant = hydrant,
+	stopSign = stopSign,
+	bench = bench,
+	trashCan = trashCan,
+	gableRoof = gableRoof,
+	storefront = storefront,
+	parkingLot = parkingLot,
+	utilityPole = utilityPole,
+	wire = wire,
+	C = C,
+	M = M,
+	SIDING = SIDING,
+	rng = rng,
+	ROAD_TOP = ROAD_TOP,
+	WALK_TOP = WALK_TOP,
+	ROAD_W = ROAD_W,
+	WALK_W = WALK_W,
+}
+
 local stalls: { CFrame } = {}
 
 function World.init()
@@ -2262,7 +2331,7 @@ function World.init()
 	local props = Instance.new("Folder")
 	props.Name = "Decor"
 	props.Parent = town
-	for x = -600, 600, 70 do
+	for x = -1200, 1200, 80 do
 		streetLight(props, Vector3.new(x, WALK_TOP, ROAD_W / 2 + 3), 180)
 		streetLight(props, Vector3.new(x + 35, WALK_TOP, -ROAD_W / 2 - 3), 0)
 		streetLight(props, Vector3.new(x + 20, WALK_TOP, 300 - ROAD_W / 2 - 3), 0)
@@ -2299,6 +2368,9 @@ function World.init()
 	buildPark(districts)
 	buildResidential(districts)
 	buildMeridianYard(town)
+	for _, cf in CityDistricts.build(districts, kit) do
+		table.insert(stalls, cf)
+	end
 
 	local dumpsters = Instance.new("Folder")
 	dumpsters.Name = "Dumpsters"
@@ -2309,6 +2381,7 @@ function World.init()
 
 	town.Parent = workspace
 	setupEnvironment()
+	game:GetService("StarterPlayer").CharacterWalkSpeed = Config.Player.WALK_SPEED
 end
 
 local function setLights(on: boolean)

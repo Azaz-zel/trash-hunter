@@ -63,7 +63,7 @@ local function itemRow(
 		Size = UDim2.new(1, 0, 0, 64),
 		LayoutOrder = order,
 		Parent = body,
-	}, { Ui.corner(8) })
+	}, { Ui.corner(10) })
 	Ui.label(Items.label(entry.id, entry.mutation), 20, {
 		Position = UDim2.fromOffset(12, 8),
 		Size = UDim2.new(1, -24 - 112 * #actions, 0, 24),
@@ -223,7 +223,7 @@ local function renderBook()
 			BackgroundColor3 = if known then C.panelLight else C.ink,
 			LayoutOrder = i,
 			Parent = grid,
-		}, { Ui.corner(8), Ui.padding(8) })
+		}, { Ui.corner(10), Ui.padding(8) })
 		Ui.label(if known then item.name else "???", 18, {
 			Size = UDim2.new(1, 0, 0, 24),
 			TextXAlignment = Enum.TextXAlignment.Left,

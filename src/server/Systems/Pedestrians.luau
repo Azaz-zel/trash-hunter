@@ -5,7 +5,7 @@
 
 local Npc = require(script.Parent.Parent.Npc)
 
-local COUNT = 12
+local COUNT = 20
 local WALK_Y = 0.7
 
 -- Sidewalk lines: fixed axis value plus the range walkers may use.
@@ -16,6 +16,10 @@ local LINES = {
 	{ axis = "X", at = -262, from = -600, to = 600 }, -- Maple Ave, south side
 	{ axis = "Z", at = 285, from = -185, to = -65 }, -- park path
 	{ axis = "X", at = -125, from = 185, to = 385 }, -- park path
+	{ axis = "X", at = 22, from = 680, to = 1220 }, -- Business District, Main St
+	{ axis = "X", at = -98, from = 680, to = 1220 }, -- Commerce Ave
+	{ axis = "X", at = -98, from = -1220, to = -660 }, -- Elm St (Eastside)
+	{ axis = "X", at = -618, from = -600, to = 600 }, -- Hillcrest Dr
 }
 
 local Pedestrians = {}

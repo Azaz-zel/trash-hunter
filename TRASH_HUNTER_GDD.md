@@ -900,3 +900,46 @@ Mobil memakai model "Police Car" resmi milik Roblox (dimuat lewat
 InsertService), yang juga diwarnai ulang untuk mobil sipil. Bangunan dan
 pohon dibuat dari part dengan material realistis, sehingga seluruh peta
 tetap berada di git.
+
+------------------------------------------------------------------------
+
+# Lampiran D — Distrik dan Tier Loot (2026-11-03)
+
+Peta diperluas menjadi sekitar 2.500 x 1.800 stud dengan enam distrik.
+Semakin mahal sebuah daerah, semakin bagus isi dumpster-nya. Kolom "Boost"
+adalah tambahan peluang rarity di `Config.Districts`.
+
+  Distrik             Tier   Boost   Isi distrik
+  ------------------- ------ ------- ------------------------------------------------------------
+  Town Center         1      0       Hideout, toko Main St, strip mall, balai kota, gereja,
+                                     pemadam kebakaran
+  Eastside            1      +0,2    Bungalow tua, taman trailer, toko sudut, apartemen walk-up
+  Maple Grove         2      +0,45   Rumah keluarga di Maple Ave, gang belakang
+  Hillcrest Estates   3      +0,8    Mansion berpagar dengan kolam renang, country club
+  Business District   4      +1,2    Gedung kantor kaca, plaza air mancur, bank, parkir bertingkat
+  Industrial Park     5      +1,6    Pabrik, cerobong asap, scrapyard, gudang sewa, rel kereta.
+                                     Kompleks Meridian (zona polisi) berada di sini dan
+                                     mendapat tambahan +1.
+
+Hasil simulasi 20.000 roll per distrik (tanpa Dig deeper atau Perfect Dig):
+
+  Distrik             Rata-rata nilai per roll   Peluang Rare atau lebih
+  ------------------- -------------------------- -------------------------
+  Town Center         $27                        15%
+  Eastside            $33                        18%
+  Maple Grove         $47                        22%
+  Hillcrest Estates   $62                        28%
+  Business District   $88                        35%
+  Industrial Park     $118                       42%
+  Kompleks Meridian   $218                       56%
+
+Perubahan pendukung:
+
+-   **Kecepatan jalan pemain** dinaikkan ke 20 karena peta jauh lebih
+    besar. Kecepatan kejar polisi disesuaikan menjadi 18,5.
+-   **Penanda distrik:** HUD menampilkan nama distrik dan bintang tier,
+    dan sebuah banner muncul setiap kali pemain memasuki distrik baru.
+    Prompt dumpster menampilkan tier-nya.
+-   **Tampilan UI** sekarang minimalis: panel grafit transparan dengan
+    garis tipis, font Builder Sans, tombol utama putih, dan aksen amber
+    yang hanya dipakai untuk uang.

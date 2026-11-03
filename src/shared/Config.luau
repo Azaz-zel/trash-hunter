@@ -56,7 +56,7 @@ return table.freeze({
 		GUARD_COUNT = 3,
 		PATROL_SPEED = 8.5, -- each guard gets +-1 of this so they do not move in lockstep
 		INVESTIGATE_SPEED = 11,
-		CHASE_SPEED = 15, -- default player walk speed is 16
+		CHASE_SPEED = 18.5, -- players walk at Player.WALK_SPEED (20)
 		VISION_RANGE = 55,
 		VISION_HALF_ANGLE = 32, -- degrees
 		CATCH_RANGE = 4.5,
@@ -68,6 +68,76 @@ return table.freeze({
 		IMMUNITY_AFTER_CAPTURE = 5,
 		IMMUNITY_AFTER_DROP = 3,
 		SUSPICION_AFTER_DROP = 30,
+	}),
+
+	Player = table.freeze({
+		WALK_SPEED = 20, -- the town is big; default Roblox speed (16) feels slow
+	}),
+
+	-- Districts, cheapest to richest. A dumpster's loot boost = its district's
+	-- boost (+ the red-zone boost inside the Meridian yard). First match wins,
+	-- so the Meridian yard (inside Industrial Park) needs no entry of its own.
+	Districts = table.freeze({
+		table.freeze({
+			id = "town",
+			name = "Town Center",
+			tier = 1,
+			boost = 0,
+			x0 = -640,
+			x1 = 640,
+			z0 = -200,
+			z1 = 300,
+		}),
+		table.freeze({
+			id = "eastside",
+			name = "Eastside",
+			tier = 1,
+			boost = 0.2,
+			x0 = -1300,
+			x1 = -640,
+			z0 = -500,
+			z1 = 300,
+		}),
+		table.freeze({
+			id = "maple",
+			name = "Maple Grove",
+			tier = 2,
+			boost = 0.45,
+			x0 = -640,
+			x1 = 640,
+			z0 = -495,
+			z1 = -200,
+		}),
+		table.freeze({
+			id = "hillcrest",
+			name = "Hillcrest Estates",
+			tier = 3,
+			boost = 0.8,
+			x0 = -640,
+			x1 = 640,
+			z0 = -1080,
+			z1 = -495,
+		}),
+		table.freeze({
+			id = "business",
+			name = "Business District",
+			tier = 4,
+			boost = 1.2,
+			x0 = 640,
+			x1 = 1300,
+			z0 = -500,
+			z1 = 300,
+		}),
+		table.freeze({
+			id = "industrial",
+			name = "Industrial Park",
+			tier = 5,
+			boost = 1.6,
+			x0 = -1300,
+			x1 = 1300,
+			z0 = 300,
+			z1 = 900,
+		}),
 	}),
 
 	Guard = table.freeze({
@@ -99,6 +169,26 @@ return table.freeze({
 			table.freeze({ pos = v3(-520, 0, 160), zone = "Green", yaw = 0 }),
 			table.freeze({ pos = v3(578, 0, 120), zone = "Green", yaw = 90 }),
 			table.freeze({ pos = v3(-170, 0, -118), zone = "Green", yaw = 0 }),
+			-- Eastside
+			table.freeze({ pos = v3(-860, 0, 104), zone = "Green", yaw = 0 }),
+			table.freeze({ pos = v3(-1080, 0, 150), zone = "Green", yaw = 90 }),
+			table.freeze({ pos = v3(-745, 0, 175), zone = "Green", yaw = 90 }),
+			-- Maple Grove back alley
+			table.freeze({ pos = v3(-330, 0, -356), zone = "Green", yaw = 0 }),
+			table.freeze({ pos = v3(110, 0, -356), zone = "Green", yaw = 0 }),
+			table.freeze({ pos = v3(470, 0, -356), zone = "Green", yaw = 0 }),
+			-- Hillcrest Estates service lane and country club
+			table.freeze({ pos = v3(-300, 0, -760), zone = "Green", yaw = 0 }),
+			table.freeze({ pos = v3(300, 0, -760), zone = "Green", yaw = 0 }),
+			table.freeze({ pos = v3(70, 0, -968), zone = "Green", yaw = 90 }),
+			-- Business District loading areas
+			table.freeze({ pos = v3(880, 0, 254), zone = "Green", yaw = 180 }),
+			table.freeze({ pos = v3(1150, 0, 254), zone = "Green", yaw = 180 }),
+			table.freeze({ pos = v3(1000, 0, -196), zone = "Green", yaw = 90 }),
+			-- Industrial Park (outside the Meridian fence)
+			table.freeze({ pos = v3(-760, 0, 592), zone = "Green", yaw = 180 }),
+			table.freeze({ pos = v3(-990, 0, 600), zone = "Green", yaw = 90 }),
+			table.freeze({ pos = v3(880, 0, 592), zone = "Green", yaw = 180 }),
 			-- Meridian yard, by the loading docks
 			table.freeze({ pos = v3(-150, 0, 496), zone = "Red", yaw = 180 }),
 			table.freeze({ pos = v3(-80, 0, 496), zone = "Red", yaw = 180 }),

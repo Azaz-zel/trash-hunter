@@ -1,23 +1,26 @@
 --!strict
--- Tiny UI kit. Identity motif: comic-panel look, thick ink outline on every
--- panel and button, one rounded display font (Fredoka One) to match the
--- cartoon trash world. Yellow is the single accent, used for primary actions.
+-- Tiny UI kit. Minimal and modern: translucent graphite panels with a hairline
+-- border, one sans family (Builder Sans), white primary buttons, and a single
+-- warm amber accent reserved for money and key numbers.
 
 local TweenService = game:GetService("TweenService")
 
 local Ui = {}
 
-Ui.FONT = Enum.Font.GothamBold
+Ui.FONT = Enum.Font.BuilderSansBold
+Ui.BODY = Enum.Font.BuilderSansMedium
 Ui.COLORS = table.freeze({
-	panel = Color3.fromRGB(24, 28, 44),
-	panelLight = Color3.fromRGB(44, 50, 74),
-	ink = Color3.fromRGB(12, 13, 22),
-	cream = Color3.fromRGB(250, 244, 228),
-	muted = Color3.fromRGB(190, 194, 212),
-	accent = Color3.fromRGB(255, 200, 48),
-	danger = Color3.fromRGB(196, 36, 36),
-	safe = Color3.fromRGB(88, 204, 96),
+	panel = Color3.fromRGB(17, 19, 23),
+	panelLight = Color3.fromRGB(42, 46, 54),
+	ink = Color3.fromRGB(17, 19, 23),
+	cream = Color3.fromRGB(246, 247, 249),
+	muted = Color3.fromRGB(164, 170, 182),
+	accent = Color3.fromRGB(255, 190, 70),
+	danger = Color3.fromRGB(200, 44, 44),
+	safe = Color3.fromRGB(74, 214, 128),
+	hairline = Color3.fromRGB(255, 255, 255),
 })
+Ui.PANEL_ALPHA = 0.18 -- background transparency of panels
 
 local C = Ui.COLORS
 
@@ -42,10 +45,12 @@ function Ui.corner(px: number): UICorner
 	return Ui.new("UICorner", { CornerRadius = UDim.new(0, px) })
 end
 
+-- Hairline border. The width argument is kept for callers but capped at 2px.
 function Ui.stroke(px: number?, color: Color3?): UIStroke
 	return Ui.new("UIStroke", {
-		Thickness = px or 3,
-		Color = color or C.ink,
+		Thickness = math.min(px or 1, 2),
+		Color = color or C.hairline,
+		Transparency = if color then 0 else 0.88,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 	})
 end
@@ -77,7 +82,7 @@ end
 function Ui.label(text: string, textSize: number, props: { [string]: any }?): TextLabel
 	local base: { [string]: any } = {
 		BackgroundTransparency = 1,
-		Font = Ui.FONT,
+		Font = if textSize >= 22 then Ui.FONT else Ui.BODY,
 		Text = text,
 		TextSize = textSize,
 		TextColor3 = C.cream,
@@ -91,9 +96,9 @@ function Ui.label(text: string, textSize: number, props: { [string]: any }?): Te
 end
 
 local STYLES = {
-	primary = { bg = C.accent, fg = C.ink },
-	secondary = { bg = C.panelLight, fg = C.cream },
-	danger = { bg = C.danger, fg = Color3.new(1, 1, 1) },
+	primary = { bg = C.cream, fg = C.ink, alpha = 0 },
+	secondary = { bg = C.panelLight, fg = C.cream, alpha = 0.25 },
+	danger = { bg = C.danger, fg = Color3.new(1, 1, 1), alpha = 0 },
 }
 
 -- Animation vocabulary: every UI motion uses one of these so the game feels coherent.
@@ -145,15 +150,16 @@ function Ui.button(text: string, style: string, size: UDim2, onClick: () -> ()):
 	local button: TextButton = Ui.new("TextButton", {
 		Size = size,
 		BackgroundColor3 = s.bg,
+		BackgroundTransparency = s.alpha,
 		TextColor3 = s.fg,
 		Font = Ui.FONT,
-		TextSize = 20,
+		TextSize = 19,
 		TextWrapped = true,
 		Text = text,
 		AutoButtonColor = true,
 	}, {
-		Ui.corner(8),
-		Ui.stroke(3),
+		Ui.corner(10),
+		Ui.stroke(),
 		Ui.new("UISizeConstraint", { MinSize = Vector2.new(52, 52) }),
 	})
 	-- Press feedback: squish on press, spring back on release.
@@ -179,16 +185,22 @@ end
 function Ui.setEnabled(button: TextButton, enabled: boolean)
 	button.Active = enabled
 	button.AutoButtonColor = enabled
-	button.BackgroundTransparency = if enabled then 0 else 0.55
+	local base = button:GetAttribute("BaseAlpha")
+	if base == nil then
+		base = button.BackgroundTransparency
+		button:SetAttribute("BaseAlpha", base)
+	end
+	button.BackgroundTransparency = if enabled then base else math.max(base, 0.6)
 	button.TextTransparency = if enabled then 0 else 0.45
 end
 
 function Ui.panel(props: { [string]: any }?): Frame
-	local base: { [string]: any } = { BackgroundColor3 = C.panel, BackgroundTransparency = 0.05 }
+	local base: { [string]: any } =
+		{ BackgroundColor3 = C.panel, BackgroundTransparency = Ui.PANEL_ALPHA }
 	for k, v in props or {} do
 		base[k] = v
 	end
-	return Ui.new("Frame", base, { Ui.corner(10), Ui.stroke(3) })
+	return Ui.new("Frame", base, { Ui.corner(14), Ui.stroke() })
 end
 
 function Ui.tween(

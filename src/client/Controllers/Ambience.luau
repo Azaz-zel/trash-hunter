@@ -18,7 +18,7 @@ local rng = Random.new()
 local ROAD_TOP = 0.2
 local CAR_SPEED = 30
 local CRUISER_SPEED = 22
-local ROAD_END = 630
+local ROAD_END = 1230
 
 -- Right-hand traffic: +X lanes on the south half of each street.
 local LANES = {
@@ -27,6 +27,7 @@ local LANES = {
 	{ z = -248, dir = 1 },
 	{ z = -232, dir = -1 },
 	{ z = 292, dir = 1 },
+	{ z = 708, dir = -1 },
 }
 
 local Ambience = {}

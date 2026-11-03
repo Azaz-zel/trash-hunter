@@ -123,6 +123,8 @@ local function finishDig(player: Player, token: number)
 	if session.dumpster:GetAttribute("Zone") == "Red" then
 		boost += Config.Boost.RED_ZONE
 	end
+	-- Richer districts throw out better stuff (set by World from Config.Districts).
+	boost += tonumber(session.dumpster:GetAttribute("DistrictBoost")) or 0
 	if session.perfect then
 		boost += Config.Boost.PERFECT
 	end
