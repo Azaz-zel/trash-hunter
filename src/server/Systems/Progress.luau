@@ -17,6 +17,7 @@ local Q = Config.Quests
 export type Event = {
 	district: string?, -- district id of the searched dumpster
 	red: boolean?, -- searched inside the Meridian yard
+	city: string?, -- city of the searched dumpster
 	rarity: number?, -- rarity of the picked bag
 	amount: number?, -- cash earned
 }
@@ -42,6 +43,8 @@ local function stepFor(def: any, kind: string, e: Event): number
 		elseif def.kind == "district" and e.district == def.district then
 			return 1
 		elseif def.kind == "yard" and e.red then
+			return 1
+		elseif def.kind == "city" and e.city == def.city then
 			return 1
 		end
 	elseif kind == "earn" and def.kind == "earn" then

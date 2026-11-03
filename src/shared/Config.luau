@@ -55,6 +55,14 @@ return table.freeze({
 			order = 5,
 			desc = "Better odds in every dumpster.",
 		}),
+		-- Port Haven only: sold at Harbor Supply.
+		magnet = table.freeze({
+			name = "Magnet Kit",
+			price = 3000,
+			order = 6,
+			desc = "+1 bag in every Port Haven dumpster.",
+			city = "port",
+		}),
 	}),
 	TOOL_EFFECT = table.freeze({
 		GLOVES_SPEED = 0.6, -- rummage time multiplier
@@ -84,6 +92,23 @@ return table.freeze({
 			price = 4000,
 			trunk = 30,
 			color = Color3.fromRGB(150, 28, 30),
+		}),
+		-- Port Haven cars, sold at Bayside Autos.
+		table.freeze({
+			id = "van",
+			name = "Harbor Van",
+			price = 2600,
+			trunk = 22,
+			color = Color3.fromRGB(32, 120, 128),
+			city = "port",
+		}),
+		table.freeze({
+			id = "hauler",
+			name = "Dock Hauler",
+			price = 9000,
+			trunk = 44,
+			color = Color3.fromRGB(214, 120, 30),
+			city = "port",
 		}),
 	}),
 	CAR = table.freeze({
@@ -147,12 +172,33 @@ return table.freeze({
 			sells = "cars",
 			range = 14,
 		}),
+		harbor = table.freeze({
+			name = "Harbor Supply",
+			counter = v3(2110, 0, 24),
+			sells = "gear",
+			range = 14,
+			city = "port",
+		}),
+		bayside = table.freeze({
+			name = "Bayside Autos",
+			counter = v3(2090, 0, -78),
+			sells = "cars",
+			range = 14,
+			city = "port",
+		}),
 		realty = table.freeze({
 			name = "Maple Realty",
 			counter = v3(-690, 0, -600),
 			sells = "house",
 			range = 14,
 		}),
+	}),
+
+	-- Cities on the one connected map. Items, cars and tools without a city
+	-- belong to Maple. Route 9 (Main St east of Maple) leads to Port Haven.
+	Cities = table.freeze({
+		maple = table.freeze({ name = "Maple", order = 1 }),
+		port = table.freeze({ name = "Port Haven", order = 2 }),
 	}),
 
 	-- Houses on Sunset Lane: a trophy room other players can visit and like.
@@ -184,6 +230,7 @@ return table.freeze({
 		maple = table.freeze({ stat = "searches", need = 12, text = "Search 12 dumpsters" }),
 		hillcrest = table.freeze({ stat = "rares", need = 4, text = "Find 4 Rare-or-better items" }),
 		business = table.freeze({ stat = "earned", need = 5000, text = "Earn $5,000 from sales" }),
+		docks = table.freeze({ stat = "rares", need = 12, text = "Find 12 Rare-or-better items" }),
 	}),
 
 	-- Daily login streak reward by streak day (repeats after day 7).
@@ -206,6 +253,13 @@ return table.freeze({
 				pos = v3(-560, 0, -216),
 				yaw = 0,
 				line = "I pay well for help. Interested?",
+			}),
+			table.freeze({
+				id = "mae",
+				name = "Captain Mae",
+				pos = v3(2300, 0, 22),
+				yaw = 180,
+				line = "The tide brings in strange things. Want work?",
 			}),
 			table.freeze({
 				id = "vic",
@@ -245,11 +299,11 @@ return table.freeze({
 				text = "Sell $5,000 worth of stuff",
 			}),
 			table.freeze({
-				kind = "district",
-				district = "eastside",
+				kind = "city",
+				city = "port",
 				n = 4,
-				reward = 350,
-				text = "Search 4 dumpsters in Eastside",
+				reward = 600,
+				text = "Search 4 dumpsters in Port Haven",
 			}),
 			table.freeze({
 				kind = "district",
@@ -403,11 +457,46 @@ return table.freeze({
 			id = "sunset",
 			name = "Sunset Lane",
 			tier = 0, -- homes, no dumpsters
+			note = "Homes for sale at Maple Realty",
 			boost = 0,
 			x0 = -1300,
 			x1 = -640,
 			z0 = -1080,
 			z1 = -500,
+		}),
+		table.freeze({
+			id = "route9",
+			name = "Route 9",
+			tier = 0,
+			note = "Highway to Port Haven",
+			boost = 0,
+			x0 = 1300,
+			x1 = 1880,
+			z0 = -1110,
+			z1 = 900,
+		}),
+		-- Port Haven: a second city with its own items.
+		table.freeze({
+			id = "oldport",
+			name = "Old Port",
+			city = "port",
+			tier = 3,
+			boost = 0.7,
+			x0 = 1880,
+			x1 = 2280,
+			z0 = -600,
+			z1 = 600,
+		}),
+		table.freeze({
+			id = "docks",
+			name = "The Docks",
+			city = "port",
+			tier = 5,
+			boost = 1.4,
+			x0 = 2280,
+			x1 = 2900,
+			z0 = -600,
+			z1 = 600,
 		}),
 	}),
 
@@ -421,6 +510,8 @@ return table.freeze({
 	World = table.freeze({
 		HIDEOUT_CENTER = v3(10, 0, 90),
 		HIDEOUT_RADIUS = 30, -- "inside the Hideout" for selling and ending chases
+		-- Every hideout (selling, safe zone). The first is Maple's main Hideout.
+		HIDEOUTS = table.freeze({ v3(10, 0, 90), v3(1985, 0, 75) }),
 		SPAWN = v3(10, 0, 104),
 		SELL_POINT = v3(-8, 0, 108),
 		-- Meridian Logistics yard: the fenced private property.
@@ -473,6 +564,20 @@ return table.freeze({
 			table.freeze({ pos = v3(1222, 0, -560), zone = "Green", yaw = -90, pad = "enclosure" }),
 			table.freeze({ pos = v3(960, 0, -850), zone = "Green", yaw = 90, pad = "enclosure" }),
 			table.freeze({ pos = v3(1222, 0, -850), zone = "Green", yaw = -90, pad = "enclosure" }),
+			-- Port Haven: Old Port alleys behind the shops
+			table.freeze({ pos = v3(2030, 0, 100), zone = "Green", yaw = 180, pad = "enclosure" }),
+			table.freeze({ pos = v3(2160, 0, 100), zone = "Green", yaw = 180, pad = "enclosure" }),
+			table.freeze({ pos = v3(1990, 0, -100), zone = "Green", yaw = 0, pad = "enclosure" }),
+			table.freeze({ pos = v3(2215, 0, -100), zone = "Green", yaw = 0, pad = "enclosure" }),
+			table.freeze({ pos = v3(1960, 0, 330), zone = "Green", yaw = 180, pad = "enclosure" }),
+			table.freeze({ pos = v3(2150, 0, -330), zone = "Green", yaw = 0, pad = "enclosure" }),
+			-- Port Haven: the Docks
+			table.freeze({ pos = v3(2320, 0, 190), zone = "Green", yaw = 90, pad = "enclosure" }),
+			table.freeze({ pos = v3(2470, 0, 120), zone = "Green", yaw = -90, pad = "enclosure" }),
+			table.freeze({ pos = v3(2330, 0, -60), zone = "Green", yaw = 90, pad = "enclosure" }),
+			table.freeze({ pos = v3(2585, 0, -200), zone = "Green", yaw = -90, pad = "enclosure" }),
+			table.freeze({ pos = v3(2340, 0, 330), zone = "Green", yaw = 180, pad = "enclosure" }),
+			table.freeze({ pos = v3(2560, 0, -330), zone = "Green", yaw = 0, pad = "enclosure" }),
 			-- Meridian yard: by the dock doors, the guard booth and the back fence
 			table.freeze({ pos = v3(-150, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),
 			table.freeze({ pos = v3(-80, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),

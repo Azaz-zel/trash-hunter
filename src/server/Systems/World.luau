@@ -1056,6 +1056,7 @@ local function dumpster(
 	model:SetAttribute("Zone", spec.zone)
 	model:SetAttribute("District", if district then district.name else "Town Center")
 	model:SetAttribute("DistrictId", if district then district.id else "town")
+	model:SetAttribute("City", if district and district.city then district.city else "maple")
 	model:SetAttribute("Tier", tier)
 	model:SetAttribute("DistrictBoost", if district then district.boost else 0)
 	model:SetAttribute("Tutorial", spec.tutorial == true)
@@ -2441,19 +2442,20 @@ local function setupEnvironment()
 	local lawn = workspace:WaitForChild("Town"):FindFirstChild("Ground") or Instance.new("Folder")
 	lawn.Name = "Ground"
 	lawn.Parent = workspace:WaitForChild("Town")
-	for _, x in { -700, 700 } do
+	-- Maple, then Route 9 and Port Haven up to the quay (x = 2672).
+	for _, span in { { -1400, 0 }, { 0, 1400 }, { 1400, 2672 } } do
 		local ground = Instance.new("Part")
 		ground.Name = "Lawn"
 		ground.Anchored = true
-		ground.Size = Vector3.new(1400, 2, 2200)
-		ground.Position = Vector3.new(x, -1.02, -110)
+		ground.Size = Vector3.new(span[2] - span[1], 2, 2200)
+		ground.Position = Vector3.new((span[1] + span[2]) / 2, -1.02, -110)
 		ground.Color = Color3.fromRGB(92, 124, 64)
 		ground.Material = M.Grass
 		ground.TopSurface = Enum.SurfaceType.Smooth
 		ground.Parent = lawn
 	end
 	local patchRng = Random.new(7)
-	for _ = 1, 70 do
+	for _ = 1, 110 do
 		local size = patchRng:NextNumber(60, 180)
 		local patch = Instance.new("Part")
 		patch.Name = "LawnPatch"
@@ -2462,7 +2464,7 @@ local function setupEnvironment()
 		patch.CastShadow = false
 		patch.Size = Vector3.new(size, 0.04, size * patchRng:NextNumber(0.5, 1))
 		patch.CFrame = CFrame.new(
-			patchRng:NextNumber(-1280, 1280),
+			patchRng:NextNumber(-1280, 2640),
 			-0.0,
 			patchRng:NextNumber(-1100, 880)
 		) * CFrame.Angles(0, patchRng:NextNumber(0, 6.28), 0)
@@ -2475,6 +2477,27 @@ local function setupEnvironment()
 		patch.Material = M.Grass
 		patch.Parent = lawn
 	end
+	-- The bay east of Port Haven's quay.
+	local sea = Instance.new("Part")
+	sea.Name = "Sea"
+	sea.Anchored = true
+	sea.CanCollide = false
+	sea.Size = Vector3.new(1400, 1, 2600)
+	sea.Position = Vector3.new(2672 + 700, -1.6, -110)
+	sea.Color = Color3.fromRGB(40, 92, 112)
+	sea.Material = M.Glass
+	sea.Transparency = 0.15
+	sea.Reflectance = 0.15
+	sea.Parent = lawn
+	local seabed = sea:Clone()
+	seabed.Name = "Seabed"
+	seabed.CanCollide = true
+	seabed.Transparency = 0
+	seabed.Reflectance = 0
+	seabed.Material = M.Sand
+	seabed.Color = Color3.fromRGB(80, 90, 70)
+	seabed.Position = Vector3.new(2672 + 700, -9, -110)
+	seabed.Parent = lawn
 	if not terrain:FindFirstChildOfClass("Clouds") then
 		local clouds = Instance.new("Clouds")
 		clouds.Cover = 0.5
@@ -2534,22 +2557,37 @@ end
 
 -- ─── entry points ──────────────────────────────────────────────────────────
 
+-- By store id.
 local STORE_LOOK = {
-	gear = {
+	hardware = {
 		w = 50,
 		wall = Color3.fromRGB(150, 70, 52),
 		material = M.Brick,
 		awning = Color3.fromRGB(176, 40, 32),
 		action = "Shop gear",
 	},
-	cars = {
+	motors = {
 		w = 60,
 		wall = Color3.fromRGB(196, 200, 206),
 		material = M.Concrete,
 		awning = Color3.fromRGB(30, 80, 160),
 		action = "Browse cars",
 	},
-	house = {
+	harbor = {
+		w = 50,
+		wall = Color3.fromRGB(70, 96, 110),
+		material = M.WoodPlanks,
+		awning = Color3.fromRGB(30, 60, 90),
+		action = "Shop gear",
+	},
+	bayside = {
+		w = 60,
+		wall = Color3.fromRGB(230, 226, 214),
+		material = M.Concrete,
+		awning = Color3.fromRGB(32, 120, 128),
+		action = "Browse cars",
+	},
+	realty = {
 		w = 50,
 		wall = Color3.fromRGB(226, 218, 200),
 		material = M.Plaster,
@@ -2565,7 +2603,7 @@ local function buildStores(parent: Instance)
 	for id, store in Config.Stores do
 		local counterPos = store.counter
 		local isMotors = store.sells == "cars"
-		local look = STORE_LOOK[store.sells]
+		local look = STORE_LOOK[id]
 		-- The storefront sits behind its counter; Hank's faces Main St (-Z), Maple Motors faces north.
 		local yaw = if isMotors then 180 else 0
 		local facing = CFrame.Angles(0, math.rad(yaw), 0)

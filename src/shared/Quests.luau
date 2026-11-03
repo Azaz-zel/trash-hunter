@@ -11,7 +11,7 @@ function Quests.today(): number
 end
 
 -- Pool index offered by giver `i` on `day`. Givers are spaced 4 apart in an
--- 11-entry pool, so the three givers never offer the same quest.
+-- 11-entry pool (offsets 0, 4, 8, 1), so the four givers never overlap.
 function Quests.offer(i: number, day: number): number
 	local n = #Config.Quests.pool
 	return (day * 7 + (i - 1) * 4) % n + 1
@@ -25,8 +25,12 @@ end
 
 function Quests.selfCheck()
 	for day = 0, 30 do
-		local a, b, c = Quests.offer(1, day), Quests.offer(2, day), Quests.offer(3, day)
-		assert(a ~= b and b ~= c and a ~= c, "givers offered the same quest")
+		local seen = {}
+		for i = 1, #Config.Quests.givers do
+			local q = Quests.offer(i, day)
+			assert(not seen[q], "givers offered the same quest")
+			seen[q] = true
+		end
 	end
 	assert(not Quests.permitted({ searches = 11 }, "maple"), "maple gate opened early")
 	assert(Quests.permitted({ searches = 12 }, "maple"), "maple gate stuck")

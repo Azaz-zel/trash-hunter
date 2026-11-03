@@ -29,6 +29,10 @@ local DISTRICT_TINT = {
 	hillcrest = Color3.fromRGB(110, 160, 140),
 	business = Color3.fromRGB(110, 130, 180),
 	industrial = Color3.fromRGB(160, 140, 100),
+	sunset = Color3.fromRGB(170, 140, 110),
+	route9 = Color3.fromRGB(70, 110, 70),
+	oldport = Color3.fromRGB(120, 110, 140),
+	docks = Color3.fromRGB(110, 130, 150),
 }
 
 type Canvas = { world: Frame, scale: number, dots: { Frame }, arrow: Frame }
@@ -118,6 +122,10 @@ local function drawWorld(parent: Instance, scale: number, labels: boolean): Canv
 	})
 	for _, d in Config.Districts do
 		rect(world, scale, d.x0, d.x1, d.z0, d.z1, DISTRICT_TINT[d.id] or C.panelLight, 0.55, 1)
+		if d.id == "docks" then
+			-- The bay east of the quay.
+			rect(world, scale, 2672, B.x1, B.z0, B.z1, Color3.fromRGB(40, 92, 130), 0.1, 2)
+		end
 		if labels then
 			-- Top-left corner, so it never sits on the Hideout or store pins.
 			local px, py = toPixel(scale, d.x0, d.z1)
@@ -172,16 +180,18 @@ local function drawWorld(parent: Instance, scale: number, labels: boolean): Canv
 			)
 		end
 	end
-	marker(
-		world,
-		scale,
-		Config.World.HIDEOUT_CENTER,
-		C.accent,
-		if labels then 14 else 10,
-		if labels then "Hideout" else nil,
-		6,
-		true
-	)
+	for i, hideout in Config.World.HIDEOUTS do
+		marker(
+			world,
+			scale,
+			hideout,
+			C.accent,
+			if labels then 14 else 10,
+			if labels then (if i == 1 then "Hideout" else "Harbor Lockup") else nil,
+			6,
+			true
+		)
+	end
 	for _, s in Config.Stores do
 		marker(
 			world,
@@ -495,7 +505,7 @@ function MapUi.start()
 			if red then
 				return -- the private-property card already showed
 			elseif d.tier == 0 then
-				showCard(d.name, "Homes for sale at Maple Realty", Color3.fromRGB(196, 120, 60))
+				showCard(d.name, d.note or "", Color3.fromRGB(196, 120, 60))
 			elseif gate and state and not Quests.permitted(state.stats, d.id) then
 				showCard(d.name, `Permit needed: {gate.text}`, Color3.fromRGB(150, 150, 156))
 			else
@@ -503,7 +513,7 @@ function MapUi.start()
 					.. string.rep("☆", Districts.MAX_TIER - d.tier)
 				local hot = workspace:GetAttribute("HotDistrict") == d.name
 				showCard(
-					d.name,
+					if d.city == "port" then `{d.name} · Port Haven` else d.name,
 					`Loot {stars}{if hot then "  ·  HOT TODAY" else ""}`,
 					if hot then Color3.fromRGB(255, 140, 40) else C.accent
 				)

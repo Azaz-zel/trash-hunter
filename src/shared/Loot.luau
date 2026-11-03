@@ -39,9 +39,9 @@ function Loot.rollRarity(rng: Random, boost: number): number
 	return #weights
 end
 
-function Loot.roll(rng: Random, boost: number, forceRarity: number?): Roll
+function Loot.roll(rng: Random, boost: number, forceRarity: number?, city: string?): Roll
 	local rarity = forceRarity or Loot.rollRarity(rng, boost)
-	local bucket = Items.ByRarity[rarity]
+	local bucket = (Items.ByCity[city or "maple"] or Items.ByCity.maple)[rarity]
 	local item = bucket[rng:NextInteger(1, #bucket)]
 	local mutation: string? = nil
 	for _, m in Items.Mutations do
@@ -95,6 +95,10 @@ function Loot.selfCheck()
 	local forced = Loot.roll(rng, 0, 3)
 	assert(forced.rarity == 3 and Items.ById[forced.itemId].rarity == 3, "forced rarity ignored")
 	assert(Items.value("monitor", "golden") == 225, "mutation multiplier wrong")
+	for _ = 1, 50 do
+		local roll = Loot.roll(rng, 0, nil, "port")
+		assert(Items.ById[roll.itemId].city == "port", "Port Haven dropped a Maple item")
+	end
 end
 
 return Loot

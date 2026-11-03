@@ -36,8 +36,24 @@ function Guard.distance(player: Player, point: Vector3): number
 	return if root then (flat(root.Position) - flat(point)).Magnitude else math.huge
 end
 
+function Guard.nearestHideout(point: Vector3): Vector3
+	local best, bestDist = World.HIDEOUTS[1], math.huge
+	for _, c in World.HIDEOUTS do
+		local dist = (flat(point) - flat(c)).Magnitude
+		if dist < bestDist then
+			best, bestDist = c, dist
+		end
+	end
+	return best
+end
+
 function Guard.inHideout(player: Player): boolean
-	return Guard.distance(player, World.HIDEOUT_CENTER) <= World.HIDEOUT_RADIUS
+	for _, c in World.HIDEOUTS do
+		if Guard.distance(player, c) <= World.HIDEOUT_RADIUS then
+			return true
+		end
+	end
+	return false
 end
 
 function Guard.inRedZone(position: Vector3): boolean
@@ -46,7 +62,11 @@ function Guard.inRedZone(position: Vector3): boolean
 end
 
 -- At a store counter that sells this kind of thing, or holding Shop Anywhere.
-function Guard.atStore(player: Player, sells: string): (boolean, string?)
+-- city: only that city's stores stock it (nil: any store of that kind).
+function Guard.atStore(player: Player, sells: string, city: string?): (boolean, string?)
+	local function matches(store: any): boolean
+		return city == nil or (store.city or "maple") == city
+	end
 	if Guard.isFlagged(player) then
 		return false, "Hold on..."
 	end
@@ -54,12 +74,16 @@ function Guard.atStore(player: Player, sells: string): (boolean, string?)
 		return true, nil
 	end
 	for _, store in Config.Stores do
-		if store.sells == sells and Guard.distance(player, store.counter) <= store.range then
+		if
+			store.sells == sells
+			and matches(store)
+			and Guard.distance(player, store.counter) <= store.range
+		then
 			return true, nil
 		end
 	end
 	for _, store in Config.Stores do
-		if store.sells == sells then
+		if store.sells == sells and matches(store) then
 			return false, `Visit {store.name} to buy this.`
 		end
 	end

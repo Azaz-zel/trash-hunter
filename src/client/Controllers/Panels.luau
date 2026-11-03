@@ -22,6 +22,8 @@ local TABS = { "bag", "trunk", "shop", "book" }
 -- What the shop tab lists: "gear", "cars" or "robux" at a store counter or
 -- the R$ button; nil (everything) only with the Shop Anywhere pass.
 local storeFilter: string? = nil
+-- City of the store counter that opened the shop (nil: every city).
+local storeCity: string? = nil
 local STORE_TAB = { gear = "Hardware", cars = "Motors", house = "Realty" }
 local TAB_NAMES = { bag = "Bag", trunk = "Trunk", shop = "Shop", book = "Book" }
 
@@ -453,6 +455,9 @@ local function renderGear(state: any, atCounter: boolean)
 		return a.t.order < b.t.order
 	end)
 	for i, entry in tools do
+		if storeCity and (entry.t.city or "maple") ~= storeCity then
+			continue
+		end
 		local owned = state.tools[entry.id] == true
 		local text = if owned then "Owned" else Ui.money(entry.t.price)
 		local can = not owned and atCounter and state.cash >= entry.t.price
@@ -485,6 +490,10 @@ local function renderCars(state: any, atCounter: boolean)
 	heading("Cars", 30, Ui.money(state.cash))
 	for i, car in Config.Cars do
 		local owned = state.ownedCars[car.id] == true
+		-- A dealer sells its own city's cars; owned cars can be picked anywhere.
+		if storeCity and (car.city or "maple") ~= storeCity and not owned then
+			continue
+		end
 		local driving = state.car == car.id
 		local text = if driving then "Selected" elseif owned then "Use" else Ui.money(car.price)
 		local can = not driving and atCounter and (owned or state.cash >= car.price)
@@ -600,19 +609,40 @@ local function renderBook(state: any)
 	else
 		note("Every item found. Hunt for Shiny and Golden versions.", 2)
 	end
-	local g = grid(3, 150)
-	for i, item in Items.List do
-		local known = state.collection[item.id] == true
-		local marks = {}
-		for _, m in Items.Mutations do
-			if state.collection[Items.collectionKey(item.id, m.id)] then
-				table.insert(marks, m.name)
+	local cities = {}
+	for id, city in Config.Cities do
+		table.insert(cities, { id = id, name = city.name, order = city.order })
+	end
+	table.sort(cities, function(a, b)
+		return a.order < b.order
+	end)
+	local order = 3
+	for _, city in cities do
+		local list, have = {}, 0
+		for _, item in Items.List do
+			if (item.city or "maple") == city.id then
+				table.insert(list, item)
+				if state.collection[item.id] then
+					have += 1
+				end
 			end
 		end
-		itemCard(g, i, item.id, nil, {
-			silhouette = not known,
-			caption = if #marks > 0 then table.concat(marks, " + ") else nil,
-		})
+		heading(city.name, order, `{have}/{#list}`)
+		local g = grid(order + 1, 150)
+		order += 2
+		for i, item in list do
+			local known = state.collection[item.id] == true
+			local marks = {}
+			for _, m in Items.Mutations do
+				if state.collection[Items.collectionKey(item.id, m.id)] then
+					table.insert(marks, m.name)
+				end
+			end
+			itemCard(g, i, item.id, nil, {
+				silhouette = not known,
+				caption = if #marks > 0 then table.concat(marks, " + ") else nil,
+			})
+		end
 	end
 end
 
@@ -663,6 +693,7 @@ local function open(which: string, filter: string?)
 	end
 	current = which
 	storeFilter = filter
+	storeCity = nil
 	local state = Store.get()
 	local anywhere = state ~= nil and state.passes.shopanywhere == true
 	tabButtons.shop.Visible = anywhere or which == "shop"
@@ -791,6 +822,8 @@ function Panels.start()
 			local store = Config.Stores[prompt.Parent and prompt.Parent:GetAttribute("Store") or ""]
 			if store then
 				open("shop", store.sells)
+				storeCity = store.city or "maple"
+				Panels.render()
 			end
 		elseif prompt.Name == "TrunkPrompt" then
 			local car = prompt:FindFirstAncestorWhichIsA("Model")

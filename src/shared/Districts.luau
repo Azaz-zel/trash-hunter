@@ -6,8 +6,10 @@ local Config = require(script.Parent.Config)
 export type District = {
 	id: string,
 	name: string,
-	tier: number,
+	tier: number, -- 0: no dumpsters (homes, highway)
 	boost: number,
+	city: string?, -- nil means Maple
+	note: string?, -- location card text for tier-0 areas
 	x0: number,
 	x1: number,
 	z0: number,
@@ -25,6 +27,11 @@ function Districts.at(pos: Vector3): District?
 		end
 	end
 	return nil
+end
+
+function Districts.cityAt(pos: Vector3): string
+	local d = Districts.at(pos)
+	return d and d.city or "maple"
 end
 
 return Districts

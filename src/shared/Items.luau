@@ -13,6 +13,7 @@ export type Item = {
 	name: string,
 	rarity: number, -- index into Rarities
 	value: number,
+	city: string?, -- nil means Maple; dumpsters only drop their city's items
 }
 
 export type Mutation = {
@@ -58,6 +59,28 @@ local List: { Item } = {
 
 	{ id = "limited_console", name = "Limited Edition Console", rarity = 6, value = 2500 },
 	{ id = "gaming_pc", name = "Golden Gaming PC", rarity = 6, value = 3000 },
+
+	-- Port Haven: worth a bit more, found only in Port Haven dumpsters.
+	{ id = "rope", name = "Frayed Rope", rarity = 1, value = 4, city = "port" },
+	{ id = "net", name = "Torn Fishing Net", rarity = 1, value = 4, city = "port" },
+	{ id = "buoy", name = "Cracked Buoy", rarity = 1, value = 5, city = "port" },
+	{ id = "crabtrap", name = "Bent Crab Trap", rarity = 1, value = 6, city = "port" },
+
+	{ id = "lantern", name = "Ship Lantern", rarity = 2, value = 16, city = "port" },
+	{ id = "compass", name = "Brass Compass", rarity = 2, value = 18, city = "port" },
+	{ id = "oar", name = "Wooden Oar", rarity = 2, value = 14, city = "port" },
+
+	{ id = "helmet", name = "Diving Helmet", rarity = 3, value = 65, city = "port" },
+	{ id = "wheel", name = "Ship's Wheel", rarity = 3, value = 60, city = "port" },
+	{ id = "spyglass", name = "Spyglass", rarity = 3, value = 55, city = "port" },
+
+	{ id = "sextant", name = "Captain's Sextant", rarity = 4, value = 210, city = "port" },
+	{ id = "bottleship", name = "Ship in a Bottle", rarity = 4, value = 190, city = "port" },
+
+	{ id = "anchor", name = "Golden Anchor", rarity = 5, value = 850, city = "port" },
+	{ id = "figurehead", name = "Mermaid Figurehead", rarity = 5, value = 750, city = "port" },
+
+	{ id = "chest", name = "Pirate Treasure Chest", rarity = 6, value = 3800, city = "port" },
 }
 
 -- Ordered rarest first: the roll checks Golden before Shiny.
@@ -79,17 +102,24 @@ local Mutations: { Mutation } = {
 }
 
 local byId: { [string]: Item } = {}
-local byRarity: { { Item } } = {}
-for i = 1, #Rarities do
-	byRarity[i] = {}
-end
+-- byCity[city][rarity] = items; every city must cover every rarity.
+local byCity: { [string]: { { Item } } } = {}
 for _, item in List do
 	assert(byId[item.id] == nil, "duplicate item id " .. item.id)
 	byId[item.id] = item
-	table.insert(byRarity[item.rarity], item)
+	local city = item.city or "maple"
+	if not byCity[city] then
+		byCity[city] = {}
+		for i = 1, #Rarities do
+			byCity[city][i] = {}
+		end
+	end
+	table.insert(byCity[city][item.rarity], item)
 end
-for i, bucket in byRarity do
-	assert(#bucket > 0, "rarity " .. i .. " has no items")
+for city, buckets in byCity do
+	for i, bucket in buckets do
+		assert(#bucket > 0, `{city} has no items of rarity {i}`)
+	end
 end
 
 local mutationById: { [string]: Mutation } = {}
@@ -102,7 +132,7 @@ local Items = {
 	List = List,
 	Mutations = Mutations,
 	ById = byId,
-	ByRarity = byRarity,
+	ByCity = byCity,
 	MutationById = mutationById,
 }
 

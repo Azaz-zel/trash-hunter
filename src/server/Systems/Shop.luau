@@ -27,7 +27,7 @@ local function buyTool(player: Player, id: any): (boolean, string?)
 	if not profile or not tool then
 		return false, nil
 	end
-	local ok, message = Guard.atStore(player, "gear")
+	local ok, message = Guard.atStore(player, "gear", tool.city or "maple")
 	if not ok then
 		return false, message
 	end
@@ -60,7 +60,12 @@ local function buyCar(player: Player, id: any): (boolean, string?)
 	if not profile or not car then
 		return false, nil
 	end
-	local ok, message = Guard.atStore(player, "cars")
+	-- Buying needs that city's dealer; switching to an owned car works at any.
+	local ok, message = Guard.atStore(
+		player,
+		"cars",
+		if profile.ownedCars[car.id] then nil else car.city or "maple"
+	)
 	if not ok then
 		return false, message
 	end

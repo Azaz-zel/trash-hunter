@@ -146,14 +146,17 @@ local function finishDig(player: Player, token: number)
 		return
 	end
 
-	local count = S.BAGS + (if Data.hasTool(profile, "crowbar") then 1 else 0)
+	local city = session.dumpster:GetAttribute("City") or "maple"
+	local count = S.BAGS
+		+ (if Data.hasTool(profile, "crowbar") then 1 else 0)
+		+ (if city == "port" and Data.hasTool(profile, "magnet") then 1 else 0)
 	local boost = boostFor(player, session)
 	-- The very first search is a guaranteed Rare whichever bag is picked (GDD FTUE).
 	local force = if profile.tutorial == 0 and session.depth == 0 then 3 else nil
 	local bags: { Loot.Roll } = {}
 	local looks = {}
 	for i = 1, count do
-		bags[i] = Loot.roll(rng, boost, force)
+		bags[i] = Loot.roll(rng, boost, force, city)
 		looks[i] = { weight = weightOf(bags[i]) }
 	end
 	-- Pity: after a long dry streak one bag is guaranteed to be good.
@@ -164,7 +167,7 @@ local function finishDig(player: Player, token: number)
 			else nil
 		if pityRarity then
 			local lucky = rng:NextInteger(1, count)
-			bags[lucky] = Loot.roll(rng, boost, pityRarity)
+			bags[lucky] = Loot.roll(rng, boost, pityRarity, city)
 			looks[lucky] = { weight = weightOf(bags[lucky]) }
 		end
 	end
@@ -236,6 +239,7 @@ pick = function(player: Player, index: any): (boolean, string?)
 	Progress.track(player, "search", {
 		district = session.dumpster:GetAttribute("DistrictId"),
 		red = session.dumpster:GetAttribute("Zone") == "Red",
+		city = session.dumpster:GetAttribute("City") or "maple",
 		rarity = roll.rarity,
 	})
 	if roll.rarity >= 3 then

@@ -1085,3 +1085,23 @@ Spec: `docs/superpowers/specs/2026-11-04-phase1-feel-navigation-design.md`.
 -   Business District diperluas ke selatan: Corporate Park (4 gedung kantor,
     Corporate Dr) dengan 4 tempat sampah baru.
 -   Jalan baru: Sunset Ln dan Corporate Dr.
+
+# Lampiran H — Phase 3: Kota Kedua, Port Haven
+
+-   Satu peta yang tersambung: Main St berlanjut ke timur menjadi Route 9
+    (jalan raya lewat hutan, ±600 stud), lalu masuk Port Haven. Peta penuh dan
+    minimap menampilkan kedua kota.
+-   Distrik: Old Port (tier 3, bebas masuk) dan The Docks (tier 5, izin: 12 item
+    Rare+). Total 12 tempat sampah baru.
+-   Hideout sendiri: Harbor Lockup (jual barang, zona aman). Jual isi bagasi
+    mobil di hideout terdekat.
+-   Item khusus kota: 15 item Port Haven (Frayed Rope sampai Pirate Treasure
+    Chest $3.800). Tempat sampah hanya menjatuhkan item dari kotanya sendiri.
+    Book dibagi per kota.
+-   Toko sendiri: Harbor Supply menjual Magnet Kit ($3.000, +1 kantong di
+    tempat sampah Port Haven) dan upgrade tas. Bayside Autos menjual Harbor Van
+    (bagasi 22) dan Dock Hauler (bagasi 44). Mobil yang sudah dimiliki bisa
+    dipilih di dealer mana pun.
+-   Harbor Park (monumen jangkar, bangku, pepohonan), dermaga, perahu, crane
+    kontainer, mercusuar di ujung pemecah ombak.
+-   Quest giver baru: Captain Mae. Quest baru: "Search 4 dumpsters in Port Haven".

@@ -161,7 +161,7 @@ local function spawnCar(player: Player): (boolean, string?)
 			end
 		end
 	end
-	local c = Config.World.HIDEOUT_CENTER
+	local c = Guard.nearestHideout(root.Position)
 	car:PivotTo(
 		target
 			or CFrame.lookAt(
@@ -271,7 +271,8 @@ local function sellTrunk(player: Player): (boolean, string?)
 	local car = cars[player]
 	if
 		not car
-		or (car:GetPivot().Position - Config.World.HIDEOUT_CENTER).Magnitude > CAR.SELL_RANGE
+		or (car:GetPivot().Position - Guard.nearestHideout(car:GetPivot().Position)).Magnitude
+			> CAR.SELL_RANGE
 	then
 		return false, "Park your car at the Hideout first."
 	end

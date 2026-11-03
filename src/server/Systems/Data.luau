@@ -135,7 +135,7 @@ local function reconcile(raw: any): Profile
 		tools = tools,
 		car = car,
 		ownedCars = ownedCars,
-		trunk = sanitizeBag(data.trunk, 40),
+		trunk = sanitizeBag(data.trunk, 50), -- largest trunk is 44
 		milestones = math.clamp(math.floor(tonumber(data.milestones) or 0), 0, #Config.Milestones),
 		receipts = receipts,
 		sinceEpic = math.max(math.floor(tonumber(data.sinceEpic) or 0), 0),
