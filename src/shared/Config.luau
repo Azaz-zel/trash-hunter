@@ -106,5 +106,17 @@ return table.freeze({
 		JACKPOT = "rbxassetid://1840076509",
 		WHISTLE = "rbxassetid://9125775207",
 		CASH = "rbxassetid://1839881844",
+		DAY_AMBIENCE = "rbxassetid://9117064941",
+		NIGHT_AMBIENCE = "rbxassetid://9112764040",
+		CHASE_MUSIC = "rbxassetid://1838489774",
+	}),
+
+	-- One full day takes DAY_LENGTH seconds; night runs NIGHT_SPEED times faster.
+	DayCycle = table.freeze({
+		DAY_LENGTH = 480,
+		NIGHT_SPEED = 1.8,
+		START = 15,
+		LIGHTS_ON = 17.6,
+		LIGHTS_OFF = 6.4,
 	}),
 })

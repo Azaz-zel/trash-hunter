@@ -7,6 +7,7 @@ local Players = game:GetService("Players")
 
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Config = require(Shared.Config)
+local Items = require(Shared.Items)
 local Loot = require(Shared.Loot)
 local Router = require(script.Parent.Parent.Router)
 local Data = require(script.Parent.Data)
@@ -74,6 +75,31 @@ end
 
 local resolve: (Player, any) -> (boolean, string?)
 
+-- Rare+ finds float above the dumpster for everyone nearby: other players see
+-- what came out of the trash, which is what makes a dumpster look worth trying.
+local function showFindPop(dumpster: Model, roll: Loot.Roll)
+	local body = dumpster:FindFirstChild("Body")
+	if not body then
+		return
+	end
+	local pop = Instance.new("BillboardGui")
+	pop.Name = "FindPop"
+	pop.Size = UDim2.fromOffset(260, 56)
+	pop.StudsOffset = Vector3.new(0, 6, 0)
+	pop.MaxDistance = 120
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.TextColor3 = Items.Rarities[roll.rarity].color
+	label.TextStrokeTransparency = 0
+	label.Text = Items.label(roll.itemId, roll.mutation) .. "!"
+	label.Parent = pop
+	pop.Parent = body
+	game:GetService("Debris"):AddItem(pop, 3)
+end
+
 local function finishDig(player: Player, token: number)
 	local session = sessions[player]
 	if not session or session.token ~= token then
@@ -108,6 +134,9 @@ local function finishDig(player: Player, token: number)
 	local roll = Loot.roll(rng, boost, force)
 	session.pending = roll
 	Data.discover(profile, roll.itemId, roll.mutation)
+	if roll.rarity >= 3 then
+		showFindPop(session.dumpster, roll)
+	end
 	if roll.rarity >= 5 then
 		Social.announce(player, roll.itemId, roll.mutation, roll.rarity)
 	end

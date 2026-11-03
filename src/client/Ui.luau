@@ -96,7 +96,50 @@ local STYLES = {
 	danger = { bg = C.danger, fg = Color3.new(1, 1, 1) },
 }
 
--- Buttons are never smaller than 48px tall so they work under a thumb.
+-- Animation vocabulary: every UI motion uses one of these so the game feels coherent.
+Ui.FAST = TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+Ui.SETTLE = TweenInfo.new(0.16, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+Ui.BOUNCY = TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
+local function scaleOf(gui: GuiObject): UIScale
+	local existing = gui:FindFirstChild("PopScale")
+	if existing and existing:IsA("UIScale") then
+		return existing
+	end
+	return Ui.new("UIScale", { Name = "PopScale", Parent = gui })
+end
+
+local live: { [UIScale]: Tween } = {}
+local function scaleTo(scale: UIScale, value: number, info: TweenInfo)
+	local previous = live[scale]
+	if previous then
+		previous:Cancel()
+	end
+	local t = TweenService:Create(scale, info, { Scale = value })
+	live[scale] = t
+	t.Completed:Once(function()
+		if live[scale] == t then
+			live[scale] = nil
+		end
+	end)
+	t:Play()
+end
+
+-- Entrance pop: grow from `from` to full size with a little overshoot.
+function Ui.pop(gui: GuiObject, from: number?)
+	local scale = scaleOf(gui)
+	scale.Scale = from or 0.85
+	scaleTo(scale, 1, Ui.BOUNCY)
+end
+
+-- Attention bump: 1.1x and back, for a value that just changed.
+function Ui.bump(gui: GuiObject)
+	local scale = scaleOf(gui)
+	scaleTo(scale, 1.12, Ui.FAST)
+	task.delay(0.09, scaleTo, scale, 1, Ui.SETTLE)
+end
+
+-- Buttons are never smaller than 52px before scaling (44px on the smallest phones).
 function Ui.button(text: string, style: string, size: UDim2, onClick: () -> ()): TextButton
 	local s = STYLES[style] or STYLES.secondary
 	local button: TextButton = Ui.new("TextButton", {
@@ -111,9 +154,25 @@ function Ui.button(text: string, style: string, size: UDim2, onClick: () -> ()):
 	}, {
 		Ui.corner(8),
 		Ui.stroke(3),
-		Ui.new("UISizeConstraint", { MinSize = Vector2.new(48, 48) }),
+		Ui.new("UISizeConstraint", { MinSize = Vector2.new(52, 52) }),
 	})
-	button.Activated:Connect(onClick)
+	-- Press feedback: squish on press, spring back on release.
+	local scale = scaleOf(button)
+	button.MouseButton1Down:Connect(function()
+		if button.Active then
+			scaleTo(scale, 0.92, Ui.FAST)
+		end
+	end)
+	local function release()
+		scaleTo(scale, 1, Ui.SETTLE)
+	end
+	button.MouseButton1Up:Connect(release)
+	button.MouseLeave:Connect(release)
+	button.Activated:Connect(function()
+		if button.Active then
+			onClick()
+		end
+	end)
 	return button
 end
 
@@ -145,6 +204,45 @@ function Ui.tween(
 	)
 	t:Play()
 	return t
+end
+
+-- Shrinks a whole ScreenGui on short screens (landscape phones) so panels fit,
+-- never below 0.85 so 52px buttons stay at least 44px.
+function Ui.autoScale(gui: ScreenGui)
+	local scale: UIScale = Ui.new("UIScale", { Name = "ScreenScale", Parent = gui })
+	local camera = workspace.CurrentCamera
+	local function update()
+		local height = camera.ViewportSize.Y
+		scale.Scale = math.clamp(height / 640, 0.85, 1.15)
+	end
+	camera:GetPropertyChangedSignal("ViewportSize"):Connect(update)
+	update()
+end
+
+-- Counts a money label up (or down) to a new value instead of snapping.
+local counters: { [TextLabel]: NumberValue } = {}
+function Ui.countMoney(label: TextLabel, value: number)
+	local holder = counters[label]
+	if not holder then
+		local nv = Instance.new("NumberValue")
+		nv.Value = value
+		nv.Changed:Connect(function(v)
+			label.Text = Ui.money(v)
+		end)
+		counters[label] = nv
+		label.Text = Ui.money(value)
+		label.Destroying:Once(function()
+			counters[label] = nil
+			nv:Destroy()
+		end)
+		return
+	end
+	local nv = holder :: NumberValue
+	TweenService:Create(
+		nv,
+		TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		{ Value = value }
+	):Play()
 end
 
 function Ui.money(n: number): string

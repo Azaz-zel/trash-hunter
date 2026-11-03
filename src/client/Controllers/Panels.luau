@@ -273,6 +273,7 @@ local function open(which: string)
 	end
 	current = which
 	window.Visible = true
+	Ui.pop(window, 0.9)
 	body.CanvasPosition = Vector2.zero
 	render()
 end
@@ -325,6 +326,7 @@ end
 
 function Panels.init()
 	build()
+	Ui.autoScale(gui)
 end
 
 function Panels.start()

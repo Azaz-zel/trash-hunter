@@ -29,6 +29,7 @@ local npc: Model? = nil
 local humanoid: Humanoid? = nil
 local root: BasePart? = nil
 local status: TextLabel? = nil
+local whistle: Sound? = nil
 local patrolIndex = 1
 local catchTimer = 0
 local lastMove = 0
@@ -137,6 +138,15 @@ local function buildNpc(): boolean
 	beam.LightEmission = 0.5
 	beam.Parent = hrp
 
+	-- Positional, so everyone nearby hears a chase start, not just the target.
+	local sound = Instance.new("Sound")
+	sound.Name = "Whistle"
+	sound.SoundId = Config.Sounds.WHISTLE
+	sound.Volume = 1
+	sound.RollOffMaxDistance = 140
+	sound.Parent = head
+	whistle = sound
+
 	local bubble = Instance.new("BillboardGui")
 	bubble.Size = UDim2.fromOffset(60, 60)
 	bubble.StudsOffset = Vector3.new(0, 3, 0)
@@ -159,6 +169,45 @@ local function buildNpc(): boolean
 			d:SetNetworkOwner(nil)
 		end
 	end
+
+	-- Server-driven walk cycle, loaded once the rig is in the DataModel
+	-- (tracks loaded earlier silently stay empty). The rig's own Animate LocalScript never runs on an NPC.
+	local oldAnimate = model:FindFirstChild("Animate")
+	if oldAnimate then
+		oldAnimate:Destroy()
+	end
+	local animator = hum:FindFirstChildOfClass("Animator")
+	if not animator then
+		local created = Instance.new("Animator")
+		created.Parent = hum
+		animator = created
+	end
+	local function track(id: string, priority: Enum.AnimationPriority): AnimationTrack
+		local anim = Instance.new("Animation")
+		anim.AnimationId = id
+		local t = (animator :: Animator):LoadAnimation(anim)
+		t.Priority = priority
+		t.Looped = true
+		return t
+	end
+	local idle = track("rbxassetid://507766388", Enum.AnimationPriority.Idle)
+	local walk = track("rbxassetid://913402848", Enum.AnimationPriority.Movement)
+	local run = track("rbxassetid://913376220", Enum.AnimationPriority.Movement)
+	idle:Play()
+	local moving: AnimationTrack? = nil
+	hum.Running:Connect(function(speed)
+		local want = if speed < 0.5 then nil elseif speed > P.PATROL_SPEED * 1.3 then run else walk
+		if want == moving then
+			return
+		end
+		if moving then
+			moving:Stop(0.2)
+		end
+		moving = want
+		if want then
+			want:Play(0.2)
+		end
+	end)
 
 	npc, humanoid, root, status = model, hum, hrp, label
 	return true
@@ -264,6 +313,9 @@ local function startChase(player: Player)
 	loseTimer[player] = 0
 	Search.cancel(player, "spotted")
 	Router.send(player, "chase", { on = true })
+	if whistle then
+		whistle:Play()
+	end
 end
 
 -- Empties the backpack; returns how many items and how much cash they were worth.

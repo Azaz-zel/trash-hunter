@@ -47,6 +47,8 @@ local function find(path: { string }): BasePart?
 	return if node and node:IsA("BasePart") then node else nil
 end
 
+local retrying = false
+
 local function render()
 	local state = Store.get()
 	local step = state and STEPS[state.tutorial + 1]
@@ -55,12 +57,23 @@ local function render()
 		marker.Enabled = false
 		return
 	end
-	hint.Text = step.text
+	if hint.Text ~= step.text then
+		hint.Text = step.text
+		Ui.pop(hint, 0.7)
+	end
 	hint.Visible = true
 	local target = find(step.path)
 	marker.Adornee = target
 	marker.Enabled = target ~= nil
 	markerText.Text = step.label .. "\n▼"
+	-- With streaming on, the target may not have arrived yet: look again shortly.
+	if not target and not retrying then
+		retrying = true
+		task.delay(1, function()
+			retrying = false
+			render()
+		end)
+	end
 end
 
 function Guide.init()
@@ -69,6 +82,7 @@ function Guide.init()
 		ResetOnSpawn = false,
 		Parent = player:WaitForChild("PlayerGui"),
 	})
+	Ui.autoScale(gui)
 	hint = Ui.label("", 20, {
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -160),
@@ -91,7 +105,8 @@ function Guide.init()
 		StudsOffset = Vector3.new(0, 7, 0),
 		AlwaysOnTop = true,
 		Enabled = false,
-		Parent = gui,
+		-- BillboardGuis do not render inside a ScreenGui; PlayerGui is fine.
+		Parent = player:WaitForChild("PlayerGui"),
 	})
 	markerText = Ui.label("", 30, {
 		Size = UDim2.fromScale(1, 1),
@@ -103,14 +118,16 @@ function Guide.init()
 end
 
 function Guide.start()
+	-- The world marker bobs so the eye finds it.
+	game:GetService("TweenService")
+		:Create(
+			marker,
+			TweenInfo.new(0.7, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+			{ StudsOffset = Vector3.new(0, 8.2, 0) }
+		)
+		:Play()
 	Store.on("state", render)
 	render()
-	-- The map may replicate after the first state arrives.
-	task.spawn(function()
-		workspace:WaitForChild("Town")
-		task.wait(1)
-		render()
-	end)
 end
 
 return Guide

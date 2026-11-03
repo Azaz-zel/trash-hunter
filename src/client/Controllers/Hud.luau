@@ -57,6 +57,7 @@ local function toast(text: string, color: Color3?)
 	Ui.stroke(3).Parent = label
 	Ui.padding(10).Parent = label
 	label.Parent = toastHolder
+	Ui.pop(label, 0.7)
 	local items = toastHolder:GetChildren()
 	local labels = {}
 	for _, child in items do
@@ -76,6 +77,9 @@ local function toast(text: string, color: Color3?)
 	end)
 end
 
+local lastCash: number? = nil
+local lastBag: number? = nil
+
 local function renderState()
 	local state = Store.get()
 	if not state then
@@ -83,7 +87,14 @@ local function renderState()
 		bagLabel.Text = "Bag ..."
 		return
 	end
-	cashLabel.Text = Ui.money(state.cash)
+	Ui.countMoney(cashLabel, state.cash)
+	if lastCash and state.cash ~= lastCash then
+		Ui.bump(cashLabel.Parent :: GuiObject)
+	end
+	if lastBag and #state.backpack ~= lastBag then
+		Ui.bump(bagLabel.Parent :: GuiObject)
+	end
+	lastCash, lastBag = state.cash, #state.backpack
 	bagLabel.Text = `Bag {#state.backpack}/{state.capacity}`
 	bagLabel.TextColor3 = if #state.backpack >= state.capacity then C.accent else C.cream
 end
@@ -92,8 +103,12 @@ local function renderSuspicion()
 	local value = tonumber(player:GetAttribute("Suspicion")) or 0
 	local chased = player:GetAttribute("Chased") == true
 	local inRed = player:GetAttribute("InRedZone") == true
-	suspicionFrame.Visible = chased or value > 0 or inRed
-	suspicionFill.Size = UDim2.fromScale(math.clamp(value / 100, 0, 1), 1)
+	local show = chased or value > 0 or inRed
+	if show and not suspicionFrame.Visible then
+		Ui.pop(suspicionFrame, 0.7)
+	end
+	suspicionFrame.Visible = show
+	Ui.tween(suspicionFill, 0.15, { Size = UDim2.fromScale(math.clamp(value / 100, 0, 1), 1) })
 	if chased then
 		suspicionFill.BackgroundColor3 = C.danger
 		suspicionText.Text = "SPOTTED!"
@@ -106,6 +121,10 @@ local function renderSuspicion()
 	else
 		suspicionFill.BackgroundColor3 = C.accent
 		suspicionText.Text = if inRed then "Private property" else "Suspicion"
+	end
+	if chased and not dropButton.Visible then
+		Ui.pop(dropButton, 0.6)
+		Ui.pop(chaseBanner, 0.6)
 	end
 	chaseBanner.Visible = chased
 	dropButton.Visible = chased
@@ -290,6 +309,7 @@ local function onBusted(payload: { count: number, value: number })
 			"Your bag was empty, so you lost nothing.\nYour cash, shelf and upgrades are safe."
 	end
 	busted.Visible = true
+	Ui.pop(busted:FindFirstChildWhichIsA("Frame") :: Frame, 0.6)
 	Store.play(Config.Sounds.WHISTLE, 0.8)
 end
 
@@ -304,6 +324,7 @@ local function onAnnounce(
 		`{payload.name} found a {string.upper(Items.label(payload.itemId, payload.mutation))}!`
 	announceLabel.TextColor3 = rarity.color
 	announceLabel.Visible = true
+	Ui.pop(announceLabel, 0.6)
 	task.delay(5, function()
 		if announceToken == token then
 			announceLabel.Visible = false
@@ -313,6 +334,7 @@ end
 
 function Hud.init()
 	build()
+	Ui.autoScale(gui)
 end
 
 function Hud.start()
@@ -333,7 +355,7 @@ function Hud.start()
 	end)
 	Store.on("chase", function(payload)
 		if payload.on then
-			Store.play(Config.Sounds.WHISTLE, 0.8)
+			toast("You've been spotted! Run!", Color3.fromRGB(255, 120, 110))
 		elseif payload.reason == "safe" or payload.reason == "lost" then
 			toast("You got away!", C.safe)
 		end

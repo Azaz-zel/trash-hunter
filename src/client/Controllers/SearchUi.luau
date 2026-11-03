@@ -4,7 +4,7 @@
 -- local presentation; the server already decided the result.
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -31,7 +31,7 @@ local digging: {
 	startedAt: number,
 	duration: number,
 	tapped: boolean,
-	conn: RBXScriptConnection?,
+	tween: Tween?,
 	dumpster: Model,
 }? =
 	nil
@@ -94,8 +94,8 @@ local function cameraShake(strength: number)
 end
 
 local function stopDigBar()
-	if digging and digging.conn then
-		digging.conn:Disconnect()
+	if digging and digging.tween then
+		digging.tween:Cancel()
 	end
 	digging = nil
 	digFrame.Visible = false
@@ -113,6 +113,7 @@ local function tapDig()
 		if ok and perfect then
 			digHint.Text = "PERFECT DIG!"
 			digHint.TextColor3 = C.accent
+			Ui.bump(digHint)
 		elseif ok then
 			digHint.Text = "Missed the sweet spot"
 			digHint.TextColor3 = C.muted
@@ -145,7 +146,7 @@ local function onSearchStarted(payload: {
 		startedAt = startedAt,
 		duration = payload.duration,
 		tapped = false,
-		conn = nil :: RBXScriptConnection?,
+		tween = nil :: Tween?,
 		dumpster = dumpster,
 	}
 	digging = state
@@ -155,16 +156,26 @@ local function onSearchStarted(payload: {
 		burst.Color = ColorSequence.new(Color3.fromRGB(150, 120, 80))
 	end
 	Store.play(Config.Sounds.RUMMAGE, 0.5)
-	local nextPuff = 0
-	state.conn = RunService.RenderStepped:Connect(function()
-		local t = math.clamp((os.clock() - startedAt) / payload.duration, 0, 1)
-		marker.Position = UDim2.fromScale(t, 0)
-		if os.clock() > nextPuff and burst then
-			nextPuff = os.clock() + 0.25
-			burst:Emit(3)
-		end
-		if t >= 1 and digging == state then
+	Ui.pop(digFrame, 0.9)
+	-- Marker sweep is one linear tween; dirt puffs are a slow side loop.
+	local sweep = TweenService:Create(
+		marker,
+		TweenInfo.new(payload.duration, Enum.EasingStyle.Linear),
+		{ Position = UDim2.fromScale(1, 0) }
+	)
+	state.tween = sweep
+	sweep.Completed:Once(function(status)
+		if status == Enum.PlaybackState.Completed and digging == state then
 			stopDigBar()
+		end
+	end)
+	sweep:Play()
+	task.spawn(function()
+		while digging == state do
+			if burst then
+				burst:Emit(3)
+			end
+			task.wait(0.25)
 		end
 	end)
 end
@@ -180,6 +191,26 @@ local function showRevealCard(payload: any)
 	local stroke = reveal:FindFirstChildOfClass("UIStroke")
 	if stroke then
 		stroke.Color = rarity.color
+		stroke.Thickness = if payload.rarity >= 3 then 5 else 3
+		local old = stroke:FindFirstChildOfClass("UIGradient")
+		if old then
+			old:Destroy()
+		end
+		-- Epic and up: a light sweeps around the card edge.
+		if payload.rarity >= 4 then
+			local shine = Instance.new("UIGradient")
+			shine.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, rarity.color),
+				ColorSequenceKeypoint.new(0.5, Color3.new(1, 1, 1)),
+				ColorSequenceKeypoint.new(1, rarity.color),
+			})
+			shine.Parent = stroke
+			TweenService:Create(
+				shine,
+				TweenInfo.new(1.6, Enum.EasingStyle.Linear, Enum.EasingDirection.In, -1),
+				{ Rotation = 360 }
+			):Play()
+		end
 	end
 
 	Ui.label(
@@ -256,6 +287,7 @@ local function showRevealCard(payload: any)
 	leave.Parent = reveal
 
 	reveal.Visible = true
+	Ui.pop(reveal, if payload.rarity >= 4 then 0.5 else 0.8)
 end
 
 local function onSearchResult(payload: any)
@@ -442,6 +474,7 @@ end
 
 function SearchUi.init()
 	build()
+	Ui.autoScale(gui)
 end
 
 function SearchUi.start()
