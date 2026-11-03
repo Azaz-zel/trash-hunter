@@ -344,6 +344,16 @@ return table.freeze({
 		RED_ZONE = 1,
 		PER_DEEPER = 1,
 		FRIEND = 0.25,
+		HEAVY = 1, -- heavy dumpsters need two players to open
+	}),
+
+	-- Pedestrians offer trades for one item in your backpack.
+	Barter = table.freeze({
+		RANGE = 14,
+		OFFER_SECONDS = 25, -- an offer expires if left open
+		NPC_COOLDOWN = 300, -- per player, per pedestrian
+		SWAP_CHANCE = 0.3, -- otherwise they pay cash
+		LOWBALL_CHANCE = 0.35, -- cash offers below pawn value
 	}),
 
 	Backpack = table.freeze({
@@ -557,8 +567,20 @@ return table.freeze({
 			table.freeze({ pos = v3(994, 0, -196), zone = "Green", yaw = -90, pad = "wall" }),
 			-- Industrial Park (outside the Meridian fence)
 			table.freeze({ pos = v3(-666, 0, 500), zone = "Green", yaw = 90, pad = "wall" }),
-			table.freeze({ pos = v3(-1014, 0, 600), zone = "Green", yaw = 90, pad = "wall" }),
-			table.freeze({ pos = v3(944, 0, 500), zone = "Green", yaw = -90, pad = "wall" }),
+			table.freeze({
+				pos = v3(-1014, 0, 600),
+				zone = "Green",
+				yaw = 90,
+				pad = "wall",
+				heavy = true,
+			}),
+			table.freeze({
+				pos = v3(944, 0, 500),
+				zone = "Green",
+				yaw = -90,
+				pad = "wall",
+				heavy = true,
+			}),
 			-- Corporate Park, beside the office towers
 			table.freeze({ pos = v3(960, 0, -560), zone = "Green", yaw = 90, pad = "enclosure" }),
 			table.freeze({ pos = v3(1222, 0, -560), zone = "Green", yaw = -90, pad = "enclosure" }),
@@ -573,7 +595,13 @@ return table.freeze({
 			table.freeze({ pos = v3(2150, 0, -330), zone = "Green", yaw = 0, pad = "enclosure" }),
 			-- Port Haven: the Docks
 			table.freeze({ pos = v3(2320, 0, 190), zone = "Green", yaw = 90, pad = "enclosure" }),
-			table.freeze({ pos = v3(2470, 0, 120), zone = "Green", yaw = -90, pad = "enclosure" }),
+			table.freeze({
+				pos = v3(2470, 0, 120),
+				zone = "Green",
+				yaw = -90,
+				pad = "enclosure",
+				heavy = true,
+			}),
 			table.freeze({ pos = v3(2330, 0, -60), zone = "Green", yaw = 90, pad = "enclosure" }),
 			table.freeze({ pos = v3(2585, 0, -200), zone = "Green", yaw = -90, pad = "enclosure" }),
 			table.freeze({ pos = v3(2340, 0, 330), zone = "Green", yaw = 180, pad = "enclosure" }),

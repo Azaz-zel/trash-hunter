@@ -1105,3 +1105,25 @@ Spec: `docs/superpowers/specs/2026-11-04-phase1-feel-navigation-design.md`.
 -   Harbor Park (monumen jangkar, bangku, pepohonan), dermaga, perahu, crane
     kontainer, mercusuar di ujung pemecah ombak.
 -   Quest giver baru: Captain Mae. Quest baru: "Search 4 dumpsters in Port Haven".
+
+# Lampiran I — Phase 4: Barter, Bin Berat, Undang Teman
+
+## Barter dengan pejalan kaki
+-   26 pejalan kaki (termasuk di Port Haven), masing-masing punya nama dan
+    prompt "Trade". Mereka memilih satu item acak dari tas dan menawarkan:
+    -   uang tunai: 65% lebih mahal dari pawn (×1,1–1,6), 35% lowball (×0,6–0,95); atau
+    -   tukar (30%): item tertentu dari kota itu, rarity sama, kadang naik
+        atau turun satu tingkat. Item yang ditawarkan ditampilkan dulu
+        (bukan gacha).
+-   Kartu tawaran menampilkan selisih terhadap harga pawn (hijau atau merah).
+    Tawaran hangus setelah 25 detik; satu pejalan kaki hanya bisa sekali
+    per pemain setiap 5 menit. Pejalan kaki berhenti selama tawaran terbuka.
+
+## Bin berat (2 pemain)
+-   3 tempat sampah bergaris kuning bertanda "HEAVY BIN": Industrial Park
+    barat, Industrial Park timur, The Docks. Hanya bisa dibuka kalau ada
+    pemain lain di dekatnya; boost loot +1 (setara yard Meridian).
+
+## Undang teman
+-   Tombol "Invite" di HUD membuka dialog undangan Roblox.
+-   Push notification belum dibuat: butuh Open Cloud dari server luar.

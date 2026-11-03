@@ -1060,6 +1060,43 @@ local function dumpster(
 	model:SetAttribute("Tier", tier)
 	model:SetAttribute("DistrictBoost", if district then district.boost else 0)
 	model:SetAttribute("Tutorial", spec.tutorial == true)
+	if spec.heavy then
+		-- Heavy-duty bin: hazard stripes, a chained lid and a two-player tag.
+		model:SetAttribute("Heavy", true)
+		for _, y in { 1.2, 4.2 } do
+			box(
+				model,
+				"HazardStripe",
+				base * CFrame.new(0, 0.6 + y, 0),
+				Vector3.new(8.2, 0.5, 6.2),
+				Color3.fromRGB(240, 196, 30),
+				M.SmoothPlastic
+			)
+		end
+		box(
+			model,
+			"Chain",
+			base * CFrame.new(0, 5.6, -3.1),
+			Vector3.new(0.4, 1.2, 0.4),
+			C.darkMetal,
+			M.DiamondPlate
+		)
+		local tag = Instance.new("BillboardGui")
+		tag.Name = "HeavyTag"
+		tag.Size = UDim2.fromOffset(170, 40)
+		tag.StudsOffset = Vector3.new(0, 5, 0)
+		tag.MaxDistance = 70
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.BuilderSansBold
+		label.TextScaled = true
+		label.TextColor3 = Color3.fromRGB(240, 196, 30)
+		label.TextStrokeTransparency = 0.3
+		label.Text = "HEAVY BIN\n2 players · better loot"
+		label.Parent = tag
+		tag.Parent = body
+	end
 	model.Parent = parent
 	CollectionService:AddTag(model, "Dumpster")
 	return model

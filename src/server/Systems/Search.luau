@@ -109,6 +109,9 @@ local function boostFor(player: Player, session: Session): number
 	if dumpster:GetAttribute("District") == workspace:GetAttribute("HotDistrict") then
 		boost += Config.HOT_DISTRICT_BOOST
 	end
+	if dumpster:GetAttribute("Heavy") then
+		boost += Config.Boost.HEAVY
+	end
 	if Social.hasFriendHere(player) then
 		boost += Config.Boost.FRIEND
 	end
@@ -274,6 +277,16 @@ pick = function(player: Player, index: any): (boolean, string?)
 	return true, nil
 end
 
+-- Another player standing at the same heavy bin holds the lid up.
+local function hasHelper(player: Player, dumpster: Model): boolean
+	for _, other in Players:GetPlayers() do
+		if other ~= player and Guard.distance(other, dumpsterPos(dumpster)) <= S.RANGE + 4 then
+			return true
+		end
+	end
+	return false
+end
+
 local function tryStart(player: Player, dumpster: Model): (boolean, string?)
 	if sessions[player] then
 		return false, nil
@@ -294,6 +307,9 @@ local function tryStart(player: Player, dumpster: Model): (boolean, string?)
 	local locked = Progress.gateMessage(player, dumpster:GetAttribute("DistrictId"))
 	if locked then
 		return false, locked
+	end
+	if dumpster:GetAttribute("Heavy") and not hasHelper(player, dumpster) then
+		return false, "Too heavy to lift alone. Bring a friend!"
 	end
 	local readyAt = cooldowns[player] and cooldowns[player][dumpster]
 	if readyAt and readyAt > os.clock() then

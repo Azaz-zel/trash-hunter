@@ -3,6 +3,7 @@
 -- toasts, big-find announcements and the BUSTED screen.
 
 local Players = game:GetService("Players")
+local SocialService = game:GetService("SocialService")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
@@ -262,7 +263,7 @@ local function build()
 		-- Below the minimap (MapUi, 168px at top right).
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -16, 0, 196),
-		Size = UDim2.fromOffset(72, 360),
+		Size = UDim2.fromOffset(72, 420),
 		Parent = gui,
 	}, { Ui.list(Enum.FillDirection.Vertical, 8, Enum.HorizontalAlignment.Right) })
 	local function sideButton(text: string, order: number, fn: () -> ()): TextButton
@@ -292,6 +293,15 @@ local function build()
 	homeButton.Visible = false
 	sideButton("R$", 6, function()
 		Store.emit("openPanel", "robux")
+	end)
+	-- Heavy bins and the friend loot boost need a second player.
+	sideButton("Invite", 7, function()
+		local ok, can = pcall(SocialService.CanSendGameInviteAsync, SocialService, player)
+		if ok and can then
+			SocialService:PromptGameInvite(player)
+		else
+			toast("Invites aren't available right now.")
+		end
 	end)
 
 	busted = Ui.new("Frame", {
