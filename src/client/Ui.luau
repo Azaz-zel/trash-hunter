@@ -7,7 +7,7 @@ local TweenService = game:GetService("TweenService")
 
 local Ui = {}
 
-Ui.FONT = Enum.Font.FredokaOne
+Ui.FONT = Enum.Font.GothamBold
 Ui.COLORS = table.freeze({
 	panel = Color3.fromRGB(24, 28, 44),
 	panelLight = Color3.fromRGB(44, 50, 74),

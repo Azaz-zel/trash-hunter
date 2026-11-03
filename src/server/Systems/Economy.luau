@@ -72,7 +72,7 @@ local function renderShelf(player: Player)
 		local label = Instance.new("TextLabel")
 		label.Size = UDim2.fromScale(1, 1)
 		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.FredokaOne
+		label.Font = Enum.Font.GothamBold
 		label.TextScaled = true
 		label.TextColor3 = rarity.color
 		label.TextStrokeTransparency = 0.2

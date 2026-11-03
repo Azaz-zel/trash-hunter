@@ -832,3 +832,71 @@ Perbedaan antara prototipe yang dibangun dan teks GDD di atas:
 -   **Audio** memakai aset Creator Store berlisensi dari ProSoundEffects
     dan APM Music. Musik tegang saat dikejar belum ada; yang ada baru
     peluit.
+
+------------------------------------------------------------------------
+
+# Lampiran C — Perubahan Arah Visual: Realistis (2026-11-03)
+
+Atas permintaan pemilik proyek, arah visual diganti dari stylized dan
+kartun menjadi **kota kecil Amerika yang realistis, luas, dan ramai**.
+Bagian 9 (Art and Audio Direction) digantikan oleh lampiran ini.
+
+## Kota
+
+Peta sekitar 1.300 x 1.100 stud (sekitar 1 stud = 0,3 m). Isinya:
+
+-   **Main St:** deretan toko (laundromat, diner, apotek, toko barang
+    bekas, pizza). Gang servis di belakangnya menjadi tempat dumpster.
+-   **Strip mall:** parkiran di depan, jalur bongkar muat di belakang.
+-   **Pendukung:** pom bensin, motel, apartemen, taman dengan lapangan
+    basket.
+-   **Pemukiman Maple Ave:** rumah satu dan dua lantai dengan garasi,
+    driveway, kotak surat, tong sampah, dan pagar halaman.
+-   **Jalan:** marka kuning dan putih, trotoar dengan kanstin, zebra
+    cross, lampu lalu lintas yang berganti warna, rambu STOP, lampu
+    jalan, hidran, tiang listrik dan kabel.
+-   **Hideout:** bengkel tua "Rusty's Salvage & Pawn" dengan scrapyard
+    di belakangnya.
+
+## Zona merah: Meridian Logistics
+
+Area pribadi sekarang berupa kompleks gudang berpagar kawat, sekitar
+460 x 270 stud, isinya:
+
+-   Dua gudang dengan dock bongkar muat.
+-   Trailer truk, tumpukan kontainer, dan forklift.
+-   Menara lampu sorot dan kamera keamanan.
+-   Gerbang dengan pos jaga dan mobil polisi.
+-   Satu celah di pagar barat untuk jalan masuk diam-diam.
+
+## Polisi
+
+Ada tiga petugas keamanan berseragam (pakaian katalog Roblox) dengan
+perilaku tidak seragam:
+
+-   **Patroli:** berjalan ke titik acak, lalu berhenti dan menoleh,
+    mengecek dumpster, atau lanjut berjalan.
+-   **Investigasi:** saat suspicion pemain di atas 50, petugas terdekat
+    mendatangi lokasi pemain.
+-   **Kejar:** petugas terdekat mengejar, dan petugas dalam radius 140
+    stud ikut membantu lewat radio.
+-   **Cari:** setelah kehilangan jejak, petugas menyisir lokasi terakhir
+    pemain terlihat.
+-   **Ucapan:** petugas mengeluarkan kalimat pendek, misalnya "Security!
+    Don't move!".
+
+Mobil polisi patroli melintas di Industrial Rd. Lampu rotator menyala
+merah-biru selama alarm aktif.
+
+## Kehidupan kota
+
+-   12 pejalan kaki berpakaian kasual menyusuri trotoar dan taman.
+-   Lalu lintas mobil di Main St, Maple Ave, dan Industrial Rd.
+-   Mobil terparkir di strip mall.
+-   Siklus siang-malam, dengan lampu jalan dan lampu sorot yang menyala
+    saat malam.
+
+Mobil memakai model "Police Car" resmi milik Roblox (dimuat lewat
+InsertService), yang juga diwarnai ulang untuk mobil sipil. Bangunan dan
+pohon dibuat dari part dengan material realistis, sehingga seluruh peta
+tetap berada di git.

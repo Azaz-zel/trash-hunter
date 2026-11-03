@@ -34,7 +34,7 @@ local STEPS: { { text: string, path: { string }, label: string } } = {
 	},
 	{
 		text = "Better loot waits behind the red fence. Stay out of the guard's light.",
-		path = { "RedZone", "Floor" },
+		path = { "RedZone", "CompanySign" },
 		label = "BETTER LOOT",
 	},
 }

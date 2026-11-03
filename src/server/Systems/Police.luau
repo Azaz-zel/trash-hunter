@@ -1,9 +1,12 @@
 --!strict
--- Suspicion bar, the security guard NPC (patrol / investigate / chase / catch),
--- Drop & Run, and capture. Chase movement walks straight at the target when
--- the line is clear and falls back to PathfindingService around fences.
+-- Suspicion bar, the Meridian yard security officers, Drop & Run, capture.
+-- Each officer runs a small state machine so they never move in lockstep:
+--   patrol -> walk to a random yard point, then pause and look around, check
+--             a dumpster, or keep walking
+--   investigate -> walk to where a suspicious player was, then search there
+--   chase -> run at the target; nearby officers radio in and join
+--   search -> after losing someone, sweep the last known spot, then patrol
 
-local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
@@ -11,6 +14,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Config = require(Shared.Config)
 local Items = require(Shared.Items)
 local Router = require(script.Parent.Parent.Router)
+local Npc = require(script.Parent.Parent.Npc)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local Search = require(script.Parent.Search)
@@ -19,29 +23,48 @@ local P = Config.Police
 local SU = Config.Suspicion
 local W = Config.World
 local TICK = 0.1
-local SPAWN_POINT = W.HIDEOUT_CENTER + Vector3.new(0, 1, 8)
+local SPAWN_POINT = W.SPAWN + Vector3.new(0, 1, 0)
+
+local LINES = {
+	spot = { "HEY! Stop right there!", "Security! Don't move!", "You! Freeze!" },
+	backup = { "I need backup at the yard!", "Unit two, moving to assist!", "Copy, on my way!" },
+	investigate = { "Who's there?", "Hello? Anybody back here?", "I heard something..." },
+	lost = { "Lost 'em.", "Where'd they go?", "Must've slipped out." },
+	caught = { "Gotcha. Empty those pockets.", "Nice try, kid." },
+	idle = { "Quiet night.", "Another double shift...", "Copy that, all clear." },
+}
+
+type Officer = {
+	npc: Npc.Npc,
+	state: string,
+	goal: Vector3,
+	untilTime: number,
+	lookAt: number,
+	target: Player?,
+	speed: number,
+	catchTimer: number,
+	status: TextLabel,
+	speech: TextLabel,
+	speechToken: number,
+	whistle: Sound,
+	light: SpotLight,
+}
 
 local suspicion: { [Player]: number } = {}
 local immuneUntil: { [Player]: number } = {}
 local loseTimer: { [Player]: number } = {}
-
-local npc: Model? = nil
-local humanoid: Humanoid? = nil
-local root: BasePart? = nil
-local status: TextLabel? = nil
-local whistle: Sound? = nil
-local patrolIndex = 1
-local catchTimer = 0
-local lastMove = 0
-local path: { PathWaypoint }? = nil
-local pathIndex = 2
-local pathBusy = false
-local lastPath = 0
+local lastSeen: { [Player]: Vector3 } = {}
+local officers: { Officer } = {}
+local rng = Random.new()
 
 local Police = {}
 
 local function flat(v: Vector3): Vector3
 	return Vector3.new(v.X, 0, v.Z)
+end
+
+local function pick<T>(list: { T }): T
+	return list[rng:NextInteger(1, #list)]
 end
 
 local function isChased(player: Player): boolean
@@ -53,74 +76,108 @@ local function setSuspicion(player: Player, value: number)
 	player:SetAttribute("Suspicion", math.floor(value + 0.5))
 end
 
-local function setStatus(text: string, color: Color3?)
-	if status then
-		status.Text = text
-		if color then
-			status.TextColor3 = color
+local function say(o: Officer, lines: { string })
+	o.speechToken += 1
+	local token = o.speechToken
+	local gui = o.speech.Parent :: BillboardGui
+	o.speech.Text = pick(lines)
+	gui.Enabled = true
+	task.delay(2.6, function()
+		if o.speechToken == token then
+			gui.Enabled = false
 		end
+	end)
+end
+
+local function setStatus(o: Officer, text: string, color: Color3?)
+	o.status.Text = text
+	if color then
+		o.status.TextColor3 = color
 	end
 end
 
-local function buildNpc(): boolean
-	local desc = Instance.new("HumanoidDescription")
-	local skin = Color3.fromRGB(234, 184, 146)
-	local uniform = Color3.fromRGB(38, 62, 150)
-	desc.HeadColor = skin
-	desc.LeftArmColor = uniform
-	desc.RightArmColor = uniform
-	desc.TorsoColor = uniform
-	desc.LeftLegColor = Color3.fromRGB(28, 32, 50)
-	desc.RightLegColor = Color3.fromRGB(28, 32, 50)
-	local ok, result =
-		pcall(Players.CreateHumanoidModelFromDescription, Players, desc, Enum.HumanoidRigType.R15)
-	if not ok then
-		warn("[Police] could not build the guard: " .. tostring(result))
-		return false
-	end
-	local model = result :: Model
-	model.Name = "SecurityGuard"
-	local hum = model:FindFirstChildOfClass("Humanoid") :: Humanoid
-	local hrp = model:FindFirstChild("HumanoidRootPart") :: BasePart
-	local head = model:FindFirstChild("Head") :: BasePart
-	hum.DisplayName = "Security"
-	hum.WalkSpeed = P.PATROL_SPEED
-	hum.BreakJointsOnDeath = false
-	hum.MaxHealth = math.huge
-	hum.Health = math.huge
+-- Goals are clamped to the yard plus a short leash so officers stay on post.
+local function clampToPost(goal: Vector3): Vector3
+	local rc = W.RED_CENTER
+	local hx, hz = W.RED_SIZE.X / 2 + P.LEASH, W.RED_SIZE.Y / 2 + P.LEASH
+	return Vector3.new(
+		math.clamp(goal.X, rc.X - hx, rc.X + hx),
+		goal.Y,
+		math.clamp(goal.Z, rc.Z - hz, rc.Z + hz)
+	)
+end
 
-	-- Cap so the guard reads as a guard from far away.
-	local cap = Instance.new("Part")
-	cap.Name = "Cap"
-	cap.Shape = Enum.PartType.Cylinder
-	cap.Size = Vector3.new(0.6, 1.4, 1.4)
-	cap.Color = uniform
-	cap.CanCollide = false
-	cap.Massless = true
-	cap.CFrame = head.CFrame * CFrame.new(0, 0.55, 0) * CFrame.Angles(0, 0, math.rad(90))
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = head
-	weld.Part1 = cap
-	weld.Parent = cap
-	cap.Parent = model
+local function redDumpsters(): { Vector3 }
+	local out = {}
+	for _, spec in W.Dumpsters do
+		if spec.zone == "Red" then
+			table.insert(out, spec.pos)
+		end
+	end
+	return out
+end
+local RED_DUMPSTERS = redDumpsters()
+
+local function nearestPoint(from: Vector3, list: { Vector3 }): Vector3
+	local best, bestD = list[1], math.huge
+	for _, p in list do
+		local d = (flat(p) - flat(from)).Magnitude
+		if d < bestD then
+			best, bestD = p, d
+		end
+	end
+	return best
+end
+
+local function setState(o: Officer, state: string, goal: Vector3?, duration: number?)
+	o.state = state
+	if goal then
+		o.goal = goal
+	end
+	o.untilTime = os.clock() + (duration or 0)
+	o.lookAt = 0
+end
+
+local function nextPatrolPoint(o: Officer): Vector3
+	local here = o.npc.root.Position
+	for _ = 1, 6 do
+		local p = pick(W.GUARD_POINTS)
+		local d = (flat(p) - flat(here)).Magnitude
+		if d > 30 and d < 220 then
+			return p
+		end
+	end
+	return pick(W.GUARD_POINTS)
+end
+
+local function buildOfficer(index: number, at: Vector3): Officer?
+	local npc = Npc.new(
+		"police",
+		"SecurityOfficer" .. index,
+		CFrame.new(at + Vector3.new(0, 3, 0)),
+		workspace:WaitForChild("Town"),
+		rng
+	)
+	if not npc then
+		return nil
+	end
+	local head, hrp = npc.head, npc.root
 
 	local flashlight = Instance.new("SpotLight")
 	flashlight.Face = Enum.NormalId.Front
 	flashlight.Angle = P.VISION_HALF_ANGLE * 2
 	flashlight.Range = P.VISION_RANGE
-	flashlight.Brightness = 4
-	flashlight.Color = Color3.fromRGB(255, 240, 180)
+	flashlight.Brightness = 3
+	flashlight.Color = Color3.fromRGB(255, 244, 210)
 	flashlight.Parent = head
 
-	-- Ground beam showing the vision cone so getting spotted always feels fair.
+	-- Faint ground cone so getting spotted always feels fair.
 	local a0 = Instance.new("Attachment")
-	a0.Name = "ConeStart"
 	a0.CFrame = CFrame.new(0, -2.7, -1)
 		* CFrame.Angles(0, math.rad(90), 0)
 		* CFrame.Angles(math.rad(90), 0, 0)
 	a0.Parent = hrp
 	local a1 = Instance.new("Attachment")
-	a1.Name = "ConeEnd"
 	a1.CFrame = CFrame.new(0, -2.7, -P.VISION_RANGE)
 		* CFrame.Angles(0, math.rad(90), 0)
 		* CFrame.Angles(math.rad(90), 0, 0)
@@ -133,169 +190,101 @@ local function buildNpc(): boolean
 	beam.Width1 = 2 * P.VISION_RANGE * math.tan(math.rad(P.VISION_HALF_ANGLE))
 	beam.FaceCamera = false
 	beam.Segments = 1
-	beam.Color = ColorSequence.new(Color3.fromRGB(255, 230, 90))
-	beam.Transparency = NumberSequence.new(0.55, 0.9)
-	beam.LightEmission = 0.5
+	beam.Color = ColorSequence.new(Color3.fromRGB(255, 236, 160))
+	beam.Transparency = NumberSequence.new(0.72, 0.95)
+	beam.LightEmission = 0.4
 	beam.Parent = hrp
 
-	-- Positional, so everyone nearby hears a chase start, not just the target.
-	local sound = Instance.new("Sound")
-	sound.Name = "Whistle"
-	sound.SoundId = Config.Sounds.WHISTLE
-	sound.Volume = 1
-	sound.RollOffMaxDistance = 140
-	sound.Parent = head
-	whistle = sound
+	local whistle = Instance.new("Sound")
+	whistle.Name = "Whistle"
+	whistle.SoundId = Config.Sounds.WHISTLE
+	whistle.Volume = 1
+	whistle.RollOffMaxDistance = 160
+	whistle.Parent = head
 
-	local bubble = Instance.new("BillboardGui")
-	bubble.Size = UDim2.fromOffset(60, 60)
-	bubble.StudsOffset = Vector3.new(0, 3, 0)
-	bubble.AlwaysOnTop = true
-	bubble.MaxDistance = 120
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.FredokaOne
-	label.TextScaled = true
-	label.TextStrokeTransparency = 0
-	label.Text = ""
-	label.Parent = bubble
-	bubble.Parent = head
+	local function billboard(name: string, offset: number, size: UDim2): TextLabel
+		local gui = Instance.new("BillboardGui")
+		gui.Name = name
+		gui.Size = size
+		gui.StudsOffset = Vector3.new(0, offset, 0)
+		gui.AlwaysOnTop = true
+		gui.MaxDistance = 140
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.GothamBold
+		label.TextScaled = true
+		label.TextStrokeTransparency = 0.2
+		label.TextColor3 = Color3.new(1, 1, 1)
+		label.Text = ""
+		label.Parent = gui
+		gui.Parent = head
+		return label
+	end
+	local status = billboard("Status", 3.2, UDim2.fromOffset(44, 44))
+	local speech = billboard("Speech", 5, UDim2.fromOffset(260, 36))
+	local speechGui = speech.Parent :: BillboardGui
+	speechGui.Enabled = false
+	speechGui.MaxDistance = 90
+	speech.TextColor3 = Color3.fromRGB(255, 244, 220)
 
-	model:PivotTo(CFrame.new(W.PATROL[1] + Vector3.new(0, 3, 0)))
-	model.Parent = workspace:WaitForChild("Town")
-	for _, d in model:GetDescendants() do
-		if d:IsA("BasePart") then
-			d:SetNetworkOwner(nil)
-		end
-	end
-
-	-- Server-driven walk cycle, loaded once the rig is in the DataModel
-	-- (tracks loaded earlier silently stay empty). The rig's own Animate LocalScript never runs on an NPC.
-	local oldAnimate = model:FindFirstChild("Animate")
-	if oldAnimate then
-		oldAnimate:Destroy()
-	end
-	local animator = hum:FindFirstChildOfClass("Animator")
-	if not animator then
-		local created = Instance.new("Animator")
-		created.Parent = hum
-		animator = created
-	end
-	local function track(id: string, priority: Enum.AnimationPriority): AnimationTrack
-		local anim = Instance.new("Animation")
-		anim.AnimationId = id
-		local t = (animator :: Animator):LoadAnimation(anim)
-		t.Priority = priority
-		t.Looped = true
-		return t
-	end
-	local idle = track("rbxassetid://507766388", Enum.AnimationPriority.Idle)
-	local walk = track("rbxassetid://913402848", Enum.AnimationPriority.Movement)
-	local run = track("rbxassetid://913376220", Enum.AnimationPriority.Movement)
-	idle:Play()
-	local moving: AnimationTrack? = nil
-	hum.Running:Connect(function(speed)
-		local want = if speed < 0.5 then nil elseif speed > P.PATROL_SPEED * 1.3 then run else walk
-		if want == moving then
-			return
-		end
-		if moving then
-			moving:Stop(0.2)
-		end
-		moving = want
-		if want then
-			want:Play(0.2)
-		end
-	end)
-
-	npc, humanoid, root, status = model, hum, hrp, label
-	return true
+	local speed = P.PATROL_SPEED + rng:NextNumber(-1, 1)
+	npc.humanoid.WalkSpeed = speed
+	local o: Officer = {
+		npc = npc,
+		state = "patrol",
+		goal = at,
+		untilTime = 0,
+		lookAt = 0,
+		target = nil,
+		speed = speed,
+		catchTimer = 0,
+		status = status,
+		speech = speech,
+		speechToken = 0,
+		whistle = whistle,
+		light = flashlight,
+	}
+	setState(o, "patrol", nextPatrolPoint(o))
+	return o
 end
 
 local sightParams = RaycastParams.new()
 sightParams.FilterType = Enum.RaycastFilterType.Exclude
 
-local function canSee(player: Player): boolean
+local function sees(o: Officer, player: Player): boolean
 	local target = Guard.root(player)
-	if not target or not root or not npc then
+	if not target then
 		return false
 	end
+	local root = o.npc.root
 	local eye = root.Position + Vector3.new(0, 1.5, 0)
 	local to = target.Position - eye
 	if to.Magnitude > P.VISION_RANGE then
 		return false
 	end
-	local look = flat(root.CFrame.LookVector)
 	local dir = flat(to)
-	if dir.Magnitude < 0.1 then
-		return true
-	end
-	if look.Unit:Dot(dir.Unit) < math.cos(math.rad(P.VISION_HALF_ANGLE)) then
+	if
+		dir.Magnitude > 0.1
+		and flat(root.CFrame.LookVector).Unit:Dot(dir.Unit)
+			< math.cos(math.rad(P.VISION_HALF_ANGLE))
+	then
 		return false
 	end
-	sightParams.FilterDescendantsInstances = { npc, player.Character :: Model }
+	sightParams.FilterDescendantsInstances = { o.npc.model, player.Character :: Model }
 	return workspace:Raycast(eye, to, sightParams) == nil
 end
 
-local moveParams = RaycastParams.new()
-moveParams.FilterType = Enum.RaycastFilterType.Exclude
-
-local function computePath(goal: Vector3)
-	if pathBusy or not root then
-		return
-	end
-	pathBusy = true
-	lastPath = os.clock()
-	local from = root.Position
-	task.spawn(function()
-		local p =
-			PathfindingService:CreatePath({ AgentRadius = 2, AgentHeight = 5, AgentCanJump = true })
-		local ok = pcall(p.ComputeAsync, p, from, goal)
-		if ok and p.Status == Enum.PathStatus.Success then
-			path = p:GetWaypoints()
-			pathIndex = 2
-		else
-			path = nil
-		end
-		pathBusy = false
-	end)
-end
-
-local function moveToward(goal: Vector3, now: number)
-	if not humanoid or not root or not npc or now - lastMove < 0.2 then
-		return
-	end
-	lastMove = now
-	local filter: { Instance } = { npc }
-	for _, player in Players:GetPlayers() do
-		if player.Character then
-			table.insert(filter, player.Character)
+local function nearestOfficer(pos: Vector3): (Officer?, number)
+	local best: Officer? = nil
+	local bestD = math.huge
+	for _, o in officers do
+		local d = (flat(o.npc.root.Position) - flat(pos)).Magnitude
+		if d < bestD then
+			best, bestD = o, d
 		end
 	end
-	moveParams.FilterDescendantsInstances = filter
-	local origin = root.Position
-	local hit = workspace:Raycast(origin, flat(goal - origin), moveParams)
-	if not hit then
-		path = nil
-		humanoid:MoveTo(goal)
-		return
-	end
-	if now - lastPath > 0.6 then
-		computePath(goal)
-	end
-	local current = path
-	if current and current[pathIndex] then
-		local waypoint = current[pathIndex]
-		if (flat(waypoint.Position) - flat(origin)).Magnitude < 3 then
-			pathIndex += 1
-			waypoint = current[pathIndex] or waypoint
-		end
-		if waypoint.Action == Enum.PathWaypointAction.Jump then
-			humanoid.Jump = true
-		end
-		humanoid:MoveTo(waypoint.Position)
-	end
+	return best, bestD
 end
 
 local function endChase(player: Player, reason: string, newSuspicion: number)
@@ -306,6 +295,21 @@ local function endChase(player: Player, reason: string, newSuspicion: number)
 	loseTimer[player] = nil
 	setSuspicion(player, newSuspicion)
 	Router.send(player, "chase", { on = false, reason = reason })
+	local spot = lastSeen[player]
+	for _, o in officers do
+		if o.target == player then
+			o.target = nil
+			if reason == "lost" or reason == "safe" then
+				say(o, LINES.lost)
+			end
+			setState(o, "search", clampToPost(spot or o.npc.root.Position), 0)
+		end
+	end
+	local any = false
+	for _, other in Players:GetPlayers() do
+		any = any or isChased(other)
+	end
+	workspace:SetAttribute("Alarm", any)
 end
 
 local function startChase(player: Player)
@@ -313,12 +317,27 @@ local function startChase(player: Player)
 	loseTimer[player] = 0
 	Search.cancel(player, "spotted")
 	Router.send(player, "chase", { on = true })
-	if whistle then
-		whistle:Play()
+	workspace:SetAttribute("Alarm", true)
+	local hrp = Guard.root(player)
+	if not hrp then
+		return
+	end
+	local first = nearestOfficer(hrp.Position)
+	for _, o in officers do
+		local d = (flat(o.npc.root.Position) - flat(hrp.Position)).Magnitude
+		if o == first or d <= P.BACKUP_RADIUS then
+			o.target = player
+			setState(o, "chase")
+			if o == first then
+				say(o, LINES.spot)
+				o.whistle:Play()
+			else
+				task.delay(rng:NextNumber(0.6, 1.4), say, o, LINES.backup)
+			end
+		end
 	end
 end
 
--- Empties the backpack; returns how many items and how much cash they were worth.
 local function confiscate(player: Player): (number, number)
 	local profile = Data.get(player)
 	if not profile then
@@ -333,14 +352,12 @@ local function confiscate(player: Player): (number, number)
 	return count, value
 end
 
-local function capture(player: Player)
+local function capture(player: Player, by: Officer)
 	local count, value = confiscate(player)
 	Search.cancel(player, "captured")
-	player:SetAttribute("Chased", false)
-	loseTimer[player] = nil
-	setSuspicion(player, 0)
+	say(by, LINES.caught)
+	endChase(player, "captured", 0)
 	immuneUntil[player] = os.clock() + P.IMMUNITY_AFTER_CAPTURE
-	catchTimer = 0
 	Guard.teleport(player, SPAWN_POINT)
 	Router.send(player, "busted", { count = count, value = value })
 end
@@ -373,9 +390,9 @@ local function dropAndRun(player: Player): (boolean, string?)
 			junk.Name = "DroppedJunk"
 			junk.Size = Vector3.new(0.8, 0.8, 0.8)
 			junk.Color = Items.Rarities[Items.ById[order[i].id].rarity].color
-			junk.Material = Enum.Material.SmoothPlastic
 			junk.CanCollide = true
-			junk.Position = hrp.Position + Vector3.new(math.random(-2, 2), 1, math.random(-2, 2))
+			junk.Position = hrp.Position
+				+ Vector3.new(rng:NextNumber(-2, 2), 1, rng:NextNumber(-2, 2))
 			junk.Parent = workspace
 			game:GetService("Debris"):AddItem(junk, 6)
 		end
@@ -395,16 +412,25 @@ local function updateSuspicion(player: Player, dt: number, now: number)
 		Data.push(player)
 	end
 
+	local seenBy: Officer? = nil
+	for _, o in officers do
+		if sees(o, player) then
+			seenBy = o
+			break
+		end
+	end
+	if seenBy then
+		lastSeen[player] = hrp.Position
+	end
+
 	if isChased(player) then
 		setSuspicion(player, 100)
 		if Guard.inHideout(player) and not Guard.isFlagged(player) then
 			endChase(player, "safe", 0)
 			return
 		end
-		local distance = if root
-			then (flat(hrp.Position) - flat(root.Position)).Magnitude
-			else math.huge
-		if distance > P.LOSE_DISTANCE then
+		local _, distance = nearestOfficer(hrp.Position)
+		if distance > P.LOSE_DISTANCE or (not seenBy and distance > P.LOSE_DISTANCE / 2) then
 			loseTimer[player] = (loseTimer[player] or 0) + dt
 			if (loseTimer[player] :: number) >= P.LOSE_TIME then
 				endChase(player, "lost", SU.WARN_LOW - 1)
@@ -422,7 +448,7 @@ local function updateSuspicion(player: Player, dt: number, now: number)
 	if inRed and digging > 0 then
 		gain += SU.SEARCH_RATE * digging
 	end
-	if inRed and canSee(player) then
+	if inRed and seenBy then
 		gain += if digging > 0 then SU.SEEN_RATE else SU.SEEN_IDLE_RATE
 	end
 	if gain > 0 and not immune then
@@ -436,76 +462,172 @@ local function updateSuspicion(player: Player, dt: number, now: number)
 	end
 end
 
-local function updateNpc(dt: number, now: number)
-	if not root or not humanoid then
-		return
-	end
-	-- Nearest chased player is the target.
-	local target: Player? = nil
-	local best = math.huge
-	for _, player in Players:GetPlayers() do
-		local hrp = Guard.root(player)
-		if hrp and isChased(player) then
-			local d = (flat(hrp.Position) - flat(root.Position)).Magnitude
-			if d < best then
-				best, target = d, player
-			end
-		end
-	end
-
-	if target then
-		local hrp = Guard.root(target) :: BasePart
-		humanoid.WalkSpeed = P.CHASE_SPEED
-		setStatus("!", Color3.fromRGB(255, 70, 60))
-		local goal = hrp.Position
-		local offset = flat(goal - W.RED_CENTER)
-		if offset.Magnitude > P.LEASH then
-			goal = W.RED_CENTER + offset.Unit * P.LEASH
-		end
-		moveToward(goal, now)
-		if best <= P.CATCH_RANGE then
-			catchTimer += dt
-			if catchTimer >= P.CATCH_TIME then
-				capture(target)
-			end
-		else
-			catchTimer = math.max(0, catchTimer - dt)
-		end
-		return
-	end
-	catchTimer = 0
-
-	-- Investigate the most suspicious trespasser.
-	local suspect: Player? = nil
-	local highest = SU.WARN_LOW
+-- Assign the closest free officer to look into anyone who got suspicious.
+local function dispatchInvestigations()
 	for _, player in Players:GetPlayers() do
 		local hrp = Guard.root(player)
 		local s = suspicion[player] or 0
-		if hrp and s >= highest and Guard.inRedZone(hrp.Position) then
-			highest, suspect = s, player
+		if not hrp or isChased(player) or s < SU.WARN_LOW or not Guard.inRedZone(hrp.Position) then
+			continue
+		end
+		local busy = false
+		for _, o in officers do
+			if o.target == player then
+				busy = true
+				break
+			end
+		end
+		if busy then
+			if s >= SU.WARN_HIGH then
+				-- Keep the assigned officer's goal fresh while it is getting hot.
+				for _, o in officers do
+					if o.target == player and o.state == "investigate" then
+						o.goal = clampToPost(hrp.Position)
+					end
+				end
+			end
+			continue
+		end
+		local best: Officer? = nil
+		local bestD = math.huge
+		for _, o in officers do
+			if o.state ~= "chase" and o.target == nil then
+				local d = (flat(o.npc.root.Position) - flat(hrp.Position)).Magnitude
+				if d < bestD then
+					best, bestD = o, d
+				end
+			end
+		end
+		if best then
+			best.target = player
+			setState(best, "investigate", clampToPost(hrp.Position))
+			say(best, LINES.investigate)
 		end
 	end
-	if suspect then
-		humanoid.WalkSpeed = P.PATROL_SPEED * 1.25
-		setStatus("?", Color3.fromRGB(255, 220, 60))
-		moveToward((Guard.root(suspect) :: BasePart).Position, now)
+end
+
+local function lookAround(o: Officer, now: number)
+	if now >= o.lookAt then
+		o.lookAt = now + rng:NextNumber(0.9, 1.6)
+		local a = rng:NextNumber(0, math.pi * 2)
+		o.npc:face(Vector3.new(math.cos(a), 0, math.sin(a)))
+	end
+end
+
+local function updateOfficer(o: Officer, dt: number, now: number)
+	local npc = o.npc
+	local pos = npc.root.Position
+	local arrived = (flat(o.goal) - flat(pos)).Magnitude < 4
+
+	if o.state == "chase" then
+		local target = o.target
+		local hrp = target and Guard.root(target)
+		if not target or not hrp or not isChased(target) then
+			o.target = nil
+			setState(o, "search", pos, 0)
+			return
+		end
+		npc.humanoid.WalkSpeed = P.CHASE_SPEED
+		setStatus(o, "!", Color3.fromRGB(255, 70, 60))
+		npc:moveToward(clampToPost(hrp.Position), now)
+		local d = (flat(hrp.Position) - flat(pos)).Magnitude
+		if d <= P.CATCH_RANGE then
+			o.catchTimer += dt
+			if o.catchTimer >= P.CATCH_TIME then
+				o.catchTimer = 0
+				capture(target, o)
+			end
+		else
+			o.catchTimer = math.max(0, o.catchTimer - dt)
+		end
+		return
+	end
+	o.catchTimer = 0
+
+	if o.state == "investigate" then
+		local target = o.target
+		if not target or not target.Parent or (suspicion[target] or 0) < SU.WARN_LOW * 0.5 then
+			o.target = nil
+			setState(o, "search", o.goal, 0)
+			return
+		end
+		npc.humanoid.WalkSpeed = P.INVESTIGATE_SPEED
+		setStatus(o, "?", Color3.fromRGB(255, 220, 60))
+		if arrived then
+			lookAround(o, now)
+		else
+			npc:moveToward(o.goal, now)
+		end
 		return
 	end
 
-	humanoid.WalkSpeed = P.PATROL_SPEED
-	setStatus("")
-	local goal = W.PATROL[patrolIndex]
-	if (flat(goal) - flat(root.Position)).Magnitude < 4 then
-		patrolIndex = patrolIndex % #W.PATROL + 1
-		goal = W.PATROL[patrolIndex]
+	o.target = nil
+	if o.state == "search" then
+		npc.humanoid.WalkSpeed = o.speed
+		setStatus(o, "?", Color3.fromRGB(200, 200, 200))
+		if arrived then
+			if o.untilTime == 0 then
+				o.untilTime = now + rng:NextNumber(4, 6)
+			end
+			lookAround(o, now)
+			if now >= o.untilTime then
+				setState(o, "patrol", nextPatrolPoint(o))
+			end
+		else
+			npc:moveToward(o.goal, now)
+		end
+		return
 	end
-	moveToward(goal, now)
+
+	setStatus(o, "")
+	npc.humanoid.WalkSpeed = o.speed
+	if o.state == "pause" then
+		lookAround(o, now)
+		if now >= o.untilTime then
+			setState(o, "patrol", nextPatrolPoint(o))
+		end
+		return
+	end
+	if o.state == "check" then
+		if arrived then
+			if o.untilTime == 0 then
+				o.untilTime = now + rng:NextNumber(2.5, 4)
+				npc:face(o.goal - pos)
+			end
+			if now >= o.untilTime then
+				setState(o, "patrol", nextPatrolPoint(o))
+			end
+		else
+			npc:moveToward(o.goal, now)
+		end
+		return
+	end
+
+	-- patrol
+	if arrived then
+		local roll = rng:NextNumber()
+		if roll < 0.45 then
+			npc:stop()
+			setState(o, "pause", nil, rng:NextNumber(2, 5))
+			if rng:NextNumber() < 0.2 then
+				say(o, LINES.idle)
+			end
+		elseif roll < 0.7 then
+			local dumpster = nearestPoint(pos, RED_DUMPSTERS)
+			local stand = dumpster + (flat(pos - dumpster).Unit * 7)
+			setState(o, "check", stand, 0)
+		else
+			setState(o, "patrol", nextPatrolPoint(o))
+		end
+	else
+		npc:moveToward(o.goal, now)
+	end
 end
 
 function Police.init()
 	Router.on("dropAndRun", 0.5, dropAndRun)
 
-	-- Leaving or resetting mid-chase counts as getting caught (GDD section 5).
+	-- Leaving mid-chase counts as getting caught (GDD section 5).
 	Data.onRelease(function(player, profile)
 		if isChased(player) then
 			table.clear(profile.backpack)
@@ -514,7 +636,14 @@ function Police.init()
 end
 
 function Police.start()
-	buildNpc()
+	for i = 1, P.GUARD_COUNT do
+		local start = W.GUARD_POINTS[(i * 5 - 4 - 1) % #W.GUARD_POINTS + 1]
+		local o = buildOfficer(i, start)
+		if o then
+			table.insert(officers, o)
+		end
+	end
+	workspace:SetAttribute("Alarm", false)
 
 	local function onPlayerAdded(player: Player)
 		setSuspicion(player, 0)
@@ -538,6 +667,13 @@ function Police.start()
 		suspicion[player] = nil
 		immuneUntil[player] = nil
 		loseTimer[player] = nil
+		lastSeen[player] = nil
+		for _, o in officers do
+			if o.target == player then
+				o.target = nil
+				setState(o, "patrol", nextPatrolPoint(o))
+			end
+		end
 	end)
 
 	local acc = 0
@@ -552,7 +688,12 @@ function Police.start()
 		for _, player in Players:GetPlayers() do
 			updateSuspicion(player, step, now)
 		end
-		updateNpc(step, now)
+		dispatchInvestigations()
+		local night = workspace:GetAttribute("Night") == true
+		for _, o in officers do
+			o.light.Brightness = if night then 5 else 1.5
+			updateOfficer(o, step, now)
+		end
 	end)
 end
 

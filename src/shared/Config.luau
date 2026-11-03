@@ -53,15 +53,18 @@ return table.freeze({
 	}),
 
 	Police = table.freeze({
-		PATROL_SPEED = 9,
+		GUARD_COUNT = 3,
+		PATROL_SPEED = 8.5, -- each guard gets +-1 of this so they do not move in lockstep
+		INVESTIGATE_SPEED = 11,
 		CHASE_SPEED = 15, -- default player walk speed is 16
-		VISION_RANGE = 40,
-		VISION_HALF_ANGLE = 35, -- degrees
+		VISION_RANGE = 55,
+		VISION_HALF_ANGLE = 32, -- degrees
 		CATCH_RANGE = 4.5,
 		CATCH_TIME = 0.5,
-		LOSE_DISTANCE = 70,
+		LOSE_DISTANCE = 80,
 		LOSE_TIME = 3,
-		LEASH = 85, -- studs from the red zone center
+		LEASH = 70, -- studs guards may follow a target outside the compound fence
+		BACKUP_RADIUS = 140, -- other guards this close join a chase
 		IMMUNITY_AFTER_CAPTURE = 5,
 		IMMUNITY_AFTER_DROP = 3,
 		SUSPICION_AFTER_DROP = 30,
@@ -72,28 +75,55 @@ return table.freeze({
 		FLAG_SECONDS = 2,
 	}),
 
+	-- Gameplay anchors of the town. World.luau builds the city around these.
 	World = table.freeze({
-		HIDEOUT_CENTER = v3(0, 0, 0),
-		HIDEOUT_SIZE = 44,
-		HIDEOUT_RADIUS = 24, -- "inside the Hideout" for selling and ending chases
-		SELL_POINT = v3(-12, 0, -12),
-		SHOP_POINT = v3(12, 0, -12),
-		RED_CENTER = v3(0, 0, 120),
-		RED_SIZE = Vector2.new(80, 60),
+		HIDEOUT_CENTER = v3(10, 0, 90),
+		HIDEOUT_RADIUS = 30, -- "inside the Hideout" for selling and ending chases
+		SPAWN = v3(10, 0, 104),
+		SELL_POINT = v3(-8, 0, 108),
+		SHOP_POINT = v3(28, 0, 108),
+		-- Meridian Logistics yard: the fenced private property.
+		RED_CENTER = v3(0, 0, 465),
+		RED_SIZE = Vector2.new(460, 270),
 		Dumpsters = table.freeze({
-			table.freeze({ pos = v3(0, 0, 32), zone = "Green", tutorial = true }),
-			table.freeze({ pos = v3(-55, 0, 30), zone = "Green" }),
-			table.freeze({ pos = v3(55, 0, 30), zone = "Green" }),
-			table.freeze({ pos = v3(-60, 0, -50), zone = "Green" }),
-			table.freeze({ pos = v3(60, 0, -50), zone = "Green" }),
-			table.freeze({ pos = v3(-18, 0, 128), zone = "Red" }),
-			table.freeze({ pos = v3(18, 0, 116), zone = "Red" }),
+			table.freeze({ pos = v3(-34, 0, 72), zone = "Green", tutorial = true, yaw = 90 }),
+			-- Downtown service alley
+			table.freeze({ pos = v3(-370, 0, 112), zone = "Green", yaw = 0 }),
+			table.freeze({ pos = v3(-280, 0, 112), zone = "Green", yaw = 0 }),
+			table.freeze({ pos = v3(-190, 0, 112), zone = "Green", yaw = 0 }),
+			-- Strip mall loading lane
+			table.freeze({ pos = v3(205, 0, 232), zone = "Green", yaw = 180 }),
+			table.freeze({ pos = v3(290, 0, 232), zone = "Green", yaw = 180 }),
+			table.freeze({ pos = v3(375, 0, 232), zone = "Green", yaw = 180 }),
+			-- Motel, gas station, apartments
+			table.freeze({ pos = v3(-520, 0, 160), zone = "Green", yaw = 0 }),
+			table.freeze({ pos = v3(578, 0, 120), zone = "Green", yaw = 90 }),
+			table.freeze({ pos = v3(-170, 0, -118), zone = "Green", yaw = 0 }),
+			-- Meridian yard, by the loading docks
+			table.freeze({ pos = v3(-150, 0, 496), zone = "Red", yaw = 180 }),
+			table.freeze({ pos = v3(-80, 0, 496), zone = "Red", yaw = 180 }),
+			table.freeze({ pos = v3(80, 0, 496), zone = "Red", yaw = 180 }),
+			table.freeze({ pos = v3(150, 0, 496), zone = "Red", yaw = 180 }),
+			table.freeze({ pos = v3(-60, 0, 372), zone = "Red", yaw = 0 }),
+			table.freeze({ pos = v3(-214, 0, 590), zone = "Red", yaw = 90 }),
 		}),
-		PATROL = table.freeze({
-			v3(-30, 0, 100),
-			v3(30, 0, 100),
-			v3(30, 0, 142),
-			v3(-30, 0, 142),
+		-- Open ground inside the yard the guards walk between (warehouses excluded).
+		GUARD_POINTS = table.freeze({
+			v3(0, 0, 358),
+			v3(-120, 0, 364),
+			v3(120, 0, 364),
+			v3(-212, 0, 384),
+			v3(212, 0, 384),
+			v3(0, 0, 440),
+			v3(-214, 0, 446),
+			v3(214, 0, 446),
+			v3(-160, 0, 512),
+			v3(-60, 0, 516),
+			v3(60, 0, 516),
+			v3(160, 0, 512),
+			v3(0, 0, 562),
+			v3(-200, 0, 576),
+			v3(200, 0, 576),
 		}),
 	}),
 
