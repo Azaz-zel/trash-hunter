@@ -425,10 +425,11 @@ local function build()
 	ok.Parent = card
 end
 
-local function onBusted(payload: { count: number, value: number })
+local function onBusted(payload: { count: number, value: number, by: string? })
+	local who = if payload.by == "police" then "The police" else "The guard"
 	if payload.count > 0 then
 		bustedBody.Text =
-			`The guard took {payload.count} item(s) worth {Ui.money(payload.value)}. You kept your best find.\nCash, trunk, shelf and upgrades are safe.`
+			`{who} took {payload.count} item(s) worth {Ui.money(payload.value)}. You kept your best find.\nCash, trunk, shelf and upgrades are safe.`
 	else
 		bustedBody.Text = "You lost nothing this time.\nCash, trunk, shelf and upgrades are safe."
 	end

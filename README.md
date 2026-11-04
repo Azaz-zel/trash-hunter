@@ -35,11 +35,22 @@ Set Max Players to 8 (the Hideout has 8 display shelves, one per player).
     `Pedestrians` walks townspeople along the sidewalks (they wait for the
     walk phase at signals and drift toward wherever players are) and staffs
     the street-vendor stalls,
-    `Guard` checks movement, `Social` handles the friend bonus and announcements
+    `Guard` checks movement, `Social` handles the friend bonus and announcements,
+    `Wanted` runs city crimes (red lights, running people over), wanted stars and
+    the city cops, `StreetEvents` stages street scenes (dancer, fender bender,
+    traffic stop), `Weather` brings rain
   - `Npc` (shared helper) builds outfitted R15 NPCs with animations and pathing
 - `src/client` → StarterPlayerScripts/Client: `Ui` kit, `Store` (state mirror) and `Controllers/`
   (`Hud`, `SearchUi`, `Panels`, `Guide`, `Ambience` for patrol car and audio, `Traffic`
-  for city cars that obey the lights and stop signs, and the signal lamps themselves)
+  for city cars that obey the lights and stop signs, with head/brake/turn lamps,
+  police light bars, honks and crashes, and the signal lamps themselves; `WantedUi`
+  for the stars; `WeatherFx` for rain and wet roads)
+
+### Sounds and radio
+
+Horn, siren, rain, city hum, crowd and the car radio stations are wired up but
+silent until you add sound ids in `src/shared/Config.luau` (`Sounds` and
+`Radio`). Use Creator Store audio your experience is allowed to play.
 
 Players spawn at the Hideout (Southside, tier 1). The server holds character
 loading until the city is built, so nobody starts at the Baseplate's origin.

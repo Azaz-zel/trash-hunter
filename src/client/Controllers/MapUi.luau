@@ -631,7 +631,51 @@ end
 
 -- ─── GPS ──────────────────────────────────────────────────────────────────
 
--- The shortest road route from `from` to the waypoint, drawn on both maps.
+-- Glowing GPS line on the asphalt for the first stretch of the route.
+local GROUND_ROUTE = 900 -- studs of route drawn on the road
+local groundLine: Folder? = nil
+local function drawGroundRoute(points: { Vector3 })
+	if groundLine then
+		groundLine:Destroy()
+		groundLine = nil
+	end
+	if #points < 3 then
+		return
+	end
+	local line = Instance.new("Folder")
+	line.Name = "GpsLine"
+	local total = 0
+	-- Skip the first hop (from the player to the road, maybe through a wall).
+	for k = 3, #points - 1 do
+		local a, b = points[k - 1], points[k]
+		local len = (b - a).Magnitude
+		if len > 0.5 then
+			local mid = (a + b) / 2 + Vector3.new(0, CityPlan.SURFACE + 0.08, 0)
+			local p = Instance.new("Part")
+			p.Name = "Gps"
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Material = Enum.Material.Neon
+			p.Color = GPS_COLOR
+			p.Transparency = 0.45
+			p.Size = Vector3.new(1.4, 0.06, len + 1.4)
+			p.CFrame = CFrame.lookAt(mid, mid + (b - a))
+			p.Parent = line
+		end
+		total += len
+		if total > GROUND_ROUTE then
+			break
+		end
+	end
+	line.Parent = workspace
+	groundLine = line
+end
+
+-- The shortest road route from `from` to the waypoint, drawn on both maps
+-- and on the road ahead.
 local function drawRoute(from: Vector3?)
 	routeFrom = from
 	local layers = {}
@@ -644,6 +688,7 @@ local function drawRoute(from: Vector3?)
 	end
 	local wp = waypoint
 	if not wp or not from then
+		drawGroundRoute({})
 		return
 	end
 	local nodes = CityPlan.route(from, wp)
@@ -664,6 +709,7 @@ local function drawRoute(from: Vector3?)
 		end
 	end
 	table.insert(points, wp)
+	drawGroundRoute(points)
 	for _, layer in layers do
 		local world = layer.Parent :: Frame
 		local scale = world:GetAttribute("Scale") :: number

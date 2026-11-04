@@ -7,10 +7,16 @@
 local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
 
+-- Roblox's default R15 Animate script animations.
 local ANIM = {
 	idle = "rbxassetid://507766388",
 	walk = "rbxassetid://913402848",
 	run = "rbxassetid://913376220",
+	dance = "rbxassetid://507771019",
+	cheer = "rbxassetid://507770677",
+	wave = "rbxassetid://507770239",
+	point = "rbxassetid://507770453",
+	laugh = "rbxassetid://507770818",
 }
 
 -- Catalog layered clothing (asset ids) used for outfits.
@@ -48,6 +54,12 @@ export type Npc = {
 	stop: (self: Npc) -> (),
 	face: (self: Npc, direction: Vector3) -> (),
 	destroy: (self: Npc) -> (),
+	play: (self: Npc, name: string, looped: boolean?) -> AnimationTrack?,
+	say: (self: Npc, text: string, seconds: number?) -> (),
+	knock: (self: Npc, push: Vector3) -> (),
+	_animator: Animator,
+	_tracks: { [string]: AnimationTrack },
+	_sayToken: number,
 	_path: { PathWaypoint }?,
 	_pathIndex: number,
 	_pathBusy: boolean,
@@ -202,6 +214,9 @@ function Npc.new(kind: string, name: string, cframe: CFrame, parent: Instance, r
 		_lastPath = 0,
 		_lastMove = 0,
 		_conns = conns,
+		_animator = animator :: Animator,
+		_tracks = {},
+		_sayToken = 0,
 	}, Npc)
 	return (self :: any) :: Npc
 end
@@ -271,6 +286,95 @@ function Npc.moveToward(self: Npc, goal: Vector3, now: number)
 		end
 		self.humanoid:MoveTo(waypoint.Position)
 	end
+end
+
+-- Plays one of the ANIM emotes (dance, cheer, wave, point, laugh) on top of
+-- the idle/walk animations; looped emotes run until the next play() call.
+function Npc.play(self: Npc, name: string, looped: boolean?): AnimationTrack?
+	local id = ANIM[name]
+	if not id then
+		return nil
+	end
+	for _, t in self._tracks do
+		t:Stop(0.2)
+	end
+	local track = self._tracks[name]
+	if not track then
+		local anim = Instance.new("Animation")
+		anim.AnimationId = id
+		local ok, loaded = pcall(self._animator.LoadAnimation, self._animator, anim)
+		if not ok then
+			return nil
+		end
+		track = loaded :: AnimationTrack
+		track.Priority = Enum.AnimationPriority.Action
+		self._tracks[name] = track
+	end
+	local t = track :: AnimationTrack
+	t.Looped = looped == true
+	t:Play(0.2)
+	return t
+end
+
+-- A speech bubble over the head for a few seconds.
+function Npc.say(self: Npc, text: string, seconds: number?)
+	local gui = self.head:FindFirstChild("Speech") :: BillboardGui?
+	if not gui then
+		local g = Instance.new("BillboardGui")
+		g.Name = "Speech"
+		g.Size = UDim2.fromOffset(220, 34)
+		g.StudsOffset = Vector3.new(0, 2.8, 0)
+		g.MaxDistance = 70
+		g.LightInfluence = 0
+		local label = Instance.new("TextLabel")
+		label.Name = "Text"
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundColor3 = Color3.fromRGB(17, 19, 23)
+		label.BackgroundTransparency = 0.25
+		label.TextColor3 = Color3.fromRGB(246, 247, 249)
+		label.Font = Enum.Font.BuilderSansBold
+		label.TextScaled = true
+		label.Parent = g
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 10)
+		corner.Parent = label
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0, 8)
+		pad.PaddingRight = UDim.new(0, 8)
+		pad.PaddingTop = UDim.new(0, 4)
+		pad.PaddingBottom = UDim.new(0, 4)
+		pad.Parent = label
+		g.Parent = self.head
+		gui = g
+	end
+	local bubble = gui :: BillboardGui
+	local label = bubble:FindFirstChild("Text") :: TextLabel
+	label.Text = text
+	bubble.Enabled = true
+	self._sayToken += 1
+	local token = self._sayToken
+	task.delay(seconds or 2.6, function()
+		if self._sayToken == token and bubble.Parent then
+			bubble.Enabled = false
+		end
+	end)
+end
+
+-- Knocked down (by a car): thrown along `push`, back up after a moment.
+function Npc.knock(self: Npc, push: Vector3)
+	if self.root.Anchored then
+		return
+	end
+	self:stop()
+	self.humanoid.PlatformStand = true
+	self.root.AssemblyLinearVelocity = push
+	self.root.AssemblyAngularVelocity = Vector3.new(push.Z, 0, -push.X) * 0.15
+	task.delay(2.4, function()
+		if self.model.Parent then
+			self.humanoid.PlatformStand = false
+			self.humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+		end
+	end)
 end
 
 function Npc.destroy(self: Npc)

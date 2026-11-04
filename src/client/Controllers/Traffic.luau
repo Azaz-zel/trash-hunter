@@ -12,6 +12,13 @@
 --   townspeople) in front of them, crosswalks included.
 -- Dead ends become U-turns around the turning circle. Purely visual: each
 -- client runs its own, near its player, so it costs no network traffic.
+--
+-- Cars carry headlights (lit at night), tail lights that brighten when they
+-- brake, and turn signals before a turn. Police cruisers flash their light
+-- bars and run the siren while you are wanted, and hurry through reds. A
+-- driver blocked by a player honks; drive into a car and you bounce off it
+-- with a crunch (it stops with its hazards on); step in front of one and it
+-- knocks you over. Fewer cars drive at night.
 
 local CollectionService = game:GetService("CollectionService")
 
@@ -21,6 +28,7 @@ local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CityPlan = require(Shared:WaitForChild("CityPlan"))
+local Config = require(Shared:WaitForChild("Config"))
 
 local player = Players.LocalPlayer
 local rng = Random.new()
@@ -36,6 +44,16 @@ local FAR = 620 -- recycle beyond this
 local LOCK_TIMEOUT = 8 -- a junction claim older than this is stale
 local STOP_WAIT = 0.9 -- seconds stopped at a stop sign before going
 local PEOPLE_REFRESH = 0.2
+local NIGHT_CARS = 30 -- cars still out at night
+local BEAMS = 14 -- cars whose headlights cast real light (the rest only glow)
+local HONK_AFTER = 1.4 -- seconds blocked by someone before honking
+local HONK_GAP = 6
+
+local HEAD_COLOR = Color3.fromRGB(255, 244, 214)
+local TAIL_OFF = Color3.fromRGB(110, 14, 14)
+local TAIL_ON = Color3.fromRGB(255, 30, 30)
+local BLINK_OFF = Color3.fromRGB(90, 62, 20)
+local BLINK_ON = Color3.fromRGB(255, 170, 30)
 
 type Node = CityPlan.Node
 type Lane = {
@@ -73,6 +91,27 @@ type Car = {
 	committed: boolean, -- caught by an amber light too close to stop: clears the junction
 	waited: number, -- seconds stopped at the stop line
 	cruise: number, -- share of the speed limit this driver keeps (0.85 to 1)
+	index: number,
+	police: boolean,
+	lights: Lights,
+	turnDir: number, -- -1 left, 1 right, 0 straight (for the turn signal)
+	braking: boolean,
+	blocked: number, -- seconds held up by someone in the road
+	honkAt: number,
+	stalled: number, -- os.clock() until which it stays put after a bump
+	frame: CFrame, -- path frame (pivot) this frame
+	hidden: boolean,
+	shown: { [string]: boolean }, -- last lamp states, to touch parts only on change
+}
+type Lights = {
+	head: { BasePart },
+	tail: { BasePart },
+	left: { BasePart },
+	right: { BasePart },
+	bar: { BasePart },
+	beam: SpotLight?,
+	horn: Sound?,
+	siren: Sound?,
 }
 
 local Traffic = {}
@@ -297,6 +336,204 @@ local function makeMovable(model: Model): (BasePart, CFrame, number)
 	return root, model:GetPivot():ToObjectSpace(root.CFrame), lift
 end
 
+local function lamp(car: Model, root: BasePart, cf: CFrame, size: Vector3, color: Color3): Part
+	local p = Instance.new("Part")
+	p.Name = "Lamp"
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = Enum.Material.SmoothPlastic
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Massless = true
+	local w = Instance.new("WeldConstraint")
+	w.Part0 = root
+	w.Part1 = p
+	w.Parent = p
+	p.Parent = car
+	return p
+end
+
+-- Head, tail and signal lamps on the bounding box corners, a light bar on
+-- police cars, and the horn / siren sounds. The pivot's look is the front.
+local function addLights(model: Model, root: BasePart, police: boolean, beam: boolean): Lights
+	local bb, size = model:GetBoundingBox()
+	local look = bb:VectorToObjectSpace(model:GetPivot().LookVector)
+	local f = if math.abs(look.X) > math.abs(look.Z)
+		then Vector3.new(math.sign(look.X), 0, 0)
+		else Vector3.new(0, 0, math.sign(look.Z))
+	local r = Vector3.new(-f.Z, 0, f.X)
+	local halfL = (math.abs(f.X) * size.X + math.abs(f.Z) * size.Z) / 2
+	local halfW = (math.abs(r.X) * size.X + math.abs(r.Z) * size.Z) / 2
+	local h = size.Y
+	local worldF = bb:VectorToWorldSpace(f)
+	local function corner(along: number, side: number, up: number, facing: number): CFrame
+		local pos = (bb * CFrame.new(f * along + r * side + Vector3.yAxis * up)).Position
+		return CFrame.lookAt(pos, pos + worldF * facing)
+	end
+	local L: Lights = { head = {}, tail = {}, left = {}, right = {}, bar = {} }
+	for _, side in { -1, 1 } do
+		table.insert(
+			L.head,
+			lamp(
+				model,
+				root,
+				corner(halfL, side * (halfW - 1), -h * 0.12, 1),
+				Vector3.new(1.1, 0.45, 0.15),
+				HEAD_COLOR
+			)
+		)
+		table.insert(
+			L.tail,
+			lamp(
+				model,
+				root,
+				corner(-halfL, side * (halfW - 0.9), -h * 0.05, -1),
+				Vector3.new(1, 0.4, 0.15),
+				TAIL_OFF
+			)
+		)
+		local list = if side < 0 then L.left else L.right
+		for _, along in { halfL, -halfL } do
+			table.insert(
+				list,
+				lamp(
+					model,
+					root,
+					corner(along, side * (halfW - 0.25), -h * 0.12, if along > 0 then 1 else -1),
+					Vector3.new(0.35, 0.35, 0.15),
+					BLINK_OFF
+				)
+			)
+		end
+	end
+	if beam then
+		local carrier = lamp(
+			model,
+			root,
+			corner(halfL, 0, -h * 0.12, 1),
+			Vector3.new(0.2, 0.2, 0.2),
+			HEAD_COLOR
+		)
+		carrier.Transparency = 1
+		local spot = Instance.new("SpotLight")
+		spot.Face = Enum.NormalId.Front
+		spot.Angle = 60
+		spot.Range = 48
+		spot.Brightness = 3
+		spot.Color = HEAD_COLOR
+		spot.Enabled = false
+		spot.Parent = carrier
+		L.beam = spot
+	end
+	if police then
+		for k, side in { -1, 1 } do
+			local bar = lamp(
+				model,
+				root,
+				corner(0, side * 0.75, h / 2 + 0.2, 1),
+				Vector3.new(1.3, 0.4, 0.7),
+				if k == 1 then Color3.fromRGB(255, 40, 40) else Color3.fromRGB(40, 90, 255)
+			)
+			local glow = Instance.new("PointLight")
+			glow.Color = bar.Color
+			glow.Range = 22
+			glow.Brightness = 0
+			glow.Parent = bar
+			table.insert(L.bar, bar)
+		end
+		if Config.Sounds.SIREN ~= "" then
+			local siren = Instance.new("Sound")
+			siren.SoundId = Config.Sounds.SIREN
+			siren.Looped = true
+			siren.Volume = 0.6
+			siren.RollOffMaxDistance = 300
+			siren.Parent = root
+			L.siren = siren
+		end
+	end
+	if Config.Sounds.HORN ~= "" then
+		local horn = Instance.new("Sound")
+		horn.SoundId = Config.Sounds.HORN
+		horn.Volume = 0.7
+		horn.RollOffMaxDistance = 200
+		horn.Parent = root
+		L.horn = horn
+	end
+	return L
+end
+
+local function paint(
+	car: Car,
+	key: string,
+	parts: { BasePart },
+	on: boolean,
+	onColor: Color3?,
+	offColor: Color3?
+)
+	if car.shown[key] == on then
+		return
+	end
+	car.shown[key] = on
+	for _, p in parts do
+		p.Material = if on then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		if onColor and offColor then
+			p.Color = if on then onColor else offColor
+		end
+		local glow = p:FindFirstChildOfClass("PointLight")
+		if glow then
+			glow.Brightness = if on then 4 else 0
+		end
+	end
+end
+
+-- Lamps, siren: called every frame, touches parts only when a state flips.
+local function updateLights(car: Car, now: number, night: boolean, wanted: boolean)
+	local L = car.lights
+	paint(car, "head", L.head, night)
+	if L.beam then
+		L.beam.Enabled = night
+	end
+	paint(
+		car,
+		"tail",
+		L.tail,
+		car.braking or night,
+		if car.braking then TAIL_ON else Color3.fromRGB(170, 20, 20),
+		TAIL_OFF
+	)
+	local blink = math.floor(now * 2.5) % 2 == 0
+	local hazard = car.stalled > now
+	paint(car, "left", L.left, blink and (hazard or car.turnDir < 0), BLINK_ON, BLINK_OFF)
+	paint(car, "right", L.right, blink and (hazard or car.turnDir > 0), BLINK_ON, BLINK_OFF)
+	if car.police then
+		local flash = math.floor(now * 3.3) % 2 == 0
+		paint(car, "bar1", { L.bar[1] }, wanted and flash)
+		paint(car, "bar2", { L.bar[2] }, wanted and not flash)
+		local siren = L.siren
+		if siren then
+			if wanted and not siren.IsPlaying then
+				siren:Play()
+			elseif not wanted and siren.IsPlaying then
+				siren:Stop()
+			end
+		end
+	end
+end
+
+-- Which way a car turns from `lane` onto `nextLane`.
+local function turnDirection(lane: Lane, nextLane: Lane): number
+	if nextLane == lane.reverse then
+		return -1 -- U-turn
+	end
+	local _, d0 = at(lane, lane.length)
+	local _, d1 = at(nextLane, 0)
+	local side = flat(d1):Dot(Vector3.new(-d0.Z, 0, d0.X))
+	return if side > 0.35 then 1 elseif side < -0.35 then -1 else 0
+end
+
 local function playerPos(): Vector3?
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -435,10 +672,11 @@ local function personAhead(pos: Vector3, fwd: Vector3, speed: number): boolean
 	return false
 end
 
-local function step(car: Car, dt: number, now: number, clock: number)
+local function step(car: Car, dt: number, now: number, clock: number, wanted: boolean)
 	local pos: Vector3
 	local fwd: Vector3
-	local target = car.lane.speed * car.cruise
+	local hurry = car.police and wanted -- responding to a call
+	local target = car.lane.speed * (if hurry then 1.25 else car.cruise)
 	local turn = car.turn
 	if turn then
 		turn.t = math.min(1, turn.t + car.speed * dt / turn.length)
@@ -460,6 +698,7 @@ local function step(car: Car, dt: number, now: number, clock: number)
 		if turn.t >= 1 then
 			car.lane, car.s, car.turn = turn.next, 0, nil
 			car.plan, car.committed, car.waited = nil, false, 0
+			car.turnDir = 0
 			release(car)
 		end
 	else
@@ -474,7 +713,10 @@ local function step(car: Car, dt: number, now: number, clock: number)
 		local toEnd = l.length - car.s
 		if toEnd < 45 then
 			local node = l.to
-			car.plan = car.plan or chooseNext(l)
+			if not car.plan then
+				car.plan = chooseNext(l)
+				car.turnDir = if car.plan then turnDirection(l, car.plan :: Lane) else 0
+			end
 			-- Slow for the junction.
 			target = math.min(target, math.max(if node.bulb then 6 else 9, toEnd * 0.6))
 			local allowed = true
@@ -484,7 +726,7 @@ local function step(car: Car, dt: number, now: number, clock: number)
 					-- Too close to stop comfortably: carry on through.
 					car.committed = car.speed * car.speed / (2 * COMFORT_BRAKE) > toEnd - 2
 				end
-				allowed = state == "green" or car.committed
+				allowed = state == "green" or car.committed or hurry
 				if not allowed then
 					target = math.min(target, math.max(0, (toEnd - 2) * 1.2))
 				end
@@ -522,7 +764,19 @@ local function step(car: Car, dt: number, now: number, clock: number)
 	end
 	if personAhead(pos, fwd, car.speed) then
 		target = 0
+		car.blocked += dt
+		local horn = car.lights.horn
+		if horn and car.blocked > HONK_AFTER and now >= car.honkAt then
+			car.honkAt = now + HONK_GAP
+			horn:Play()
+		end
+	else
+		car.blocked = 0
 	end
+	if car.stalled > now then
+		target = 0
+	end
+	car.braking = target < car.speed - 0.3 or car.speed < 0.5
 	if target > car.speed then
 		car.speed = math.min(target, car.speed + ACCEL * dt)
 	else
@@ -530,7 +784,74 @@ local function step(car: Car, dt: number, now: number, clock: number)
 	end
 	local level = Vector3.new(fwd.X, fwd.Y, fwd.Z)
 	local cf = CFrame.lookAt(pos, pos + level) + Vector3.new(0, CityPlan.SURFACE + car.lift, 0)
+	car.frame = cf
 	car.root.CFrame = cf * car.offset
+end
+
+local crashSound: Sound? = nil
+local function crunch(at: BasePart)
+	local s = crashSound
+	if not s then
+		local made = Instance.new("Sound")
+		made.SoundId = Config.Sounds.CRASH
+		made.Volume = 0.9
+		crashSound = made
+		s = made
+	end
+	local one = (s :: Sound):Clone()
+	one.Parent = at
+	one:Play()
+	one.Ended:Once(function()
+		one:Destroy()
+	end)
+end
+
+-- Bumps between the local player (on foot or driving) and traffic.
+local function collide(now: number)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not root or not humanoid then
+		return
+	end
+	local seat = humanoid.SeatPart
+	local body = if seat then seat else root
+	local myVel = body.AssemblyLinearVelocity
+	for _, car in cars do
+		if car.hidden or car.stalled > now then
+			continue
+		end
+		local rel = car.frame:PointToObjectSpace(body.Position)
+		local reachX, reachZ = if seat then 6 else 3.6, if seat then 10 else 7.5
+		if math.abs(rel.X) > reachX or math.abs(rel.Z) > reachZ or math.abs(rel.Y) > 7 then
+			continue
+		end
+		if seat then
+			if myVel.Magnitude > 10 then
+				-- Crash: bounce off, the other driver stops with hazards on.
+				local away = flat(body.Position - car.frame.Position)
+				away = if away.Magnitude > 0.1 then away.Unit else -flat(myVel).Unit
+				body.AssemblyLinearVelocity = -myVel * 0.25 + away * 14
+				car.speed, car.stalled = 0, now + 5
+				crunch(car.root)
+				local horn = car.lights.horn
+				if horn then
+					car.honkAt = now + HONK_GAP
+					task.delay(0.6, function()
+						horn:Play()
+					end)
+				end
+			end
+		elseif car.speed > 5 then
+			-- Hit on foot: knocked over (kept under the Guard speed limit).
+			local fwd = car.frame.LookVector
+			root.AssemblyLinearVelocity = flat(fwd) * math.min(30, car.speed + 8)
+				+ Vector3.new(0, 24, 0)
+			humanoid:ChangeState(Enum.HumanoidStateType.FallingDown)
+			car.speed, car.stalled = 0, now + 2.5
+			crunch(car.root)
+		end
+	end
 end
 
 local function spawnCars(templates: { Model }, police: Model?)
@@ -541,11 +862,23 @@ local function spawnCars(templates: { Model }, police: Model?)
 			else templates[rng:NextInteger(1, #templates)]
 		local model = source:Clone()
 		local root, offset, lift = makeMovable(model)
+		local isPolice = police ~= nil and i <= 3
 		local car: Car = {
 			model = model,
 			root = root,
 			offset = offset,
 			lift = lift,
+			index = i,
+			police = isPolice,
+			lights = addLights(model, root, isPolice, i <= BEAMS),
+			turnDir = 0,
+			braking = false,
+			blocked = 0,
+			honkAt = 0,
+			stalled = 0,
+			frame = model:GetPivot(),
+			hidden = false,
+			shown = {},
 			lane = lanes[1],
 			s = 0,
 			speed = 0,
@@ -614,16 +947,36 @@ function Traffic.start()
 				scan = 0
 				refreshPeople()
 			end
+			local night = workspace:GetAttribute("Night") == true
+			local wanted = (tonumber(player:GetAttribute("Wanted")) or 0) > 0
+				or player:GetAttribute("Chased") == true
 			for _, car in cars do
-				step(car, dt, now, clock)
+				-- Fewer cars at night.
+				local away = night and car.index > NIGHT_CARS
+				if away ~= car.hidden then
+					car.hidden = away
+					release(car)
+					car.model.Parent = if away then nil else folder
+					if not away then
+						place(car, playerPos() or CityPlan.HIDEOUT)
+					end
+				end
+				if not car.hidden then
+					step(car, dt, now, clock, wanted)
+					updateLights(car, now, night, wanted)
+				end
 			end
+			collide(now)
 			recycle += dt
 			if recycle > 1 then
 				recycle = 0
 				local around = playerPos()
 				if around then
 					for _, car in cars do
-						if (flat(car.root.Position) - flat(around)).Magnitude > FAR then
+						if
+							not car.hidden
+							and (flat(car.root.Position) - flat(around)).Magnitude > FAR
+						then
 							release(car)
 							place(car, around)
 						end

@@ -370,6 +370,23 @@ local function capture(player: Player, by: Officer)
 	Router.send(player, "busted", { count = count, value = value })
 end
 
+-- Arrest by the city police (Wanted.luau): the same penalty as a yard bust.
+function Police.arrest(player: Player)
+	local count, value = confiscate(player)
+	Search.cancel(player, "captured")
+	if isChased(player) then
+		endChase(player, "captured", 0)
+	end
+	immuneUntil[player] = os.clock() + P.IMMUNITY_AFTER_CAPTURE
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.Sit then
+		humanoid.Sit = false -- pulled out of the car
+	end
+	task.defer(Guard.teleport, player, SPAWN_POINT)
+	Router.send(player, "busted", { count = count, value = value, by = "police" })
+end
+
 local function dropAndRun(player: Player): (boolean, string?)
 	if not isChased(player) then
 		return false, nil

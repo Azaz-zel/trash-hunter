@@ -4,12 +4,16 @@
 -- PlayerModule, which this place does not ship. So this controller reads input
 -- itself (WASD / arrows, gamepad stick and triggers, on-screen pedals on touch)
 -- and feeds the kit's Chassis module directly. Also shows a speedometer and an
--- Exit button while driving.
+-- Exit button while driving, and runs the car radio (R or the radio button
+-- cycles Config.Radio stations; it stays hidden while no station has tracks).
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
 local UserInputService = game:GetService("UserInputService")
 
+local Config =
+	require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Config"))
 local Ui = require(script.Parent.Parent.Ui)
 
 local C = Ui.COLORS
@@ -26,6 +30,53 @@ local touchPad: Frame
 local touchThrottle, touchSteer = 0, 0
 
 local STUDS_TO_MPH = 0.6 -- 1 stud ≈ 0.28 m; rounded for a readable dial
+
+-- ─── radio ────────────────────────────────────────────────────────────────
+
+local stations = {}
+for _, st in Config.Radio do
+	if #st.tracks > 0 then
+		table.insert(stations, st)
+	end
+end
+local station = if #stations > 0 then 1 else 0 -- 0 = off; kept between rides
+local radioSound: Sound
+local radioLabel: TextLabel
+local radioButton: TextButton
+local trackIndex = 0
+
+local function playTrack()
+	local st = stations[station]
+	if not st then
+		radioSound:Stop()
+		return
+	end
+	trackIndex = trackIndex % #st.tracks + 1
+	radioSound.SoundId = st.tracks[trackIndex]
+	radioSound:Play()
+end
+
+local function radioOn(on: boolean)
+	if #stations == 0 then
+		return
+	end
+	if on and station > 0 then
+		trackIndex = math.random(0, #stations[station].tracks - 1)
+		playTrack()
+	else
+		radioSound:Stop()
+	end
+	local st = stations[station]
+	radioLabel.Text = if st then `📻 {st.name}` else "📻 Radio off"
+end
+
+local function nextStation()
+	if #stations == 0 then
+		return
+	end
+	station = (station + 1) % (#stations + 1)
+	radioOn(true)
+end
 
 local function keyAxis(pos: { Enum.KeyCode }, neg: { Enum.KeyCode }): number
 	local v = 0
@@ -78,6 +129,7 @@ local function stop()
 	end
 	touchThrottle, touchSteer = 0, 0
 	hud.Visible = false
+	radioOn(false)
 end
 
 local function drive(seat: VehicleSeat)
@@ -102,6 +154,7 @@ local function drive(seat: VehicleSeat)
 	Chassis.InitializeDrivingValues()
 	hud.Visible = true
 	touchPad.Visible = UserInputService.TouchEnabled
+	radioOn(true)
 	driving = RunService.Heartbeat:Connect(function()
 		if not seat.Parent then
 			stop()
@@ -194,15 +247,42 @@ local function build()
 		TextColor3 = C.muted,
 		Parent = dial,
 	})
-	local hint = Ui.label("W/S drive · A/D steer · Space exit", 13, {
+	local hint = Ui.label(
+		if #stations > 0
+			then "W/S drive · A/D steer · R radio · Space exit"
+			else "W/S drive · A/D steer · Space exit",
+		13,
+		{
+			AnchorPoint = Vector2.new(0.5, 1),
+			Position = UDim2.new(0.5, 0, 1, -98),
+			Size = UDim2.fromOffset(320, 16),
+			TextColor3 = C.cream,
+			TextStrokeTransparency = 0.5,
+			Parent = hud,
+		}
+	)
+	hint.Visible = not UserInputService.TouchEnabled
+	-- Radio: station name above the dial, a button to switch.
+	radioSound = Instance.new("Sound")
+	radioSound.Name = "CarRadio"
+	radioSound.Volume = 0.45
+	radioSound.Parent = SoundService
+	radioSound.Ended:Connect(playTrack)
+	radioLabel = Ui.label("", 14, {
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -98),
-		Size = UDim2.fromOffset(320, 16),
-		TextColor3 = C.cream,
-		TextStrokeTransparency = 0.5,
+		Position = UDim2.new(0.5, 0, 1, -120),
+		Size = UDim2.fromOffset(260, 18),
+		Font = Ui.FONT,
+		TextColor3 = Color3.fromRGB(120, 230, 255),
+		TextStrokeTransparency = 0.4,
+		Visible = #stations > 0,
 		Parent = hud,
 	})
-	hint.Visible = not UserInputService.TouchEnabled
+	radioButton = Ui.button("📻", "secondary", UDim2.fromOffset(52, 52), nextStation)
+	radioButton.AnchorPoint = Vector2.new(0, 1)
+	radioButton.Position = UDim2.new(0, 134, 1, -18)
+	radioButton.Visible = #stations > 0
+	radioButton.Parent = hud
 	local exit = Ui.button("Exit car", "secondary", UDim2.fromOffset(110, 52), exitCar)
 	exit.AnchorPoint = Vector2.new(0, 1)
 	exit.Position = UDim2.new(0, 16, 1, -18)
@@ -252,6 +332,11 @@ function CarDriver.init()
 end
 
 function CarDriver.start()
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if not processed and input.KeyCode == Enum.KeyCode.R and driving then
+			nextStation()
+		end
+	end)
 	player.CharacterAdded:Connect(onCharacter)
 	if player.Character then
 		task.spawn(onCharacter, player.Character)

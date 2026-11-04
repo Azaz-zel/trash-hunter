@@ -8,9 +8,15 @@
 -- a walker far from every player moves to a street near one, so wherever
 -- players are the town feels alive. Any of them will barter (see
 -- Barter.luau); a walker stops while an offer is open.
+--
+-- People react to the city: they run from wanted players, police chases and
+-- cars tearing past, get knocked down by cars (Wanted.luau decides when),
+-- turn to look at a player who comes close, and vendors call out to passers-by.
+-- At night about two walkers in five go home; they come back in the morning.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
+local ServerStorage = game:GetService("ServerStorage")
 
 local CityPlan = require(game:GetService("ReplicatedStorage").Shared.CityPlan)
 local Npc = require(script.Parent.Parent.Npc)
@@ -62,6 +68,54 @@ local DENSITY = {
 local Pedestrians = {}
 
 local rng = Random.new()
+
+local REACT_TICK = 0.3
+local FLEE_SECONDS = 4.5
+local FLEE_SPEED = 15
+local SHOUTS = {
+	flee = { "Whoa!", "Watch it!", "Help!", "Are you crazy?!", "Run!" },
+	hit = { "OW! My back!", "Hey! I'm walking here!", "Somebody get his plate!", "Ugh..." },
+	greet = { "Hey.", "Nice day, huh?", "You lost?", "Mornin'.", "...", "Sup." },
+}
+local CALLOUTS = {
+	hotdog = { "Hot dogs! Get 'em while they're hot!", "Two for five, today only!" },
+	tacos = { "Tacos! Best in the city!", "Al pastor, fresh off the grill!" },
+	halal = { "Chicken over rice! White sauce, hot sauce!", "Halal food, come get it!" },
+	pretzel = { "Pretzels! Warm and salty!", "Soft pretzels here!" },
+	coffee = { "Coffee! Wake up, city!", "Espresso, two bucks!" },
+	news = { "Read all about it!", "Daily paper, get your paper!" },
+	icecream = { "Ice cream! Beat the heat!", "Two scoops, one price!" },
+	noodles = { "Hot noodles, open all night!", "Ramen! Neon special!" },
+}
+
+type Person = {
+	npc: any,
+	kind: string, -- "walker" | "local" | "vendor" | "customer"
+	label: string?, -- vendor stall kind
+	walkSpeed: number,
+	nextTalk: number,
+	fleeing: boolean,
+}
+local people: { [Instance]: Person } = {}
+local offDuty: Folder -- walkers at home for the night (ServerStorage)
+
+local function register(npc: any, kind: string, label: string?)
+	people[npc.model] = {
+		npc = npc,
+		kind = kind,
+		label = label,
+		walkSpeed = npc.humanoid.WalkSpeed,
+		nextTalk = os.clock() + rng:NextNumber(3, 20),
+		fleeing = false,
+	}
+	npc.model.Destroying:Connect(function()
+		people[npc.model] = nil
+	end)
+end
+
+local function shout(list: { string }): string
+	return list[rng:NextInteger(1, #list)]
+end
 
 -- Sidewalks weighted by district density.
 local weighted: { { path: { Vector3 }, w: number } } = {}
@@ -128,6 +182,11 @@ end
 
 local function flatDist(a: Vector3, b: Vector3): number
 	return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
+end
+
+local function flatDir(v: Vector3): Vector3
+	local f = Vector3.new(v.X, 0, v.Z)
+	return if f.Magnitude > 0.01 then f.Unit else Vector3.xAxis
 end
 
 -- A sidewalk near a player (but out of sight distance), for a walker who
@@ -223,6 +282,13 @@ local function walkTo(npc: any, goal: Vector3, busy: () -> boolean)
 			npc:stop()
 			task.wait(0.5)
 		end
+		-- Running away or knocked down: the reaction loop has the body.
+		while
+			(tonumber(npc.model:GetAttribute("FleeUntil")) or 0) > os.clock()
+			or npc.humanoid.PlatformStand
+		do
+			task.wait(0.3)
+		end
 		npc:moveToward(goal, os.clock())
 		task.wait(0.35)
 	end
@@ -243,6 +309,8 @@ local function walker(index: number, folder: Instance)
 	end
 	npc.humanoid.WalkSpeed = rng:NextNumber(5.5, 8.5)
 	setupTrader(npc)
+	register(npc, "walker")
+	local nightOwl = index % 5 >= 2 -- the rest go home at night
 	local function busy(): boolean
 		return (tonumber(npc.model:GetAttribute("BusyUntil")) or 0) > os.clock()
 	end
@@ -283,6 +351,20 @@ local function walker(index: number, folder: Instance)
 		if moved then
 			continue
 		end
+		-- Home for the night; back out in the morning near whoever is about.
+		if not nightOwl and workspace:GetAttribute("Night") == true and not busy() then
+			npc:stop()
+			npc.model.Parent = offDuty
+			while workspace:GetAttribute("Night") == true do
+				workspace:GetAttributeChangedSignal("Night"):Wait()
+			end
+			task.wait(rng:NextNumber(0, 20))
+			npc.model.Parent = folder
+			if not relocate() then
+				npc.model:PivotTo(CFrame.new(path[i] + Vector3.new(0, 3, 0)))
+			end
+			continue
+		end
 		-- At the corner: cross to the next block, or turn back.
 		local nextPath = sidewalkNear(path[last], path)
 		if nextPath and rng:NextNumber() < 0.85 then
@@ -320,6 +402,7 @@ local function loiterer(index: number, folder: Instance, spot: CityPlan.Hangout)
 	end
 	npc.humanoid.WalkSpeed = 5
 	setupTrader(npc)
+	register(npc, "local")
 	if spot.kind == "bench" then
 		npc.humanoid.Sit = true
 	end
@@ -328,6 +411,7 @@ local function loiterer(index: number, folder: Instance, spot: CityPlan.Hangout)
 		if
 			spot.kind ~= "bench"
 			and (tonumber(npc.model:GetAttribute("BusyUntil")) or 0) < os.clock()
+			and (tonumber(npc.model:GetAttribute("FleeUntil")) or 0) < os.clock()
 		then
 			local goal = (spot.cf * CFrame.new(rng:NextNumber(-6, 6), 0, rng:NextNumber(-2, 4))).Position
 			npc:moveToward(goal, os.clock())
@@ -347,6 +431,7 @@ local function vendor(index: number, folder: Instance, spot: CityPlan.Hangout)
 	end
 	npc.root.Anchored = true
 	setupTrader(npc)
+	register(npc, "vendor", spot.label)
 	local prompt = npc.root:FindFirstChild("TradePrompt")
 	if prompt and prompt:IsA("ProximityPrompt") then
 		prompt.ObjectText =
@@ -365,9 +450,13 @@ local function customer(index: number, folder: Instance, spot: CityPlan.Hangout)
 	end
 	npc.humanoid.WalkSpeed = 4
 	setupTrader(npc)
+	register(npc, "customer")
 	while npc.model.Parent do
 		task.wait(rng:NextNumber(8, 20))
-		if (tonumber(npc.model:GetAttribute("BusyUntil")) or 0) < os.clock() then
+		if
+			(tonumber(npc.model:GetAttribute("BusyUntil")) or 0) < os.clock()
+			and (tonumber(npc.model:GetAttribute("FleeUntil")) or 0) < os.clock()
+		then
 			local goal = (spot.cf * CFrame.new(rng:NextNumber(-3, 3), 0, rng:NextNumber(7, 8.5))).Position
 			npc:moveToward(goal, os.clock())
 			task.wait(1.5)
@@ -377,11 +466,163 @@ local function customer(index: number, folder: Instance, spot: CityPlan.Hangout)
 	end
 end
 
+-- Runs from `from` for a few seconds, then gets back to its business.
+local function flee(person: Person, from: Vector3, line: string?)
+	local npc = person.npc
+	if npc.root.Anchored or npc.humanoid.PlatformStand or npc.model.Parent == offDuty then
+		return
+	end
+	local away = flatDir(npc.root.Position - from)
+	npc.model:SetAttribute("FleeUntil", os.clock() + FLEE_SECONDS)
+	npc.humanoid.WalkSpeed = FLEE_SPEED
+	npc.humanoid.Sit = false
+	npc:moveToward(npc.root.Position + away * 40, os.clock())
+	if line then
+		npc:say(line, 2)
+	end
+	if not person.fleeing then
+		person.fleeing = true
+		task.delay(FLEE_SECONDS, function()
+			person.fleeing = false
+			if npc.model.Parent then
+				npc.humanoid.WalkSpeed = person.walkSpeed
+				npc:stop()
+			end
+		end)
+	end
+end
+
+-- Everyone within `radius` of `at` runs; one of them shouts `line`.
+function Pedestrians.panic(at: Vector3, radius: number, line: string?)
+	local shouted = false
+	for _, person in people do
+		local root = person.npc.root
+		if flatDist(root.Position, at) < radius then
+			if person.kind == "vendor" then
+				if not shouted and line then
+					person.npc:say(line, 2.5)
+					shouted = true
+				end
+			else
+				flee(person, at, if not shouted then line else nil)
+				shouted = shouted or line ~= nil
+			end
+		end
+	end
+end
+
+-- A car knocked this person down (called by Wanted.luau).
+function Pedestrians.knock(model: Instance, push: Vector3)
+	local person = people[model]
+	if not person then
+		return
+	end
+	person.npc:knock(push)
+	person.npc:say(shout(SHOUTS.hit), 2.5)
+end
+
+-- Every REACT_TICK: run from danger, look at players who come close, and
+-- vendors call out to passers-by.
+local function react()
+	local threats: { { pos: Vector3, radius: number } } = {}
+	local onFoot: { Vector3 } = {}
+	for _, p in Players:GetPlayers() do
+		local character = p.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		if not root or not root:IsA("BasePart") or not humanoid then
+			continue
+		end
+		local seat = humanoid.SeatPart
+		local speed = if seat then seat.AssemblyLinearVelocity.Magnitude else 0
+		if (tonumber(p:GetAttribute("Wanted")) or 0) > 0 or p:GetAttribute("Chased") == true then
+			table.insert(threats, { pos = root.Position, radius = 28 })
+		elseif seat and speed > 30 then
+			table.insert(
+				threats,
+				{ pos = root.Position + seat.AssemblyLinearVelocity * 0.4, radius = 16 }
+			)
+		end
+		if not seat then
+			table.insert(onFoot, root.Position)
+		end
+	end
+	-- Officers sprinting through clear the sidewalk too.
+	local town = workspace:FindFirstChild("Town")
+	local police = town and town:FindFirstChild("CityPolice")
+	if police then
+		for _, cop in police:GetChildren() do
+			local root = cop:FindFirstChild("HumanoidRootPart")
+			if root and root:IsA("BasePart") then
+				table.insert(threats, { pos = root.Position, radius = 10 })
+			end
+		end
+	end
+	local now = os.clock()
+	for _, person in people do
+		local npc = person.npc
+		if npc.model.Parent == offDuty or npc.humanoid.PlatformStand then
+			continue
+		end
+		local pos = npc.root.Position
+		if person.kind ~= "vendor" and not person.fleeing then
+			for _, t in threats do
+				if flatDist(pos, t.pos) < t.radius then
+					flee(person, t.pos, if rng:NextNumber() < 0.35 then shout(SHOUTS.flee) else nil)
+					break
+				end
+			end
+		end
+		if person.fleeing then
+			continue
+		end
+		-- Someone on foot right next to them.
+		local nearest: Vector3? = nil
+		local nearestD = if person.kind == "vendor" then 22 else 9
+		for _, w in onFoot do
+			local d = flatDist(pos, w)
+			if d < nearestD then
+				nearest, nearestD = w, d
+			end
+		end
+		local target = nearest
+		if not target then
+			continue
+		end
+		if person.kind == "vendor" then
+			npc.root.CFrame = CFrame.lookAt(pos, Vector3.new(target.X, pos.Y, target.Z))
+			if now >= person.nextTalk then
+				person.nextTalk = now + rng:NextNumber(18, 35)
+				local lines = CALLOUTS[person.label or ""] or CALLOUTS.hotdog
+				npc:say(shout(lines), 3)
+				if rng:NextNumber() < 0.5 then
+					npc:play("wave")
+				end
+			end
+		elseif person.kind ~= "walker" then
+			npc:face(target - pos)
+			if now >= person.nextTalk and rng:NextNumber() < 0.3 then
+				person.nextTalk = now + rng:NextNumber(25, 60)
+				npc:say(shout(SHOUTS.greet), 2)
+			end
+		end
+	end
+end
+
 function Pedestrians.start()
 	local town = workspace:WaitForChild("Town")
 	local folder = Instance.new("Folder")
 	folder.Name = "Pedestrians"
 	folder.Parent = town
+	offDuty = Instance.new("Folder")
+	offDuty.Name = "PedestriansOffDuty"
+	offDuty.Parent = ServerStorage
+	task.spawn(function()
+		while true do
+			task.wait(REACT_TICK)
+			react()
+		end
+	end)
 	if #weighted == 0 then
 		return
 	end

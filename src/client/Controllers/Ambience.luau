@@ -1,7 +1,9 @@
 --!strict
 -- Client-only life: light bars on the yard's gate cruiser that flash when
--- the alarm is up, day/night ambience and chase music. Traffic lives in
--- Traffic.luau.
+-- the alarm is up, day/night ambience, chase music (yard chase or city
+-- wanted stars), and the city itself: a traffic hum that swells on busy
+-- streets and a crowd murmur near people (Config.Sounds CITY_HUM / CROWD,
+-- silent until set). Traffic lives in Traffic.luau.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -88,6 +90,7 @@ local function setupAudio()
 
 	local function mix()
 		local chased = player:GetAttribute("Chased") == true
+			or (tonumber(player:GetAttribute("Wanted")) or 0) > 0
 		local isNight = workspace:GetAttribute("Night") == true
 		TweenService:Create(chase, FADE, { Volume = if chased then 0.45 else 0 }):Play()
 		TweenService:Create(day, FADE, { Volume = if chased or isNight then 0 else 0.3 }):Play()
@@ -95,8 +98,50 @@ local function setupAudio()
 			:Play()
 	end
 	player:GetAttributeChangedSignal("Chased"):Connect(mix)
+	player:GetAttributeChangedSignal("Wanted"):Connect(mix)
 	workspace:GetAttributeChangedSignal("Night"):Connect(mix)
 	mix()
+end
+
+-- City hum and crowd murmur, louder the more cars and people are around.
+local function setupCityAudio()
+	local hum = if Config.Sounds.CITY_HUM ~= "" then loopSound(Config.Sounds.CITY_HUM) else nil
+	local crowd = if Config.Sounds.CROWD ~= "" then loopSound(Config.Sounds.CROWD) else nil
+	if not hum and not crowd then
+		return
+	end
+	local FADE = TweenInfo.new(1.5)
+	task.spawn(function()
+		while true do
+			task.wait(0.75)
+			local character = player.Character
+			local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if not root then
+				continue
+			end
+			local pos = root.Position
+			local function countNear(container: Instance?, radius: number): number
+				local n = 0
+				for _, m in if container then container:GetChildren() else {} do
+					local p = if m:IsA("Model") then m:GetPivot().Position else nil
+					if p and (p - pos).Magnitude < radius then
+						n += 1
+					end
+				end
+				return n
+			end
+			local town = workspace:FindFirstChild("Town")
+			local cars = countNear(workspace:FindFirstChild("Traffic"), 160)
+			local people = countNear(town and town:FindFirstChild("Pedestrians"), 45)
+			if hum then
+				TweenService:Create(hum, FADE, { Volume = math.min(0.35, 0.06 + cars * 0.025) })
+					:Play()
+			end
+			if crowd then
+				TweenService:Create(crowd, FADE, { Volume = math.min(0.4, people * 0.05) }):Play()
+			end
+		end
+	end)
 end
 
 function Ambience.init()
@@ -107,6 +152,7 @@ end
 
 function Ambience.start()
 	setupAudio()
+	setupCityAudio()
 
 	task.spawn(function()
 		local templates = ReplicatedStorage:WaitForChild("VehicleTemplates", 60)

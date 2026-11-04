@@ -550,6 +550,54 @@ return table.freeze({
 		DAY_AMBIENCE = "rbxassetid://9117064941",
 		NIGHT_AMBIENCE = "rbxassetid://9112764040",
 		CHASE_MUSIC = "rbxassetid://1838489774",
+		-- City life. Empty means silent: paste a Creator Store sound id
+		-- ("rbxassetid://123") that your experience may use (check the
+		-- asset's permissions). Search terms that work: "car horn",
+		-- "police siren", "rain loop", "city traffic ambience", "crowd murmur".
+		HORN = "",
+		SIREN = "",
+		RAIN = "",
+		CITY_HUM = "",
+		CROWD = "",
+		-- Built into every Roblox client.
+		CRASH = "rbxasset://sounds/collide.wav",
+		GLASS = "rbxasset://sounds/glassbreak.wav",
+	}),
+
+	-- Car radio stations (R or the radio button cycles them while driving).
+	-- Each needs at least one licensed track id; empty stations are skipped
+	-- and the radio hides when none has tracks.
+	Radio = table.freeze({
+		table.freeze({ name = "NEON FM", tracks = table.freeze({}) }),
+		table.freeze({ name = "Harbor Rock 98", tracks = table.freeze({}) }),
+		table.freeze({ name = "Smooth Night Jazz", tracks = table.freeze({}) }),
+	}),
+
+	-- City police and wanted stars (outside the Meridian yard).
+	Wanted = table.freeze({
+		HEAT_PER_STAR = 100,
+		RED_LIGHT = 45, -- heat for driving through a red light
+		HIT_PERSON = 80, -- heat for running someone over
+		HIT_SPEED = 14, -- studs/s a car needs to knock someone down
+		DECAY = 6, -- heat lost per second while not wanted
+		MAX_STARS = 3,
+		COPS_PER_STAR = 2,
+		MAX_COPS = 6, -- in the whole server
+		COP_SPEED = 19, -- players run at 20, so a straight sprint barely escapes
+		CATCH_RANGE = 4.5,
+		CATCH_TIME = 0.6,
+		SPAWN_MIN = 70, -- cops arrive on foot from this far
+		SPAWN_MAX = 140,
+		LOSE_RANGE = 110, -- out of every cop's reach ...
+		LOSE_TIME = 8, -- ... for this long (+4 s per star) clears the stars
+		ESCALATE_AFTER = 45, -- seconds of running before another star
+	}),
+
+	-- Weather: one clock for the server. Rain comes now and then.
+	Weather = table.freeze({
+		MIN_SPELL = 300, -- seconds a spell of weather lasts, at least
+		MAX_SPELL = 720,
+		RAIN_CHANCE = 0.35,
 	}),
 
 	-- One full day takes DAY_LENGTH seconds; night runs NIGHT_SPEED times faster.
