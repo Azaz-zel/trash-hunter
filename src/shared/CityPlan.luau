@@ -21,6 +21,7 @@ export type Node = {
 	edges: { Edge },
 	bulb: boolean, -- cul-de-sac turning circle
 	signal: boolean, -- traffic lights
+	groups: { [number]: string }, -- signal phase group ("A"/"B") of each edge, by edge id
 	gap: number, -- distance from the centre to where the street's own lane starts
 }
 export type Edge = {
@@ -355,8 +356,15 @@ local function newNode(pos: Vector3): Node
 			return n
 		end
 	end
-	local n: Node =
-		{ id = #NODES + 1, pos = pos, edges = {}, bulb = false, signal = false, gap = 0 }
+	local n: Node = {
+		id = #NODES + 1,
+		pos = pos,
+		edges = {},
+		bulb = false,
+		signal = false,
+		groups = {},
+		gap = 0,
+	}
 	table.insert(NODES, n)
 	return n
 end
@@ -1149,6 +1157,33 @@ for _, n in NODES do
 	n.signal = #n.edges >= 4 and wide >= 3 and n.pos.Y < 1
 end
 
+-- Signal phase groups. The two approaches that line up best (the straight
+-- through road) share a phase, and so does anything parallel to them; every
+-- other approach gets the other phase. Grouping by compass direction alone
+-- put three legs of a skewed crossing on one phase, so two crossing streams
+-- had green at once. Group "A" is the more east-west road.
+for _, n in NODES do
+	if not n.signal then
+		continue
+	end
+	local bi, bj, best = 1, 2, math.huge
+	for i = 1, #n.edges do
+		for j = i + 1, #n.edges do
+			local d = leaving(n.edges[i], n):Dot(leaving(n.edges[j], n))
+			if d < best then
+				bi, bj, best = i, j, d
+			end
+		end
+	end
+	local axis = leaving(n.edges[bi], n)
+	local main = if math.abs(axis.X) >= math.abs(axis.Z) then "A" else "B"
+	local cross = if main == "A" then "B" else "A"
+	for k, e in n.edges do
+		local par = k == bi or k == bj or math.abs(leaving(e, n):Dot(axis)) > 0.9
+		n.groups[e.id] = if par then main else cross
+	end
+end
+
 -- ─── lots and frames ──────────────────────────────────────────────────────
 
 -- Point and unit tangent at distance s along an edge (from `a`).
@@ -1263,7 +1298,7 @@ end
 
 -- Places where people hang around: bus stops on the arterials, food carts
 -- downtown and on the beach, benches in the plaza and the park.
-export type Hangout = { kind: string, cf: CFrame }
+export type Hangout = { kind: string, cf: CFrame, label: string? }
 local HANGOUTS: { Hangout } = {}
 for _, e in EDGES do
 	local d = district((pointAt(e, e.length / 2)))
@@ -1288,6 +1323,92 @@ for _, r in { PLAZA, PARK } do
 	for k = 0, 3 do
 		local x = r.x0 + 20 + k * (r.x1 - r.x0 - 40) / 3
 		table.insert(HANGOUTS, { kind = "bench", cf = CFrame.new(x, 0.3, r.z0 + 14) })
+	end
+end
+
+-- Street vendors (kaki lima): a small stall on the curb with the vendor
+-- beside it. The streets around the Hideout get them first, so the first blocks a
+-- new player walks are busy; elsewhere the rest are spread over the city.
+-- The stall sits between the curb and the walking line (frame origin on the
+-- curb, +Z toward the shops), so walkers pass in front of it.
+local VENDOR_KINDS =
+	{ "bakso", "satay", "fruit", "hotdog", "coffee", "news", "icecream", "martabak" }
+local VENDOR_NAMES = {
+	bakso = "Bakso",
+	satay = "Satay Grill",
+	fruit = "Fresh Fruit",
+	hotdog = "Hot Dogs",
+	coffee = "Coffee",
+	news = "Newsstand",
+	icecream = "Ice Cream",
+	martabak = "Martabak",
+}
+local VENDOR_AREAS = {
+	downtown = true,
+	midtown = true,
+	southside = true,
+	eastgate = true,
+	beach = true,
+	oldport = true,
+}
+local MAX_VENDORS = 48
+local VENDOR_NEAR = 520 -- studs from the Hideout
+local NEAR_VENDORS = 20 -- of MAX_VENDORS, placed around the Hideout first
+do
+	local count = 0
+	local function addVendor(e: Edge, f: number, side: number)
+		if count >= MAX_VENDORS then
+			return
+		end
+		local cf = frameAt(e, e.length * f, side, -WALK_W)
+		if not onLand(cf.Position) or reserved(cf.Position, 12) then
+			return
+		end
+		count += 1
+		local label = VENDOR_KINDS[(e.id + count) % #VENDOR_KINDS + 1]
+		table.insert(HANGOUTS, { kind = "vendor", cf = cf, label = label })
+	end
+	local near, far = {}, {}
+	for _, e in EDGES do
+		if
+			e.kind == "freeway"
+			or e.kind == "court"
+			or e.kind == "hill"
+			or e.length < 110
+			or e.points[1].Y > 1
+		then
+			continue
+		end
+		local mid = pointAt(e, e.length / 2)
+		local d = district(mid)
+		if not d or not VENDOR_AREAS[d.id] then
+			continue
+		end
+		if (flat(mid) - flat(HIDEOUT)).Magnitude < VENDOR_NEAR then
+			table.insert(near, e)
+		else
+			table.insert(far, e)
+		end
+	end
+	local function fromHideout(e: Edge): number
+		return (flat((pointAt(e, e.length / 2))) - flat(HIDEOUT)).Magnitude
+	end
+	table.sort(near, function(a, b)
+		return fromHideout(a) < fromHideout(b)
+	end)
+	for k, e in near do
+		if count >= NEAR_VENDORS then
+			break
+		end
+		addVendor(e, 0.66, -1)
+		if k <= 8 then
+			addVendor(e, 0.36, 1)
+		end
+	end
+	-- Spread the rest evenly over the remaining streets.
+	local step = math.max(1, math.ceil(#far / math.max(1, MAX_VENDORS - count)))
+	for k = 1, #far, step do
+		addVendor(far[k], 0.66, -1)
 	end
 end
 
@@ -1337,6 +1458,7 @@ CityPlan.YARD_OFFSET = YARD_OFFSET
 CityPlan.STORE_LOTS = STORE_LOTS
 CityPlan.LOTS = LOTS
 CityPlan.HANGOUTS = HANGOUTS
+CityPlan.VENDOR_NAMES = VENDOR_NAMES
 CityPlan.SIDEWALKS = SIDEWALKS
 CityPlan.CONTACTS = CONTACTS
 CityPlan.GIVERS = GIVERS
@@ -1421,6 +1543,48 @@ function CityPlan.edgeBetween(a: Node, b: Node): Edge?
 		end
 	end
 	return nil
+end
+
+-- ─── traffic signals ──────────────────────────────────────────────────────
+-- One clock drives every signal in the city (the lamps, client traffic and
+-- the walkers at crosswalks): group A green, amber, a short all-red so the
+-- junction clears, then the same for group B.
+local SIGNAL_GREEN, SIGNAL_AMBER, SIGNAL_CLEAR = 12, 3, 2
+local SIGNAL_HALF = SIGNAL_GREEN + SIGNAL_AMBER + SIGNAL_CLEAR
+CityPlan.SIGNAL_CYCLE = SIGNAL_HALF * 2
+
+-- "green" | "amber" | "red" for a phase group at time t (use the server
+-- clock), and the seconds that state still lasts.
+function CityPlan.signalState(group: string, t: number): (string, number)
+	local c = t % (SIGNAL_HALF * 2)
+	local active = if c < SIGNAL_HALF then "A" else "B"
+	local k = c % SIGNAL_HALF
+	if group ~= active then
+		return "red", SIGNAL_HALF - k
+	elseif k < SIGNAL_GREEN then
+		return "green", SIGNAL_GREEN - k
+	elseif k < SIGNAL_GREEN + SIGNAL_AMBER then
+		return "amber", SIGNAL_GREEN + SIGNAL_AMBER - k
+	end
+	return "red", SIGNAL_HALF * 2 - k
+end
+
+-- Phase group of the traffic arriving at signal node `n` along edge `e`.
+function CityPlan.signalGroup(n: Node, e: Edge): string
+	return n.groups[e.id] or "A"
+end
+
+-- A person crossing at `n` while walking along `dir` may go when the traffic
+-- running beside them (parallel to `dir`) has green.
+function CityPlan.crossingGroup(n: Node, dir: Vector3): string
+	local best, bestDot = nil :: Edge?, -1
+	for _, e in n.edges do
+		local d = math.abs(leaving(e, n):Dot(flat(dir).Unit))
+		if d > bestDot then
+			best, bestDot = e, d
+		end
+	end
+	return if best then CityPlan.signalGroup(n, best) else "A"
 end
 
 -- Spatial index of road segments (100-stud cells) for fast "how far from the

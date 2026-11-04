@@ -32,11 +32,17 @@ Set Max Players to 8 (the Hideout has 8 display shelves, one per player).
     `Data` saves profiles (UpdateAsync + session lock),
     `Search` runs digs and loot rolls, `Economy` sells / displays / upgrades,
     `Police` runs suspicion, the three yard officers, Drop & Run and capture,
-    `Pedestrians` walks townspeople along the sidewalks,
+    `Pedestrians` walks townspeople along the sidewalks (they wait for the
+    walk phase at signals and drift toward wherever players are) and staffs
+    the street-vendor stalls,
     `Guard` checks movement, `Social` handles the friend bonus and announcements
   - `Npc` (shared helper) builds outfitted R15 NPCs with animations and pathing
 - `src/client` → StarterPlayerScripts/Client: `Ui` kit, `Store` (state mirror) and `Controllers/`
-  (`Hud`, `SearchUi`, `Panels`, `Guide`, `Ambience` for traffic, patrol car and audio)
+  (`Hud`, `SearchUi`, `Panels`, `Guide`, `Ambience` for patrol car and audio, `Traffic`
+  for city cars that obey the lights and stop signs, and the signal lamps themselves)
+
+Players spawn at the Hideout (Southside, tier 1). The server holds character
+loading until the city is built, so nobody starts at the Baseplate's origin.
 
 The server decides every outcome. Clients send requests through one RemoteFunction
 (`Remotes.Action`) and receive pushes through one RemoteEvent (`Remotes.Event`).

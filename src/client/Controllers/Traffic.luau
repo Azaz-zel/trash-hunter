@@ -1,12 +1,19 @@
 --!strict
 -- Client-side city traffic on CityPlan's road graph. Cars drive in the
--- right-hand lane along each street's curve, at that road's speed (slow in
--- cul-de-sacs, fast on the freeway). At junctions they obey the traffic
--- lights (shared, clock-driven phases), otherwise take turns, then pick a
--- random way on; dead ends become U-turns around the turning circle. They
--- queue behind the car ahead and stop for people in front of them.
--- Purely visual: each client runs its own, near its player, so it costs no
--- network traffic.
+-- right-hand lane along each street's curve, at that road's speed limit
+-- (slow in cul-de-sacs, fast on the freeway), and follow the rules:
+-- - Traffic lights (CityPlan.signalState, one clock for the whole city):
+--   go on green, stop on red, and on amber stop unless too close to stop
+--   comfortably. This controller also lights the signal lamps.
+-- - Stop signs: a full stop at the line, then first come, first served.
+-- - Never enter a junction while crossing traffic is in it, or when there is
+--   no room on the street beyond (no blocking the box).
+-- - Keep a gap to the car ahead, and stop for people (players and
+--   townspeople) in front of them, crosswalks included.
+-- Dead ends become U-turns around the turning circle. Purely visual: each
+-- client runs its own, near its player, so it costs no network traffic.
+
+local CollectionService = game:GetService("CollectionService")
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,12 +28,14 @@ local rng = Random.new()
 local SPEED = { freeway = 58, arterial = 36, collector = 28, street = 24, court = 18, hill = 26 }
 local ACCEL = 14
 local BRAKE = 40
+local COMFORT_BRAKE = 16 -- deceleration a driver accepts to stop for an amber light
 local FOLLOW_GAP = 17
-local CAR_COUNT = 26
+local CAR_COUNT = 44
 local NEAR = 420 -- spawn within this distance of the player
 local FAR = 620 -- recycle beyond this
-local LOCK_TIMEOUT = 6
-local PHASE = 16 -- seconds per green phase; the last 3 are amber
+local LOCK_TIMEOUT = 8 -- a junction claim older than this is stale
+local STOP_WAIT = 0.9 -- seconds stopped at a stop sign before going
+local PEOPLE_REFRESH = 0.2
 
 type Node = CityPlan.Node
 type Lane = {
@@ -37,7 +46,8 @@ type Lane = {
 	length: number,
 	speed: number,
 	reverse: Lane?,
-	group: string, -- signal group of its approach: "A" (east-west) or "B"
+	group: string, -- signal phase group of its approach ("A" or "B")
+	stop: boolean, -- stop sign at its end
 }
 type Turn = {
 	p0: Vector3,
@@ -59,6 +69,10 @@ type Car = {
 	speed: number,
 	turn: Turn?,
 	holding: Node?,
+	plan: Lane?, -- the lane it will take at the coming junction
+	committed: boolean, -- caught by an amber light too close to stop: clears the junction
+	waited: number, -- seconds stopped at the stop line
+	cruise: number, -- share of the speed limit this driver keeps (0.85 to 1)
 }
 
 local Traffic = {}
@@ -66,7 +80,9 @@ local Traffic = {}
 local lanes: { Lane } = {}
 local laneOut: { [Node]: { Lane } } = {}
 local cars: { Car } = {}
-local locks: { [Node]: { car: Car, at: number } } = {}
+-- Cars inside each junction: their phase group and when they entered.
+local inside: { [Node]: { [Car]: { group: string, at: number } } } = {}
+local people: { Vector3 } = {}
 local folder: Folder
 
 local function flat(v: Vector3): Vector3
@@ -144,7 +160,6 @@ local function buildLanes()
 			local from, to = if forward then e.a else e.b, if forward then e.b else e.a
 			local pts = trimmed(offsetLine(src, offset), trimFor(from), trimFor(to))
 			local cum, length = cumulative(pts)
-			local endDir = flat(pts[#pts] - pts[math.max(#pts - 1, 1)])
 			local lane: Lane = {
 				from = from,
 				to = to,
@@ -153,7 +168,8 @@ local function buildLanes()
 				length = length,
 				speed = SPEED[e.kind] or 26,
 				reverse = nil,
-				group = if math.abs(endDir.X) >= math.abs(endDir.Z) then "A" else "B",
+				group = CityPlan.signalGroup(to, e),
+				stop = not to.signal and not to.bulb and #to.edges >= 3,
 			}
 			table.insert(lanes, lane)
 			laneOut[from] = laneOut[from] or {}
@@ -165,37 +181,69 @@ local function buildLanes()
 	end
 end
 
--- Which approach group has green right now (nil = all red / amber).
-local function greenGroup(): string?
-	local t = workspace:GetServerTimeNow()
-	local phase = math.floor(t / PHASE) % 2
-	if t % PHASE > PHASE - 3 then
-		return nil
+-- ─── signal lamps ────────────────────────────────────────────────────────
+
+local LAMP_ON = {
+	Red = Color3.fromRGB(255, 50, 40),
+	Yellow = Color3.fromRGB(255, 190, 40),
+	Green = Color3.fromRGB(60, 230, 110),
+}
+local LAMP_OFF = Color3.fromRGB(28, 28, 30)
+local LAMP_FOR = { green = "Green", amber = "Yellow", red = "Red" }
+local lampState: { [string]: string } = {}
+
+local function paintSignal(signal: Instance)
+	local group = signal:GetAttribute("Group")
+	local lit = LAMP_FOR[lampState[if group == "B" then "B" else "A"] or "red"]
+	for name, color in LAMP_ON do
+		local bulb = signal:FindFirstChild(name)
+		if bulb and bulb:IsA("BasePart") then
+			local on = name == lit
+			bulb.Color = if on then color else LAMP_OFF
+			bulb.Material = if on then Enum.Material.Neon else Enum.Material.SmoothPlastic
+		end
 	end
-	return if phase == 0 then "A" else "B"
 end
-Traffic.greenGroup = greenGroup
+
+-- Repaints every signal head when a phase group changes state.
+local function updateLamps()
+	local t = workspace:GetServerTimeNow()
+	local changed = false
+	for _, group in { "A", "B" } do
+		local state = CityPlan.signalState(group, t)
+		if lampState[group] ~= state then
+			lampState[group] = state
+			changed = true
+		end
+	end
+	if changed then
+		for _, signal in CollectionService:GetTagged("TrafficSignal") do
+			paintSignal(signal)
+		end
+	end
+end
 
 local function bezier(c: Turn, t: number): Vector3
 	local u = 1 - t
 	return c.p0 * (u * u * u) + c.p1 * (3 * u * u * t) + c.p2 * (3 * u * t * t) + c.p3 * (t * t * t)
 end
 
-local function planTurn(car: Car): boolean
-	local node = car.lane.to
+-- Picks the way on at the coming junction (a U-turn only at dead ends).
+local function chooseNext(lane: Lane): Lane?
 	local options = {}
-	for _, l in laneOut[node] or {} do
-		if l ~= car.lane.reverse and l.length > 6 then
+	for _, l in laneOut[lane.to] or {} do
+		if l ~= lane.reverse and l.length > 6 then
 			table.insert(options, l)
 		end
 	end
-	if #options == 0 and car.lane.reverse then
-		table.insert(options, car.lane.reverse) -- dead end: around the turning circle
-	end
 	if #options == 0 then
-		return false
+		return lane.reverse -- dead end: around the turning circle
 	end
-	local nextLane = options[rng:NextInteger(1, #options)]
+	return options[rng:NextInteger(1, #options)]
+end
+
+local function beginTurn(car: Car, nextLane: Lane)
+	local node = car.lane.to
 	local p0 = car.lane.pts[#car.lane.pts]
 	local p3 = nextLane.pts[1]
 	local _, d0 = at(car.lane, car.lane.length)
@@ -219,7 +267,6 @@ local function planTurn(car: Car): boolean
 	end
 	turn.length = math.max(turn.length, 1)
 	car.turn = turn
-	return true
 end
 
 -- ─── cars ─────────────────────────────────────────────────────────────────
@@ -259,12 +306,46 @@ end
 local function release(car: Car)
 	local held = car.holding
 	if held then
-		local lock = locks[held]
-		if lock and lock.car == car then
-			locks[held] = nil
+		local list = inside[held]
+		if list then
+			list[car] = nil
 		end
 		car.holding = nil
 	end
+end
+
+-- May `car` (arriving in phase `group`) enter junction `node` now? At a
+-- signal, not while cars of the crossing phase are still in it; at a stop
+-- sign, one car at a time.
+local function junctionClear(node: Node, car: Car, group: string, now: number): boolean
+	local list = inside[node]
+	if not list then
+		return true
+	end
+	for other, entry in list do
+		if now - entry.at > LOCK_TIMEOUT then
+			list[other] = nil
+		elseif other ~= car and (not node.signal or entry.group ~= group) then
+			return false
+		end
+	end
+	return true
+end
+
+-- Is there room on `lane` beyond the junction (don't block the box)?
+local function exitClear(car: Car, lane: Lane): boolean
+	for _, other in cars do
+		if other ~= car then
+			if other.turn then
+				if other.turn.next == lane then
+					return false
+				end
+			elseif other.lane == lane and other.s < FOLLOW_GAP + 4 then
+				return false
+			end
+		end
+	end
+	return true
 end
 
 -- Puts a car on a random lane near the player (but not right on top of them).
@@ -274,13 +355,22 @@ local function place(car: Car, around: Vector3)
 		local s = rng:NextNumber(0, l.length)
 		local pos = at(l, s)
 		local dist = (flat(pos) - flat(around)).Magnitude
-		if l.length > 20 and dist < NEAR and dist > 70 then
+		local free = l.length - s > 45 -- not right at a junction
+		for _, other in cars do
+			if other ~= car and other.lane == l and math.abs(other.s - s) < FOLLOW_GAP * 1.5 then
+				free = false
+				break
+			end
+		end
+		if free and l.length > 20 and dist < NEAR and dist > 70 then
 			car.lane, car.s, car.turn, car.speed = l, s, nil, l.speed * 0.6
+			car.plan, car.committed, car.waited = nil, false, 0
 			return
 		end
 	end
 	local l = lanes[rng:NextInteger(1, #lanes)]
 	car.lane, car.s, car.turn, car.speed = l, 0, nil, 0
+	car.plan, car.committed, car.waited = nil, false, 0
 end
 
 local function gapAhead(car: Car): number
@@ -296,20 +386,48 @@ local function gapAhead(car: Car): number
 	return best
 end
 
-local function blockedByPlayer(pos: Vector3, fwd: Vector3): boolean
+-- Positions of players and townspeople near this client's player.
+local function refreshPeople()
+	table.clear(people)
+	local around = playerPos()
+	for _, p in Players:GetPlayers() do
+		local character = p.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root then
+			table.insert(people, root.Position)
+		end
+	end
+	local town = workspace:FindFirstChild("Town")
+	local walkers = town and town:FindFirstChild("Pedestrians")
+	if walkers and around then
+		for _, npc in walkers:GetChildren() do
+			local root = npc:FindFirstChild("HumanoidRootPart")
+			if
+				root
+				and root:IsA("BasePart")
+				and (flat(root.Position) - flat(around)).Magnitude < FAR
+			then
+				table.insert(people, root.Position)
+			end
+		end
+	end
+end
+
+-- Someone standing or walking in the car's path (it looks further ahead
+-- the faster it goes).
+local function personAhead(pos: Vector3, fwd: Vector3, speed: number): boolean
 	local f = flat(fwd)
 	if f.Magnitude < 0.01 then
 		return false
 	end
 	f = f.Unit
-	for _, p in Players:GetPlayers() do
-		local character = p.Character
-		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if root and math.abs(root.Position.Y - pos.Y) < 12 then
-			local rel = flat(root.Position - pos)
+	local reach = 9 + speed * 0.45
+	local right = Vector3.new(-f.Z, 0, f.X)
+	for _, p in people do
+		if math.abs(p.Y - pos.Y) < 12 then
+			local rel = flat(p - pos)
 			local ahead = rel:Dot(f)
-			local side = math.abs(rel:Dot(Vector3.new(-f.Z, 0, f.X)))
-			if ahead > 0 and ahead < 16 and side < 6 then
+			if ahead > 0 and ahead < reach and math.abs(rel:Dot(right)) < 5.5 then
 				return true
 			end
 		end
@@ -317,10 +435,10 @@ local function blockedByPlayer(pos: Vector3, fwd: Vector3): boolean
 	return false
 end
 
-local function step(car: Car, dt: number, now: number, green: string?)
+local function step(car: Car, dt: number, now: number, clock: number)
 	local pos: Vector3
 	local fwd: Vector3
-	local target = car.lane.speed
+	local target = car.lane.speed * car.cruise
 	local turn = car.turn
 	if turn then
 		turn.t = math.min(1, turn.t + car.speed * dt / turn.length)
@@ -330,8 +448,18 @@ local function step(car: Car, dt: number, now: number, green: string?)
 			then (ahead - pos).Unit
 			else select(2, at(turn.next, 0))
 		target = math.min(target, 14)
+		-- Queue behind whoever is just past the junction.
+		local left = (1 - turn.t) * turn.length
+		for _, other in cars do
+			if other ~= car and not other.turn and other.lane == turn.next then
+				if left + other.s < FOLLOW_GAP then
+					target = 0
+				end
+			end
+		end
 		if turn.t >= 1 then
 			car.lane, car.s, car.turn = turn.next, 0, nil
+			car.plan, car.committed, car.waited = nil, false, 0
 			release(car)
 		end
 	else
@@ -344,30 +472,55 @@ local function step(car: Car, dt: number, now: number, green: string?)
 			target = math.min(target, l.speed * (gap - FOLLOW_GAP) / (FOLLOW_GAP * 1.5))
 		end
 		local toEnd = l.length - car.s
-		if toEnd < 40 then
-			-- Slow for the junction; at the stop line wait for the light or a gap.
-			target = math.min(target, math.max(8, toEnd * 0.6))
+		if toEnd < 45 then
 			local node = l.to
-			if node.signal and green ~= l.group and toEnd < 22 then
-				target = math.min(target, math.max(0, (toEnd - 2) * 1.2))
+			car.plan = car.plan or chooseNext(l)
+			-- Slow for the junction.
+			target = math.min(target, math.max(if node.bulb then 6 else 9, toEnd * 0.6))
+			local allowed = true
+			if node.signal then
+				local state = CityPlan.signalState(l.group, clock)
+				if state == "amber" and not car.committed then
+					-- Too close to stop comfortably: carry on through.
+					car.committed = car.speed * car.speed / (2 * COMFORT_BRAKE) > toEnd - 2
+				end
+				allowed = state == "green" or car.committed
+				if not allowed then
+					target = math.min(target, math.max(0, (toEnd - 2) * 1.2))
+				end
+			elseif l.stop then
+				if toEnd < 2.5 and car.speed < 0.6 then
+					car.waited += dt
+				end
+				allowed = car.waited >= STOP_WAIT
+				if not allowed then
+					target = math.min(target, math.max(0, (toEnd - 1.2) * 1.1))
+				end
 			end
 			if toEnd < 1.5 then
-				local lock = locks[node]
-				local redLight = node.signal and green ~= l.group
-				local busy = lock ~= nil and lock.car ~= car and now - lock.at < LOCK_TIMEOUT
-				if redLight or busy then
-					target, car.speed = 0, 0
-				elseif planTurn(car) then
-					locks[node] = { car = car, at = now }
-					car.holding = node
+				local nextLane = car.plan
+				local busy = node.signal or l.stop
+				if
+					allowed
+					and nextLane
+					and (not busy or junctionClear(node, car, l.group, now))
+					and exitClear(car, nextLane)
+				then
+					beginTurn(car, nextLane)
+					if busy then
+						inside[node] = inside[node] or {}
+						inside[node][car] = { group = l.group, at = now }
+						car.holding = node
+					end
 				else
-					target = 0
+					-- Wait at the line; a light that went red meanwhile holds it.
+					target, car.speed, car.committed = 0, 0, false
 				end
 			end
 		end
 		car.s = math.min(l.length, car.s + car.speed * dt)
 	end
-	if blockedByPlayer(pos, fwd) then
+	if personAhead(pos, fwd, car.speed) then
 		target = 0
 	end
 	if target > car.speed then
@@ -398,6 +551,10 @@ local function spawnCars(templates: { Model }, police: Model?)
 			speed = 0,
 			turn = nil,
 			holding = nil,
+			plan = nil,
+			committed = false,
+			waited = 0,
+			cruise = rng:NextNumber(0.85, 1),
 		}
 		place(car, around)
 		model.Parent = folder
@@ -413,6 +570,14 @@ function Traffic.init()
 end
 
 function Traffic.start()
+	-- Signal lamps run even before the cars load.
+	CollectionService:GetInstanceAddedSignal("TrafficSignal"):Connect(paintSignal)
+	task.spawn(function()
+		while true do
+			updateLamps()
+			task.wait(0.1)
+		end
+	end)
 	task.spawn(function()
 		local templateFolder = ReplicatedStorage:WaitForChild("VehicleTemplates", 60)
 		if not templateFolder then
@@ -439,12 +604,18 @@ function Traffic.start()
 		local police = templateFolder:FindFirstChild("PoliceCar")
 		spawnCars(templates, if police and police:IsA("Model") then police else nil)
 		local recycle = 0
+		local scan = 0
 		RunService.Heartbeat:Connect(function(dt)
 			local now = os.clock()
-			local green = greenGroup()
+			local clock = workspace:GetServerTimeNow()
 			dt = math.min(dt, 0.1)
+			scan += dt
+			if scan > PEOPLE_REFRESH then
+				scan = 0
+				refreshPeople()
+			end
 			for _, car in cars do
-				step(car, dt, now, green)
+				step(car, dt, now, clock)
 			end
 			recycle += dt
 			if recycle > 1 then

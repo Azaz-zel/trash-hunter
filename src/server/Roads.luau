@@ -401,9 +401,9 @@ local function buildNode(k: Kit, parent: Instance, n: Node)
 		local right = Vector3.new(out.Z, 0, -out.X) -- right-hand side of a car arriving at n
 		local pos = n.pos + out * (n.gap + 3) + right * (e.w / 2 + 3) + Vector3.new(0, 0.24, 0)
 		if n.signal then
-			-- The arm (local -Z) reaches across the arriving lanes.
-			-- Cars arriving along `out` reversed: east-west arrivals are group A.
-			local group = if math.abs(out.X) >= math.abs(out.Z) then "A" else "B"
+			-- The arm (local -Z) reaches across the arriving lanes and the
+			-- lamps (local -X) face the arriving drivers.
+			local group = CityPlan.signalGroup(n, e)
 			k.trafficLight(parent, pos, math.deg(math.atan2(right.X, right.Z)), group)
 		else
 			-- The sign face (local -Z) looks back at the arriving drivers.

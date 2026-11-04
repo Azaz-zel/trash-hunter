@@ -441,24 +441,45 @@ local function trafficLight(parent: Instance, pos: Vector3, yaw: number, group: 
 		C.darkMetal,
 		M.Metal
 	)
+	-- Local -X faces the drivers arriving at the junction: the lamps sit on
+	-- that face of the housing, with a black backplate behind for contrast.
 	local housing = box(
 		parent,
 		"SignalHead",
 		cf * CFrame.new(0, 14.6, -14),
-		Vector3.new(1.6, 4.6, 1.2),
+		Vector3.new(1.2, 4.6, 1.6),
 		Color3.fromRGB(40, 40, 30),
 		M.Metal
+	)
+	box(
+		parent,
+		"SignalBackplate",
+		housing.CFrame * CFrame.new(0.65, -2.8, 0), -- box() takes the bottom centre
+		Vector3.new(0.12, 5.6, 2.6),
+		C.ink,
+		M.SmoothPlastic
 	)
 	local signal = Instance.new("Model")
 	signal.Name = "TrafficSignal"
 	for i, name in { "Red", "Yellow", "Green" } do
+		local y = 1.4 - (i - 1) * 1.4
 		part(signal, {
 			Name = name,
 			Shape = Enum.PartType.Ball,
-			Size = Vector3.new(1, 1, 1),
-			CFrame = housing.CFrame * CFrame.new(0, 1.4 - (i - 1) * 1.4, -0.55),
+			Size = Vector3.new(1.1, 1.1, 1.1),
+			CFrame = housing.CFrame * CFrame.new(-0.5, y, 0),
 			Color = C.ink,
+			CanCollide = false,
 		})
+		-- Visor over each lamp so it reads as a real signal head.
+		box(
+			parent,
+			"SignalVisor",
+			housing.CFrame * CFrame.new(-0.95, y + 0.56, 0),
+			Vector3.new(0.7, 0.1, 1.3),
+			Color3.fromRGB(40, 40, 30),
+			M.Metal
+		)
 	end
 	signal:SetAttribute("Group", group or "A")
 	signal.Parent = parent
@@ -1519,7 +1540,19 @@ local function buildHideout(parent: Instance)
 		)
 	end
 
-	local spawn = workspace:FindFirstChildOfClass("SpawnLocation")
+	-- Exactly one spawn, at the Hideout. The Baseplate template's own
+	-- SpawnLocation sits at the origin (Downtown, tier 4): reuse it, and drop
+	-- any others so nobody starts across the city.
+	local spawn: SpawnLocation? = nil
+	for _, d in workspace:GetDescendants() do
+		if d:IsA("SpawnLocation") then
+			if spawn then
+				d:Destroy()
+			else
+				spawn = d
+			end
+		end
+	end
 	if not spawn then
 		spawn = Instance.new("SpawnLocation")
 		spawn.Parent = workspace
@@ -2573,35 +2606,6 @@ local function setLights(on: boolean)
 	workspace:SetAttribute("Night", on)
 end
 
-local SIGNAL_COLORS = {
-	Red = Color3.fromRGB(255, 50, 40),
-	Yellow = Color3.fromRGB(255, 190, 40),
-	Green = Color3.fromRGB(60, 230, 110),
-}
-
--- Signal heads show the phase of their approach, on the same clock the
--- client traffic uses: group A (east-west) is green first, then B; the last
--- 3 seconds of each phase are amber for the group that had green.
-local SIGNAL_PHASE = 16
-local function updateSignals()
-	local t = workspace:GetServerTimeNow()
-	local greenA = math.floor(t / SIGNAL_PHASE) % 2 == 0
-	local amber = t % SIGNAL_PHASE > SIGNAL_PHASE - 3
-	for _, signal in CollectionService:GetTagged("TrafficSignal") do
-		local group = signal:GetAttribute("Group")
-		local mine = (group == "A") == greenA
-		local lit = if not mine then "Red" elseif amber then "Yellow" else "Green"
-		for name, color in SIGNAL_COLORS do
-			local bulb = signal:FindFirstChild(name)
-			if bulb and bulb:IsA("BasePart") then
-				local on = name == lit
-				bulb.Color = if on then color else C.ink
-				bulb.Material = if on then M.Neon else M.SmoothPlastic
-			end
-		end
-	end
-end
-
 local function updateHotDistrict()
 	local candidates = {}
 	for _, d in Config.Districts do
@@ -2689,12 +2693,8 @@ function World.start()
 		end
 	end)
 
-	task.spawn(function()
-		while true do
-			updateSignals()
-			task.wait(1)
-		end
-	end)
+	-- Signal lamps are lit by each client (Controllers/Traffic) on the shared
+	-- CityPlan.signalState clock, so they switch exactly when cars react.
 end
 
 return World

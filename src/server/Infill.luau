@@ -1355,7 +1355,215 @@ local function dressStreets(k: Kit, parent: Instance)
 	end
 end
 
--- Benches, bus shelters and food carts where people hang out.
+-- Street vendor (kaki lima) stall on the curb: a cart under a striped
+-- canopy with its goods on top and a name board on both sides. Frame: origin
+-- on the curb, +Z toward the shops; the vendor stands at +X (Pedestrians).
+local VENDOR_LOOK = {
+	bakso = {
+		body = Color3.fromRGB(235, 232, 220),
+		roof = Color3.fromRGB(200, 40, 40),
+		goods = "pot",
+	},
+	satay = {
+		body = Color3.fromRGB(120, 80, 50),
+		roof = Color3.fromRGB(230, 150, 30),
+		goods = "grill",
+	},
+	fruit = {
+		body = Color3.fromRGB(150, 110, 70),
+		roof = Color3.fromRGB(40, 150, 70),
+		goods = "fruit",
+	},
+	hotdog = {
+		body = Color3.fromRGB(220, 220, 225),
+		roof = Color3.fromRGB(240, 200, 40),
+		goods = "pot",
+	},
+	coffee = {
+		body = Color3.fromRGB(70, 50, 40),
+		roof = Color3.fromRGB(150, 90, 50),
+		goods = "cups",
+	},
+	news = {
+		body = Color3.fromRGB(40, 70, 120),
+		roof = Color3.fromRGB(30, 50, 90),
+		goods = "papers",
+	},
+	icecream = {
+		body = Color3.fromRGB(245, 245, 250),
+		roof = Color3.fromRGB(240, 120, 170),
+		goods = "cups",
+	},
+	martabak = {
+		body = Color3.fromRGB(220, 200, 150),
+		roof = Color3.fromRGB(230, 90, 30),
+		goods = "grill",
+	},
+}
+local FRUIT = {
+	Color3.fromRGB(230, 60, 40),
+	Color3.fromRGB(250, 180, 30),
+	Color3.fromRGB(110, 190, 60),
+	Color3.fromRGB(250, 220, 60),
+}
+
+local function vendorStall(k: Kit, parent: Instance, cf: CFrame, kind: string)
+	local C, M = k.C, k.M
+	local look = VENDOR_LOOK[kind] or VENDOR_LOOK.bakso
+	local base = cf * CFrame.new(0, k.WALK_TOP, 1.6)
+	local model = Instance.new("Model")
+	model.Name = "VendorStall"
+	model:SetAttribute("Kind", kind)
+	k.box(
+		model,
+		"StallCart",
+		base * CFrame.new(0, 1.1, 0),
+		Vector3.new(6, 2.9, 2.6),
+		look.body,
+		M.Metal
+	)
+	k.box(
+		model,
+		"StallCounter",
+		base * CFrame.new(0, 4, 0),
+		Vector3.new(6.6, 0.25, 3),
+		Color3.fromRGB(150, 105, 60),
+		M.Wood
+	)
+	for _, x in { -2, 2 } do
+		k.part(model, {
+			Name = "StallWheel",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.5, 2.2, 2.2),
+			CFrame = base * CFrame.new(x, 1.1, -1.35) * CFrame.Angles(0, math.rad(90), 0),
+			Color = C.ink,
+			Material = M.Rubber,
+		})
+	end
+	for _, x in { -3.1, 3.1 } do
+		for _, z in { -1.3, 1.3 } do
+			local pole = k.box(
+				model,
+				"StallPole",
+				base * CFrame.new(x, 4.25, z),
+				Vector3.new(0.2, 4, 0.2),
+				C.metal,
+				M.Metal
+			)
+			pole.CanCollide = false
+		end
+	end
+	-- Striped canopy: alternating colour bands.
+	for i = 0, 5 do
+		local roof = k.box(
+			model,
+			"StallCanopy",
+			base * CFrame.new(-3.25 + i * 1.3 + 0.65, 8.25, 0),
+			Vector3.new(1.3, 0.25, 3.8),
+			if i % 2 == 0 then look.roof else C.white,
+			M.Fabric
+		)
+		roof.CanCollide = false
+	end
+	k.part(model, {
+		Name = "StallBulb",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(0.5, 0.5, 0.5),
+		CFrame = base * CFrame.new(0, 7.9, 0),
+		Color = Color3.fromRGB(255, 220, 150),
+		Material = M.Neon,
+		CanCollide = false,
+	})
+	-- Name board under the canopy, readable from the street and the walk.
+	local board = k.box(
+		model,
+		"StallSign",
+		base * CFrame.new(0, 6.9, 1.85),
+		Vector3.new(5.2, 1.2, 0.15),
+		look.roof,
+		M.SmoothPlastic
+	)
+	board.CanCollide = false
+	local title = string.upper(CityPlan.VENDOR_NAMES[kind] or "Food")
+	k.sign(board, Enum.NormalId.Back, title, look.roof, C.white)
+	k.sign(board, Enum.NormalId.Front, title, look.roof, C.white)
+	-- Goods on the counter.
+	local top = base * CFrame.new(0, 4.25, 0)
+	if look.goods == "pot" then
+		for _, x in { -1.6, 1.4 } do
+			k.part(model, {
+				Name = "StallPot",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(1.4, 1.6, 1.6),
+				CFrame = top * CFrame.new(x, 0.7, 0) * CFrame.Angles(0, 0, math.rad(90)),
+				Color = C.metal,
+				Material = M.Metal,
+			})
+		end
+	elseif look.goods == "grill" then
+		local grill = k.box(
+			model,
+			"StallGrill",
+			top * CFrame.new(0.4, 0, 0),
+			Vector3.new(4, 0.6, 1.4),
+			C.darkMetal,
+			M.CorrodedMetal
+		)
+		local coals = k.box(
+			model,
+			"StallCoals",
+			top * CFrame.new(0.4, 0.6, 0),
+			Vector3.new(3.6, 0.1, 1.1),
+			Color3.fromRGB(255, 110, 40),
+			M.Neon
+		)
+		coals.CanCollide = false
+		local smoke = Instance.new("Smoke")
+		smoke.Color = Color3.fromRGB(200, 200, 200)
+		smoke.Opacity = 0.08
+		smoke.RiseVelocity = 3
+		smoke.Size = 1.5
+		smoke.Parent = grill
+	elseif look.goods == "fruit" then
+		for i = 0, 7 do
+			k.part(model, {
+				Name = "StallFruit",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.new(0.8, 0.8, 0.8),
+				CFrame = top * CFrame.new(-2.4 + (i % 4) * 1.6, 0.4, if i < 4 then -0.6 else 0.6),
+				Color = FRUIT[i % #FRUIT + 1],
+				Material = M.SmoothPlastic,
+			})
+		end
+	elseif look.goods == "papers" then
+		for i = 0, 3 do
+			k.box(
+				model,
+				"StallPapers",
+				top * CFrame.new(-2.2 + i * 1.5, 0, 0.3),
+				Vector3.new(1.2, 0.5, 1.6),
+				if i % 2 == 0 then C.white else Color3.fromRGB(230, 220, 190),
+				M.SmoothPlastic
+			)
+		end
+	else -- cups
+		for i = 0, 5 do
+			k.part(model, {
+				Name = "StallCup",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(0.9, 0.6, 0.6),
+				CFrame = top
+					* CFrame.new(-2.2 + i * 0.9, 0.45, 0.5)
+					* CFrame.Angles(0, 0, math.rad(90)),
+				Color = if i % 2 == 0 then C.white else look.roof,
+				Material = M.SmoothPlastic,
+			})
+		end
+	end
+	model.Parent = parent
+end
+
+-- Benches, bus shelters, food carts and street vendors where people hang out.
 local function buildHangouts(k: Kit, parent: Instance)
 	local C, M = k.C, k.M
 	for _, h in CityPlan.HANGOUTS do
@@ -1451,6 +1659,8 @@ local function buildHangouts(k: Kit, parent: Instance)
 				C.metal,
 				M.Metal
 			)
+		elseif h.kind == "vendor" then
+			vendorStall(k, parent, cf, h.label or "bakso")
 		end
 	end
 end
