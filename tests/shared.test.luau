@@ -74,3 +74,20 @@ for key in Config.Robux.Products do
 	check(Config.Robux.Passes[key] == nil, `{key} is both a pass and a product`)
 end
 print(`{#Config.Houses} house types, {#Config.Lots} lots`)
+
+-- Seasonal items only drop in their months.
+local Items = load("Items")
+check(Items.inSeason(Items.ById.pumpkin, 10) and not Items.inSeason(Items.ById.pumpkin, 6), "Halloween items in October only")
+check(Items.inSeason(Items.ById.nutcracker, 1) and not Items.inSeason(Items.ById.nutcracker, 7), "winter items in Dec-Jan")
+check(Items.inSeason(Items.ById.can, 6), "regular items always drop")
+-- Every item has a 3D model (ItemModels only reads Enum names here).
+Enum = setmetatable({}, {
+	__index = function(_, group)
+		return setmetatable({}, {
+			__index = function(_, name)
+				return group .. "." .. name
+			end,
+		})
+	end,
+})
+load("ItemModels").selfCheck()

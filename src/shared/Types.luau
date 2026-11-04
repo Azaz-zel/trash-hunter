@@ -15,7 +15,7 @@ export type PlayerProfile = {
 	backpack: { BagItem },
 	shelf: { BagItem }, -- old Hideout shelf; moved into house storage on load
 	collection: { [string]: boolean },
-	tutorial: number, -- 0 search, 1 sell, 2 upgrade, 3 visit red zone, 4 done
+	tutorial: number, -- 0 search, 1 sell, 2 upgrade, 3 red zone, 4 buy a car, 5 store at home, 6 done
 	nextUid: number,
 	tools: { [string]: boolean },
 	car: string, -- id from Config.Cars, "" = no car yet
@@ -25,6 +25,7 @@ export type PlayerProfile = {
 	underglow: boolean,
 	xp: number,
 	bestCombo: number,
+	story: StoryState,
 	luckUntil: number, -- Unix time a Lucky Hour runs until
 	rerolls: number, -- Bag Rerolls left
 	decor: { [string]: boolean }, -- owned house furniture, by Config.Decor id
@@ -43,6 +44,12 @@ export type PlayerProfile = {
 	quests: { [string]: Quest }, -- by giver id; only today's entries matter
 	permits: { [string]: boolean }, -- districts opened by finishing their mission
 	mission: Mission?, -- the permit mission in progress
+}
+
+export type StoryState = {
+	chapter: number, -- index into Config.Story.CHAPTERS; past the end = finished
+	started: boolean, -- talked to the giver for this chapter
+	progress: number,
 }
 
 export type Settings = {
@@ -98,6 +105,7 @@ export type State = {
 	bestCombo: number,
 	luckUntil: number,
 	rerolls: number,
+	story: StoryState,
 }
 
 return nil

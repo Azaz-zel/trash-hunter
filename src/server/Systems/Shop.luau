@@ -10,6 +10,7 @@ local Players = game:GetService("Players")
 
 local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
 local Router = require(script.Parent.Parent.Router)
+local Analytics = require(script.Parent.Parent.Analytics)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local Avatar = require(script.Parent.Avatar)
@@ -43,6 +44,7 @@ local function buyTool(player: Player, id: any): (boolean, string?)
 		return false, `You need ${tool.price - profile.cash} more.`
 	end
 	profile.cash -= tool.price
+	Analytics.sink(player, tool.price, profile.cash, tool.name)
 	profile.tools[id] = true
 	Avatar.refresh(player)
 	Data.push(player)
@@ -103,7 +105,9 @@ local function buyCar(player: Player, id: any): (boolean, string?)
 			return false, `You need ${car.price - profile.cash} more.`
 		end
 		profile.cash -= car.price
+		Analytics.sink(player, car.price, profile.cash, car.name)
 		profile.ownedCars[car.id] = true
+		Data.advanceTutorial(profile, 4, player)
 		Router.send(player, "bought", { name = car.name })
 	end
 	return useCar(player, profile, car)
@@ -183,6 +187,7 @@ local function buyDecor(player: Player, id: any): (boolean, string?)
 		return false, `You need ${decor.price - profile.cash} more.`
 	end
 	profile.cash -= decor.price
+	Analytics.sink(player, decor.price, profile.cash, decor.name)
 	profile.decor[decor.id] = true
 	Data.push(player)
 	Router.send(player, "bought", { name = decor.name })
@@ -326,6 +331,8 @@ local function processReceipt(receipt: any): Enum.ProductPurchaseDecision
 		Search.freshDrop(player.DisplayName, false)
 	end
 	Data.push(player)
+	Analytics.source(player, cash, profile.cash, product.name, true)
+	Analytics.event(player, "Robux_" .. product.name)
 	Router.send(player, "bought", { name = product.name })
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end
@@ -352,8 +359,15 @@ function Shop.start()
 			Data.push(player)
 		end
 	end)
-	Data.onLoaded(function(player)
+	Data.onLoaded(function(player, profile)
 		refreshPasses(player)
+		-- Players who finished the old tutorial skip the steps they did.
+		if profile.tutorial == 4 and next(profile.ownedCars) ~= nil then
+			Data.advanceTutorial(profile, 4, player)
+		end
+		if profile.tutorial == 5 and #profile.home > 0 then
+			Data.advanceTutorial(profile, 5, player)
+		end
 		Data.push(player)
 	end)
 	Players.PlayerRemoving:Connect(function(player)

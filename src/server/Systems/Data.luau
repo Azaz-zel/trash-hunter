@@ -197,7 +197,7 @@ local function reconcile(raw: any): Profile
 		),
 		shelf = {},
 		collection = collection,
-		tutorial = math.clamp(math.floor(tonumber(data.tutorial) or 0), 0, 4),
+		tutorial = math.clamp(math.floor(tonumber(data.tutorial) or 0), 0, 6),
 		nextUid = math.max(math.floor(tonumber(data.nextUid) or 1), 1),
 		tools = tools,
 		car = car,
@@ -208,6 +208,20 @@ local function reconcile(raw: any): Profile
 		xp = math.max(math.floor(tonumber(data.xp) or 0), 0),
 		bestCombo = math.max(math.floor(tonumber(data.bestCombo) or 0), 0),
 		luckUntil = math.max(math.floor(tonumber(data.luckUntil) or 0), 0),
+		story = {
+			chapter = math.clamp(
+				math.floor(tonumber(typeof(data.story) == "table" and data.story.chapter or 1) or 1),
+				1,
+				#Config.Story.CHAPTERS + 1
+			),
+			started = typeof(data.story) == "table" and data.story.started == true,
+			progress = math.max(
+				math.floor(
+					tonumber(typeof(data.story) == "table" and data.story.progress or 0) or 0
+				),
+				0
+			),
+		},
 		rerolls = math.clamp(math.floor(tonumber(data.rerolls) or 0), 0, 999),
 		decor = decor,
 		settings = settings,
@@ -460,6 +474,7 @@ function Data.snapshot(profile: Profile, player: Player?): Types.State
 		bestCombo = profile.bestCombo,
 		luckUntil = profile.luckUntil,
 		rerolls = profile.rerolls,
+		story = profile.story,
 	}
 end
 
@@ -498,7 +513,14 @@ function Data.push(player: Player)
 	Router.send(player, "state", Data.snapshot(profile, player))
 end
 
-local FUNNEL = { "First search", "First sale", "First upgrade", "Entered the yard" }
+local FUNNEL = {
+	"First search",
+	"First sale",
+	"First upgrade",
+	"Entered the yard",
+	"First car",
+	"Stored at home",
+}
 
 -- Also logs the onboarding funnel so drop-off shows in Creator Analytics.
 function Data.advanceTutorial(profile: Profile, fromStep: number, player: Player?)

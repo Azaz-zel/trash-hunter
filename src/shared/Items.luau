@@ -14,6 +14,7 @@ export type Item = {
 	rarity: number, -- index into Rarities
 	value: number,
 	city: string?, -- nil means Maple; dumpsters only drop their city's items
+	season: string?, -- only drops during this season (see SEASONS)
 }
 
 export type Mutation = {
@@ -54,6 +55,20 @@ local List: { Item } = {
 	{ id = "console", name = "Retro Console", rarity = 4, value = 140 },
 	{ id = "guitar", name = "Electric Guitar", rarity = 4, value = 160 },
 	{ id = "gpu", name = "Graphics Card", rarity = 4, value = 180 },
+
+	-- Seasonal (limited): only in the dumpsters during their months.
+	{
+		id = "pumpkin",
+		name = "Cursed Jack-o'-Lantern",
+		rarity = 3,
+		value = 90,
+		season = "halloween",
+	},
+	{ id = "cape", name = "Vampire Cape", rarity = 4, value = 320, season = "halloween" },
+	{ id = "doll", name = "Haunted Doll", rarity = 5, value = 1400, season = "halloween" },
+	{ id = "snowglobe", name = "Vintage Snow Globe", rarity = 3, value = 90, season = "winter" },
+	{ id = "ornament", name = "Golden Ornament", rarity = 4, value = 320, season = "winter" },
+	{ id = "nutcracker", name = "Royal Nutcracker", rarity = 5, value = 1400, season = "winter" },
 
 	{ id = "baseball", name = "Signed Baseball", rarity = 5, value = 500 },
 	{ id = "duck", name = "Giant Rubber Duck", rarity = 5, value = 600 },
@@ -152,7 +167,14 @@ for _, m in Mutations do
 	mutationById[m.id] = m
 end
 
+-- Months (UTC) each season runs.
+local SEASONS: { [string]: { number } } = {
+	halloween = { 10 },
+	winter = { 12, 1 },
+}
+
 local Items = {
+	Seasons = SEASONS,
 	Rarities = Rarities,
 	List = List,
 	Mutations = Mutations,
@@ -160,6 +182,15 @@ local Items = {
 	ByCity = byCity,
 	MutationById = mutationById,
 }
+
+-- Can this item drop in `month` (1-12)? Items without a season always can.
+function Items.inSeason(item: Item, month: number): boolean
+	local season = item.season
+	if not season then
+		return true
+	end
+	return table.find(SEASONS[season] or {}, month) ~= nil
+end
 
 function Items.value(itemId: string, mutation: string?): number
 	local item = byId[itemId]

@@ -6,6 +6,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Config = require(Shared.Config)
 local Items = require(Shared.Items)
 local Router = require(script.Parent.Parent.Router)
+local Analytics = require(script.Parent.Parent.Analytics)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local Avatar = require(script.Parent.Avatar)
@@ -52,6 +53,7 @@ local function sell(player: Player, payload: any): (boolean, string?)
 	end
 	earned = Data.sellValue(player, earned)
 	profile.cash += earned
+	Analytics.source(player, earned, profile.cash, "Sell")
 	Progress.track(player, "earn", { amount = earned })
 	Data.advanceTutorial(profile, 1, player)
 	Data.push(player)
@@ -76,6 +78,7 @@ local function buyUpgrade(player: Player): (boolean, string?)
 		return false, `You need ${next.price - profile.cash} more.`
 	end
 	profile.cash -= next.price
+	Analytics.sink(player, next.price, profile.cash, "Backpack")
 	profile.backpackLevel += 1
 	Data.advanceTutorial(profile, 2, player)
 	Avatar.refresh(player)

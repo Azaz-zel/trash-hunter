@@ -65,7 +65,8 @@ city layout rules and a five-minute traffic simulation in the plain Luau CLI
     the city cops, `StreetEvents` stages street scenes (dancer, fender bender,
     traffic stop), `Weather` brings rain, `Ranks` runs XP / levels / titles,
     `Leaderboards` the global boards, `Trade` player trades, `Events` the
-    weekend and happy-hour events
+    weekend and happy-hour events, `Crew` the crews, `Story` the chapters;
+    `src/server/Analytics.luau` logs cash sources / sinks and key events
   - `Npc` (shared helper) builds outfitted R15 NPCs with animations and pathing
 - `src/client` → StarterPlayerScripts/Client: `Ui` kit, `Store` (state mirror) and `Controllers/`
   (`Hud`, `SearchUi`, `Panels`, `Guide`, `Ambience` for patrol car and audio, `Traffic`
@@ -90,7 +91,11 @@ The server decides every outcome. Clients send requests through one RemoteFuncti
 - `E` / tap prompt: search, sell counter, upgrade shop
 - New players own no car: buy the Old Sedan ($450) at Maple Motors. `V` /
   Garage: your cars, Spawn, switch, paint (pass)
-- Top (leaderboards), Trade (with a player next to you), Settings
+- Top (leaderboards), Players (visit houses, trade, crew invites), Settings
+- Story: talk to Big Sal outside the Hideout for chapters with district bosses
+- Crews of up to 4: crewmates close by raise everyone's odds
+- `P`: photo mode (hides the HUD)
+- Seasonal finds drop only in October (Halloween) and December-January (winter)
 - `F` / DIG button: Perfect Dig. Tap while the marker crosses the gold zone
   (+1 bag, better odds) or the green zone (better odds). Searches close
   together build a combo; gold dumpsters on the map are fresh drops.

@@ -29,6 +29,177 @@ local CYL = Enum.PartType.Cylinder
 local BALL = Enum.PartType.Ball
 
 local SPECS: { [string]: { Spec } } = {
+	pumpkin = {
+		{
+			size = v(3.2, 3, 3.2),
+			pos = v(0, 0, 0),
+			color = rgb(240, 120, 20),
+			material = M.SmoothPlastic,
+			shape = BALL,
+		},
+		{
+			size = v(0.5, 0.9, 0.5),
+			pos = v(0, 1.7, 0),
+			color = rgb(70, 110, 40),
+			material = M.Wood,
+		},
+		{
+			size = v(0.5, 0.5, 0.2),
+			pos = v(-0.7, 0.4, -1.5),
+			color = rgb(255, 220, 80),
+			material = M.Neon,
+		},
+		{
+			size = v(0.5, 0.5, 0.2),
+			pos = v(0.7, 0.4, -1.5),
+			color = rgb(255, 220, 80),
+			material = M.Neon,
+		},
+		{
+			size = v(1.4, 0.4, 0.2),
+			pos = v(0, -0.5, -1.5),
+			color = rgb(255, 220, 80),
+			material = M.Neon,
+		},
+	},
+	cape = {
+		{
+			size = v(3.4, 3.6, 0.4),
+			pos = v(0, -0.2, 0.3),
+			color = rgb(20, 20, 26),
+			material = M.Fabric,
+		},
+		{
+			size = v(3.2, 3.4, 0.2),
+			pos = v(0, -0.2, 0),
+			color = rgb(160, 10, 20),
+			material = M.Fabric,
+		},
+		{
+			size = v(3.6, 0.8, 0.8),
+			pos = v(0, 1.8, 0.1),
+			color = rgb(20, 20, 26),
+			material = M.Fabric,
+			rot = v(-20, 0, 0),
+		},
+	},
+	doll = {
+		{
+			size = v(1.6, 2, 1.2),
+			pos = v(0, -0.6, 0),
+			color = rgb(230, 225, 210),
+			material = M.Fabric,
+		},
+		{
+			size = v(1.4, 1.4, 1.4),
+			pos = v(0, 1, 0),
+			color = rgb(240, 220, 200),
+			material = M.SmoothPlastic,
+			shape = BALL,
+		},
+		{
+			size = v(1.5, 0.7, 1.5),
+			pos = v(0, 1.5, 0.1),
+			color = rgb(30, 20, 20),
+			material = M.Fabric,
+		},
+		{
+			size = v(0.2, 0.2, 0.1),
+			pos = v(-0.3, 1.1, -0.7),
+			color = rgb(255, 30, 40),
+			material = M.Neon,
+		},
+		{
+			size = v(0.2, 0.2, 0.1),
+			pos = v(0.3, 1.1, -0.7),
+			color = rgb(255, 30, 40),
+			material = M.Neon,
+		},
+	},
+	snowglobe = {
+		{
+			size = v(0.8, 2.4, 2.4),
+			pos = v(0, -1.1, 0),
+			color = rgb(110, 70, 40),
+			material = M.Wood,
+			shape = CYL,
+			rot = v(0, 0, 90),
+		},
+		{
+			size = v(2.8, 2.8, 2.8),
+			pos = v(0, 0.6, 0),
+			color = rgb(200, 230, 255),
+			material = M.Glass,
+			shape = BALL,
+		},
+		{
+			size = v(0.6, 1.2, 0.6),
+			pos = v(0, 0.4, 0),
+			color = rgb(40, 120, 60),
+			material = M.SmoothPlastic,
+		},
+		{
+			size = v(1.6, 0.3, 1.6),
+			pos = v(0, -0.3, 0),
+			color = rgb(250, 250, 255),
+			material = M.Snow,
+		},
+	},
+	ornament = {
+		{
+			size = v(2.8, 2.8, 2.8),
+			pos = v(0, -0.2, 0),
+			color = rgb(255, 200, 60),
+			material = M.Foil,
+			shape = BALL,
+		},
+		{
+			size = v(0.8, 0.5, 0.8),
+			pos = v(0, 1.4, 0),
+			color = rgb(180, 180, 190),
+			material = M.Metal,
+		},
+		{
+			size = v(0.15, 0.8, 0.8),
+			pos = v(0, 1.9, 0),
+			color = rgb(180, 180, 190),
+			material = M.Metal,
+			shape = CYL,
+			rot = v(0, 90, 0),
+		},
+	},
+	nutcracker = {
+		{
+			size = v(1.6, 2.2, 1.2),
+			pos = v(0, -0.6, 0),
+			color = rgb(190, 20, 30),
+			material = M.SmoothPlastic,
+		},
+		{
+			size = v(1.2, 1.2, 1.2),
+			pos = v(0, 1, 0),
+			color = rgb(240, 210, 180),
+			material = M.SmoothPlastic,
+		},
+		{
+			size = v(1.2, 1.4, 1.2),
+			pos = v(0, 2.2, 0),
+			color = rgb(20, 20, 26),
+			material = M.Fabric,
+		},
+		{
+			size = v(1.3, 0.5, 0.3),
+			pos = v(0, 0.6, -0.6),
+			color = rgb(245, 245, 245),
+			material = M.Fabric,
+		},
+		{
+			size = v(1.8, 0.3, 1.4),
+			pos = v(0, 0.3, 0),
+			color = rgb(255, 200, 60),
+			material = M.Foil,
+		},
+	},
 	cardboard = {
 		{
 			size = v(3.6, 2.4, 2.6),

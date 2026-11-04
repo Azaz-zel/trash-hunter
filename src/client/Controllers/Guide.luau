@@ -37,9 +37,33 @@ local STEPS: { { text: string, path: { string }, label: string } } = {
 		path = { "RedZone", "CompanySign" },
 		label = "BETTER LOOT",
 	},
+	{
+		text = "Get wheels: buy the Old Sedan at Maple Motors ($450). The map's GPS can take you.",
+		path = { "Showrooms", "Display_sedan", "DisplayInfo" },
+		label = "FIRST CAR",
+	},
+	{
+		text = "Keep your best finds safe: open the chest in your house on Sunset Ln.",
+		path = { "@home" },
+		label = "YOUR STASH",
+	},
 }
 
 local function find(path: { string }): BasePart?
+	if path[1] == "@home" then
+		-- This player's storage chest, wherever their lot is this server.
+		local houses = workspace:FindFirstChild("Town") and workspace.Town:FindFirstChild("Houses")
+		for _, d in if houses then houses:GetDescendants() else {} do
+			if
+				d.Name == "StorageChest"
+				and d:GetAttribute("Owner") == player.UserId
+				and d:IsA("BasePart")
+			then
+				return d
+			end
+		end
+		return nil
+	end
 	local node: Instance? = workspace:FindFirstChild("Town")
 	for _, name in path do
 		node = node and node:FindFirstChild(name)

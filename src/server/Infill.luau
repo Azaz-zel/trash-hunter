@@ -1293,50 +1293,181 @@ local function megablock(k: Kit, parent: Instance, cf: CFrame, w: number, d: num
 	model.Parent = parent
 end
 
--- Retro chrome diner with a neon roof sign and a few parking bays.
+-- Retro chrome diner you can walk into: counter with stools, booths by the
+-- windows, a neon roof sign and a few parking bays out front.
 local function diner(k: Kit, parent: Instance, cf: CFrame)
 	local C, M = k.C, k.M
 	local model = Instance.new("Model")
 	model.Name = "Diner"
-	local body = cf * CFrame.new(0, 0, 26)
+	local chrome = Color3.fromRGB(205, 210, 215)
+	local accent = pick(k, { Color3.fromRGB(200, 30, 40), Color3.fromRGB(30, 170, 170) })
+	local w, d, h = 36, 16, 10
+	local body = cf * CFrame.new(0, 0, 26) -- centre of the floor
 	k.box(model, "Lot", cf * CFrame.new(0, 0.05, 9), Vector3.new(44, 0.1, 18), C.asphalt, M.Asphalt)
+	k.box(model, "Floor", body, Vector3.new(w, 0.3, d), Color3.fromRGB(235, 235, 235), M.Marble)
 	k.box(
 		model,
-		"Body",
-		body,
-		Vector3.new(36, 10, 16),
-		Color3.fromRGB(205, 210, 215),
+		"Roof",
+		body * CFrame.new(0, h, 0),
+		Vector3.new(w + 1, 0.8, d + 1),
+		chrome,
 		M.DiamondPlate
 	)
 	k.box(
 		model,
-		"Stripe",
-		body * CFrame.new(0, 3, -8.1),
-		Vector3.new(36, 1.2, 0.2),
-		pick(k, { Color3.fromRGB(200, 30, 40), Color3.fromRGB(30, 170, 170) }),
+		"WallBack",
+		body * CFrame.new(0, 0, d / 2 - 0.3),
+		Vector3.new(w, h, 0.6),
+		chrome,
+		M.DiamondPlate
+	)
+	for _, sx in { -1, 1 } do
+		k.box(
+			model,
+			"WallSide",
+			body * CFrame.new(sx * (w / 2 - 0.3), 0, 0),
+			Vector3.new(0.6, h, d),
+			chrome,
+			M.DiamondPlate
+		)
+	end
+	-- Front: a doorway at the left, windows above a red band elsewhere.
+	local front = body * CFrame.new(0, 0, -d / 2 + 0.3)
+	local doorX, doorW = -w / 2 + 6, 5
+	for _, seg in { { -w / 2, doorX - doorW / 2 }, { doorX + doorW / 2, w / 2 } } do
+		local sw = seg[2] - seg[1]
+		local cx = (seg[1] + seg[2]) / 2
+		k.box(
+			model,
+			"WallFront",
+			front * CFrame.new(cx, 0, 0),
+			Vector3.new(sw, 3, 0.6),
+			chrome,
+			M.DiamondPlate
+		)
+		k.box(
+			model,
+			"Stripe",
+			front * CFrame.new(cx, 3, -0.05),
+			Vector3.new(sw, 0.8, 0.7),
+			accent,
+			M.SmoothPlastic
+		)
+		local glass = k.box(
+			model,
+			"Window",
+			front * CFrame.new(cx, 3.8, 0),
+			Vector3.new(sw, 4.4, 0.2),
+			Color3.fromRGB(200, 220, 230),
+			M.Glass
+		)
+		glass.Transparency = 0.6
+		k.box(
+			model,
+			"WallFront",
+			front * CFrame.new(cx, 8.2, 0),
+			Vector3.new(sw, h - 8.2, 0.6),
+			chrome,
+			M.DiamondPlate
+		)
+	end
+	k.box(
+		model,
+		"Lintel",
+		front * CFrame.new(doorX, 7.5, 0),
+		Vector3.new(doorW, h - 7.5, 0.6),
+		chrome,
+		M.DiamondPlate
+	)
+	-- Counter and stools along the back.
+	k.box(
+		model,
+		"Counter",
+		body * CFrame.new(4, 0, d / 2 - 3),
+		Vector3.new(22, 3.6, 2),
+		accent,
 		M.SmoothPlastic
 	)
-	local glass = k.box(
+	k.box(
 		model,
-		"Windows",
-		body * CFrame.new(0, 4.6, -8.15),
-		Vector3.new(30, 3.6, 0.2),
-		Color3.fromRGB(255, 220, 160),
+		"CounterTop",
+		body * CFrame.new(4, 3.6, d / 2 - 3),
+		Vector3.new(22.4, 0.3, 2.6),
+		chrome,
+		M.Metal
+	)
+	for x = -6, 14, 4 do
+		k.part(model, {
+			Name = "Stool",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.4, 1.8, 1.8),
+			CFrame = body * CFrame.new(x, 2.4, d / 2 - 5.2) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = accent,
+			Material = M.Leather,
+		})
+		k.box(
+			model,
+			"StoolPost",
+			body * CFrame.new(x, 0, d / 2 - 5.2),
+			Vector3.new(0.3, 2.2, 0.3),
+			chrome,
+			M.Metal
+		)
+	end
+	-- Booths by the windows.
+	for x = -4, 12, 8 do
+		k.box(
+			model,
+			"Table",
+			body * CFrame.new(x, 2.6, -d / 2 + 2.4),
+			Vector3.new(3.4, 0.3, 2.4),
+			Color3.fromRGB(240, 240, 240),
+			M.Marble
+		)
+		k.box(
+			model,
+			"TableLeg",
+			body * CFrame.new(x, 0, -d / 2 + 2.4),
+			Vector3.new(0.4, 2.6, 0.4),
+			chrome,
+			M.Metal
+		)
+		for _, side in { -1, 1 } do
+			k.box(
+				model,
+				"Booth",
+				body * CFrame.new(x + side * 2.6, 0, -d / 2 + 2.4),
+				Vector3.new(1.4, 2, 3),
+				accent,
+				M.Leather
+			)
+			k.box(
+				model,
+				"BoothBack",
+				body * CFrame.new(x + side * 3.2, 2, -d / 2 + 2.4),
+				Vector3.new(0.4, 2.4, 3),
+				accent,
+				M.Leather
+			)
+		end
+	end
+	local lamp = k.box(
+		model,
+		"CeilingLight",
+		body * CFrame.new(0, h - 0.4, 0),
+		Vector3.new(w - 6, 0.3, 1),
+		Color3.fromRGB(255, 240, 210),
 		M.Neon
 	)
-	glass.Transparency = 0.25
-	k.part(model, {
-		Name = "RoundEnd",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(10, 16, 16),
-		CFrame = body * CFrame.new(18, 5, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(205, 210, 215),
-		Material = M.DiamondPlate,
-	})
+	k.light(
+		lamp,
+		"PointLight",
+		{ Range = 24, Brightness = 1.2, Color = Color3.fromRGB(255, 236, 200) }
+	)
 	local sign = k.box(
 		model,
 		"DinerSign",
-		body * CFrame.new(0, 10, 0),
+		body * CFrame.new(0, h + 0.8, 0),
 		Vector3.new(16, 4, 0.4),
 		Color3.fromRGB(20, 20, 26),
 		M.SmoothPlastic
@@ -1511,20 +1642,55 @@ local function parkingGarage(k: Kit, parent: Instance, cf: CFrame, w: number, le
 	model.Parent = parent
 end
 
--- Old theatre: a stone box with a bulb-lit marquee and a vertical name sign.
+-- Old theatre you can walk into: a bulb-lit marquee over the doors, rows of
+-- red seats facing a glowing screen with curtains and a stage.
 local function theater(k: Kit, parent: Instance, cf: CFrame, w: number)
 	local M = k.M
 	local model = Instance.new("Model")
 	model.Name = "Theater"
-	local d = 50
+	local d, h = 50, 30
+	local brick = Color3.fromRGB(150, 60, 50)
+	local hall = cf * CFrame.new(0, 0, d / 2)
+	k.box(model, "Floor", hall, Vector3.new(w, 0.3, d), Color3.fromRGB(90, 30, 35), M.Carpet)
 	k.box(
 		model,
-		"Hall",
-		cf * CFrame.new(0, 0, d / 2),
-		Vector3.new(w, 30, d),
-		Color3.fromRGB(150, 60, 50),
+		"Roof",
+		hall * CFrame.new(0, h, 0),
+		Vector3.new(w + 1, 1, d + 1),
+		Color3.fromRGB(60, 40, 40),
+		M.Concrete
+	)
+	k.box(
+		model,
+		"WallBack",
+		hall * CFrame.new(0, 0, d / 2 - 0.5),
+		Vector3.new(w, h, 1),
+		brick,
 		M.Brick
 	)
+	for _, sx in { -1, 1 } do
+		k.box(
+			model,
+			"WallSide",
+			hall * CFrame.new(sx * (w / 2 - 0.5), 0, 0),
+			Vector3.new(1, h, d),
+			brick,
+			M.Brick
+		)
+	end
+	local doorW = 10
+	local side = (w - doorW) / 2
+	for _, sx in { -1, 1 } do
+		k.box(
+			model,
+			"WallFront",
+			cf * CFrame.new(sx * (doorW / 2 + side / 2), 0, 0.5),
+			Vector3.new(side, h, 1),
+			brick,
+			M.Brick
+		)
+	end
+	k.box(model, "Lintel", cf * CFrame.new(0, 9, 0.5), Vector3.new(doorW, h - 9, 1), brick, M.Brick)
 	local marquee = k.box(
 		model,
 		"Marquee",
@@ -1567,6 +1733,69 @@ local function theater(k: Kit, parent: Instance, cf: CFrame, w: number)
 		marquee,
 		"PointLight",
 		{ Range = 26, Brightness = 1.6, Color = Color3.fromRGB(255, 210, 140) }
+	)
+	-- Inside: stage, screen, curtains, seat rows.
+	k.box(
+		model,
+		"Stage",
+		hall * CFrame.new(0, 0, d / 2 - 6),
+		Vector3.new(w - 4, 2.5, 9),
+		Color3.fromRGB(80, 50, 30),
+		M.WoodPlanks
+	)
+	local screen = k.box(
+		model,
+		"Screen",
+		hall * CFrame.new(0, 6, d / 2 - 1.2),
+		Vector3.new(w - 14, 14, 0.3),
+		Color3.fromRGB(220, 230, 255),
+		M.Neon
+	)
+	screen.Transparency = 0.15
+	for _, sx in { -1, 1 } do
+		k.box(
+			model,
+			"Curtain",
+			hall * CFrame.new(sx * (w / 2 - 5), 2.5, d / 2 - 1.6),
+			Vector3.new(6, h - 6, 0.6),
+			Color3.fromRGB(170, 20, 30),
+			M.Fabric
+		)
+	end
+	for z = -d / 2 + 8, d / 2 - 14, 4 do
+		for x = -w / 2 + 5, w / 2 - 5, 3 do
+			if math.abs(x) > 2 then -- an aisle down the middle
+				k.box(
+					model,
+					"Seat",
+					hall * CFrame.new(x, 0, z),
+					Vector3.new(2.4, 1.6, 1.8),
+					Color3.fromRGB(170, 25, 35),
+					M.Fabric
+				)
+				k.box(
+					model,
+					"SeatBack",
+					hall * CFrame.new(x, 1.6, z + 0.8),
+					Vector3.new(2.4, 1.8, 0.3),
+					Color3.fromRGB(150, 20, 30),
+					M.Fabric
+				)
+			end
+		end
+	end
+	local glow = k.box(
+		model,
+		"HouseLight",
+		hall * CFrame.new(0, h - 1, 0),
+		Vector3.new(4, 0.4, 4),
+		Color3.fromRGB(255, 220, 170),
+		M.Neon
+	)
+	k.light(
+		glow,
+		"PointLight",
+		{ Range = 40, Brightness = 0.8, Color = Color3.fromRGB(255, 210, 160) }
 	)
 	model.Parent = parent
 end

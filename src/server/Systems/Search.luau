@@ -24,11 +24,14 @@ local Config = require(Shared.Config)
 local Items = require(Shared.Items)
 local Loot = require(Shared.Loot)
 local Router = require(script.Parent.Parent.Router)
+local Analytics = require(script.Parent.Parent.Analytics)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local Social = require(script.Parent.Social)
 local Progress = require(script.Parent.Progress)
 local Ranks = require(script.Parent.Ranks)
+local Crew = require(script.Parent.Crew)
+local Story = require(script.Parent.Story)
 
 local S = Config.Search
 local T = Config.TOOL_EFFECT
@@ -131,6 +134,7 @@ local function boostFor(player: Player, session: Session): number
 	if Social.hasFriendHere(player) then
 		boost += Config.Boost.FRIEND
 	end
+	boost += Crew.bonus(player)
 	if dumpster:GetAttribute("Fresh") then
 		boost += S.FRESH_BOOST
 	end
@@ -291,7 +295,9 @@ local function digTap(player: Player, at: any): (boolean, any)
 		elseif off <= S.GOOD_WIDTH / 2 then "good"
 		else "miss"
 	if session.grade == "perfect" then
+		Analytics.event(player, "PerfectDig")
 		Ranks.add(player, Config.Levels.PERFECT_XP)
+		Story.track(player, "perfect", {})
 	end
 	return true, session.grade
 end
@@ -345,6 +351,7 @@ pick = function(player: Player, index: any): (boolean, string?)
 			profile2.bestCombo = n
 		end
 		player:SetAttribute("Combo", n)
+		Story.track(player, "combo", { n = n })
 		player:SetAttribute("ComboUntil", workspace:GetServerTimeNow() + S.COMBO_WINDOW)
 	end
 	if session.dumpster:GetAttribute("Fresh") then
@@ -360,6 +367,7 @@ pick = function(player: Player, index: any): (boolean, string?)
 		city = session.dumpster:GetAttribute("City") or "maple",
 		rarity = roll.rarity,
 	})
+	Analytics.event(player, "Find", roll.rarity)
 	if roll.rarity >= 3 then
 		showFindPop(session.dumpster, roll)
 	end

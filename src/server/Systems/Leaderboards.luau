@@ -61,6 +61,16 @@ local BOARDS: { Board } = {
 		end,
 	},
 	{
+		id = "likes",
+		title = "BEST HOUSE",
+		value = function(p)
+			return p.likes
+		end,
+		format = function(n)
+			return `♥ {n}`
+		end,
+	},
+	{
 		id = "combo",
 		title = "BEST COMBO",
 		value = function(p)
@@ -232,10 +242,10 @@ local function buildBoard()
 	pad.Parent = gui
 	for _, board in BOARDS do
 		local label = Instance.new("TextLabel")
-		label.Size = UDim2.new(0.24, -8, 1, -20)
+		label.Size = UDim2.new(0.19, -8, 1, -20)
 		label.BackgroundTransparency = 1
 		label.Font = Enum.Font.BuilderSansBold
-		label.TextSize = 26
+		label.TextSize = 22
 		label.TextColor3 = Color3.fromRGB(240, 242, 246)
 		label.TextXAlignment = Enum.TextXAlignment.Left
 		label.TextYAlignment = Enum.TextYAlignment.Top

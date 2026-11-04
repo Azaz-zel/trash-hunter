@@ -478,11 +478,11 @@ local function build()
 		Car = "🚗",
 		Garage = "🚗",
 		Top = "🏆",
-		Trade = "🤝",
+		Players = "👥",
 		Settings = "⚙",
 		Home = "🏠",
 		Store = "💎",
-		Invite = "👥",
+		Invite = "✉",
 	}
 	local function sideButton(text: string, order: number, fn: () -> (), key: string?): TextButton
 		local b = Ui.button("", "secondary", UDim2.fromOffset(72, 52), fn)
@@ -534,8 +534,8 @@ local function build()
 	sideButton("Top", 8, function()
 		Store.emit("openTop", nil)
 	end)
-	sideButton("Trade", 9, function()
-		Store.emit("openTrade", nil)
+	sideButton("Players", 9, function()
+		Store.emit("openPlayers", nil)
 	end)
 	sideButton("Settings", 10, function()
 		Store.emit("openSettings", nil)

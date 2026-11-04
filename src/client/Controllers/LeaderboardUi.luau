@@ -13,8 +13,14 @@ local Store = require(script.Parent.Parent.Store)
 
 local C = Ui.COLORS
 local player = Players.LocalPlayer
-local ORDER = { "earned", "collection", "xp", "combo" }
-local NAMES = { earned = "Richest", collection = "Collectors", xp = "Level", combo = "Combo" }
+local ORDER = { "earned", "collection", "xp", "likes", "combo" }
+local NAMES = {
+	earned = "Richest",
+	collection = "Collectors",
+	xp = "Level",
+	likes = "House",
+	combo = "Combo",
+}
 
 local LeaderboardUi = {}
 
@@ -121,7 +127,7 @@ local function build()
 	}, { Ui.list(Enum.FillDirection.Horizontal, 6) })
 	for i, id in ORDER do
 		local tab: TextButton = Ui.new("TextButton", {
-			Size = UDim2.new(0.25, -5, 1, 0),
+			Size = UDim2.new(0.2, -5, 1, 0),
 			BackgroundColor3 = C.accent,
 			BackgroundTransparency = 0.6,
 			Font = Ui.FONT,

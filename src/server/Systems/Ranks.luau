@@ -10,6 +10,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Config = require(Shared.Config)
 local Levels = require(Shared.Levels)
 local Router = require(script.Parent.Parent.Router)
+local Analytics = require(script.Parent.Parent.Analytics)
 local Data = require(script.Parent.Data)
 
 local Ranks = {}
@@ -77,6 +78,8 @@ function Ranks.add(player: Player, xp: number)
 			cash += Levels.reward(level, premium)
 		end
 		profile.cash += cash
+		Analytics.source(player, cash, profile.cash, "LevelUp")
+		Analytics.event(player, "LevelUp", after)
 		publish(player, after)
 		Router.send(player, "levelUp", {
 			level = after,

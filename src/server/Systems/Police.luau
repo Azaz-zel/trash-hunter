@@ -14,6 +14,7 @@ local Shared = game:GetService("ReplicatedStorage").Shared
 local Config = require(Shared.Config)
 local Items = require(Shared.Items)
 local Router = require(script.Parent.Parent.Router)
+local Analytics = require(script.Parent.Parent.Analytics)
 local Npc = require(script.Parent.Parent.Npc)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
@@ -362,6 +363,7 @@ end
 
 local function capture(player: Player, by: Officer)
 	local count, value = confiscate(player)
+	Analytics.event(player, "BustedYard", count)
 	Search.cancel(player, "captured")
 	say(by, LINES.caught)
 	endChase(player, "captured", 0)
@@ -373,6 +375,7 @@ end
 -- Arrest by the city police (Wanted.luau): the same penalty as a yard bust.
 function Police.arrest(player: Player)
 	local count, value = confiscate(player)
+	Analytics.event(player, "BustedPolice", count)
 	Search.cancel(player, "captured")
 	if isChased(player) then
 		endChase(player, "captured", 0)

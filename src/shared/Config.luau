@@ -632,6 +632,147 @@ return table.freeze({
 		VIP_SELL = 1.2,
 	}),
 
+	-- Story: a chain of chapters, each from a district "boss". Big Sal
+	-- outside the Hideout hands them out; finish the goal, come back.
+	-- goal kinds: search (any dumpster), district (search there), rare (find
+	-- rarity >= n), perfect (Perfect Digs), earn ($ sold), combo (reach xN),
+	-- yard (search inside the Meridian yard).
+	Story = table.freeze({
+		GIVER = table.freeze({ name = "Big Sal", pos = CityPlan.HIDEOUT + v3(-22, 0, -40) }),
+		CHAPTERS = table.freeze({
+			table.freeze({
+				title = "Welcome to the Dump",
+				boss = "Big Sal",
+				intro = {
+					"So you're the new kid. Everybody starts somewhere.",
+					"Hit five dumpsters. Any five. Show me you're hungry.",
+				},
+				outro = {
+					"Not bad. You've got the nose for it.",
+					"Go see Lucky Lou in Eastgate. Tell him Sal sent you.",
+				},
+				goal = table.freeze({ kind = "search", n = 5, text = "Search 5 dumpsters" }),
+				cash = 300,
+				xp = 120,
+			}),
+			table.freeze({
+				title = "Eastgate Hustle",
+				boss = "Lucky Lou",
+				intro = {
+					"Sal's kid, huh? Lou don't do charity.",
+					"Bring me proof: find three Uncommon-or-better pieces.",
+				},
+				outro = {
+					"Alright, alright. You got luck AND legs.",
+					"Coach Kim teaches the real technique. Go.",
+				},
+				goal = table.freeze({
+					kind = "rare",
+					rarity = 2,
+					n = 3,
+					text = "Find 3 Uncommon-or-better items",
+				}),
+				cash = 500,
+				xp = 180,
+			}),
+			table.freeze({
+				title = "Perfect Form",
+				boss = "Coach Kim",
+				intro = {
+					"Digging is a sport. Timing is everything.",
+					"Land three Perfect Digs. Gold zone, every time.",
+				},
+				outro = {
+					"Beautiful form! The bins fear you now.",
+					"Madame Vega in Midtown deals in serious money.",
+				},
+				goal = table.freeze({ kind = "perfect", n = 3, text = "Land 3 Perfect Digs" }),
+				cash = 800,
+				xp = 240,
+			}),
+			table.freeze({
+				title = "Midtown Money",
+				boss = "Madame Vega",
+				intro = {
+					"Darling, finding is nothing. SELLING is everything.",
+					"Move three thousand dollars of goods. Then we talk.",
+				},
+				outro = {
+					"Delicious. You understand value.",
+					"DJ Static runs the night. Keep up with his tempo.",
+				},
+				goal = table.freeze({
+					kind = "earn",
+					n = 3000,
+					text = "Sell $3,000 worth of stuff",
+				}),
+				cash = 1200,
+				xp = 320,
+			}),
+			table.freeze({
+				title = "Combo King",
+				boss = "DJ Static",
+				intro = {
+					"Yo! The city's got a rhythm. Bin, bin, bin, BIN.",
+					"Hit a x4 search combo. Don't drop the beat.",
+				},
+				outro = {
+					"THAT'S what I'm talking about!",
+					"The Fixer has a job. Behind the red fence. Careful.",
+				},
+				goal = table.freeze({ kind = "combo", n = 4, text = "Reach a x4 search combo" }),
+				cash = 1600,
+				xp = 400,
+			}),
+			table.freeze({
+				title = "The Yard Job",
+				boss = "The Fixer",
+				intro = {
+					"Meridian Logistics throws out more than boxes.",
+					"Search three dumpsters inside their yard. Don't get caught.",
+				},
+				outro = {
+					"Clean work. Nobody saw a thing.",
+					"One last thing. The legend everyone talks about. Find it.",
+				},
+				goal = table.freeze({
+					kind = "yard",
+					n = 3,
+					text = "Search 3 dumpsters in the Meridian yard",
+				}),
+				cash = 2500,
+				xp = 600,
+			}),
+			table.freeze({
+				title = "Trash Legend",
+				boss = "Big Sal",
+				intro = {
+					"Kid... everyone's talking about you.",
+					"Find a Legendary. Then you're not my kid anymore. You're the King.",
+				},
+				outro = {
+					"Look at that. A real legend.",
+					"This city's dumpsters are yours now. Long live the Trash King.",
+				},
+				goal = table.freeze({
+					kind = "rare",
+					rarity = 5,
+					n = 1,
+					text = "Find a Legendary-or-better item",
+				}),
+				cash = 6000,
+				xp = 1200,
+			}),
+		}),
+	}),
+
+	-- Crews: search together. Each crewmate within RANGE adds BOOST to the odds.
+	Crew = table.freeze({
+		MAX = 4,
+		RANGE = 80,
+		BOOST = 0.15,
+	}),
+
 	-- Player-to-player trading.
 	Trade = table.freeze({
 		RANGE = 30, -- studs between the two players

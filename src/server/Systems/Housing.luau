@@ -21,6 +21,7 @@ local Items = require(Shared.Items)
 local Types = require(Shared.Types)
 local ItemModels = require(Shared.ItemModels)
 local Router = require(script.Parent.Parent.Router)
+local Analytics = require(script.Parent.Parent.Analytics)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local World = require(script.Parent.World)
@@ -580,6 +581,7 @@ local function render(lot: Lot)
 	chestPrompt.MaxActivationDistance = 10
 	chestPrompt.RequiresLineOfSight = false
 	chestPrompt.Parent = chest
+	chest:SetAttribute("Owner", owner.UserId) -- the tutorial points at it
 
 	-- Pedestals show the most valuable things in storage.
 	local showcase = table.clone(profile.home)
@@ -648,6 +650,7 @@ local function assign(player: Player)
 			render(lot)
 			-- The map's "My house" button routes here.
 			player:SetAttribute("HomePos", (lot.cf * CFrame.new(0, 0, SETBACK)).Position)
+			player:SetAttribute("HouseName", (houseOf(profile)).name)
 			return
 		end
 	end
@@ -666,6 +669,7 @@ local function release(player: Player)
 	end
 	player:SetAttribute("InOwnHouse", nil)
 	player:SetAttribute("HomePos", nil)
+	player:SetAttribute("HouseName", nil)
 end
 
 -- Buys a house type, or moves into one you own (Maple Realty counter).
@@ -692,6 +696,7 @@ local function buyHouse(player: Player, id: any): (boolean, string?)
 			return false, `You need ${spec.price - profile.cash} more.`
 		end
 		profile.cash -= spec.price
+		Analytics.sink(player, spec.price, profile.cash, spec.name)
 		profile.houses[spec.id] = true
 		Router.send(player, "bought", { name = spec.name })
 	end
@@ -701,6 +706,7 @@ local function buyHouse(player: Player, id: any): (boolean, string?)
 			`Your storage holds {#profile.home} things; the {spec.name} fits {spec.storage}. Take some out first.`
 	end
 	profile.house = spec.id
+	player:SetAttribute("HouseName", spec.name)
 	assign(player)
 	local lot = lotOf[player]
 	if lot then
@@ -736,6 +742,7 @@ local function homeDisplay(player: Player, uid: any): (boolean, string?)
 		return false, "That item is gone."
 	end
 	table.insert(profile.home, entry)
+	Data.advanceTutorial(profile, 5, player)
 	local lot = lotOf[player]
 	if lot then
 		render(lot)
@@ -800,6 +807,23 @@ local function like(player: Player, index: any): (boolean, string?)
 	return true, nil
 end
 
+-- Visit another player's house: dropped at their front path.
+local function visit(player: Player, userId: any): (boolean, string?)
+	local host = typeof(userId) == "number" and Players:GetPlayerByUserId(userId)
+	local lot = host and lotOf[host]
+	if not host or not lot then
+		return false, "They don't have a house on this server."
+	end
+	if
+		player:GetAttribute("Chased") == true
+		or (tonumber(player:GetAttribute("Wanted")) or 0) > 0
+	then
+		return false, "Not with the law on your tail."
+	end
+	Guard.teleport(player, (lot.cf * CFrame.new(0, 0, SETBACK / 2)).Position)
+	return true, nil
+end
+
 -- Re-renders a player's house (new furniture).
 function Housing.refresh(player: Player)
 	local lot = lotOf[player]
@@ -813,6 +837,7 @@ function Housing.init()
 	Router.on("homeDisplay", 0.2, homeDisplay)
 	Router.on("homeTake", 0.2, homeTake)
 	Router.on("likeHouse", 0.5, like)
+	Router.on("visitHouse", 2, visit)
 end
 
 function Housing.start()

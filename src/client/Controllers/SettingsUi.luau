@@ -148,10 +148,17 @@ local function build()
 	slider(window, 3, "City ambience", "ambient")
 	toggle(window, 4, "Radar turns with camera", "rotateMap")
 	toggle(window, 5, "Low graphics (phones)", "low")
+	local photo = Ui.button("📸 Photo mode (P)", "secondary", UDim2.new(1, 0, 0, 52), function()
+		window.Visible = false
+		Store.emit("photoMode", nil)
+	end)
+	photo.TextSize = 16
+	photo.LayoutOrder = 6
+	photo.Parent = window
 	local done = Ui.button("Done", "primary", UDim2.new(1, 0, 0, 52), function()
 		window.Visible = false
 	end)
-	done.LayoutOrder = 6
+	done.LayoutOrder = 7
 	done.Parent = window
 end
 
@@ -166,6 +173,18 @@ function SettingsUi.start()
 		if not loaded and state and state.settings then
 			loaded = true
 			Settings.load(state.settings)
+			-- Small touch screens: suggest low graphics once.
+			local view = workspace.CurrentCamera.ViewportSize
+			if
+				UserInputService.TouchEnabled
+				and not state.settings.low
+				and math.min(view.X, view.Y) < 500
+			then
+				Store.emit(
+					"toast",
+					{ text = "Tip: Settings > Low graphics runs smoother on phones." }
+				)
+			end
 			for _, fn in refreshers do
 				fn()
 			end

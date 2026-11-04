@@ -15,6 +15,7 @@ local Npc = require(script.Parent.Parent.Npc)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local Ranks = require(script.Parent.Ranks)
+local Story = require(script.Parent.Story)
 
 local Q = Config.Quests
 
@@ -74,6 +75,7 @@ function Progress.track(player: Player, kind: string, e: Event)
 		stats.earned += math.max(e.amount or 0, 0)
 		Ranks.add(player, math.max(e.amount or 0, 0) / Config.Levels.SELL_PER_XP)
 	end
+	Story.track(player, kind, e)
 
 	local day = Quests.today()
 	for _, giver in Q.givers do

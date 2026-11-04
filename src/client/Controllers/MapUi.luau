@@ -87,6 +87,7 @@ local KINDS: { [string]: Kind } = {
 	store = { color = Color3.fromRGB(80, 170, 255), name = "Store", go = "Store", order = 4 },
 	quest = { color = Color3.fromRGB(190, 120, 255), name = "Quest", go = "Quest", order = 5 },
 	contact = { color = Color3.fromRGB(255, 170, 30), name = "Mission", go = "Mission", order = 6 },
+	story = { color = Color3.fromRGB(255, 215, 90), name = "Story", go = "Story", order = 0.5 },
 	friend = { color = Color3.fromRGB(90, 200, 255), name = "Players", order = 7 },
 }
 local LOCKED_COLOR = Color3.fromRGB(150, 150, 156)
@@ -137,6 +138,10 @@ end
 for _, c in Config.Contacts do
 	table.insert(places, { kind = "contact", name = c.name, pos = c.pos })
 end
+table.insert(
+	places,
+	{ kind = "story", name = Config.Story.GIVER.name, pos = Config.Story.GIVER.pos }
+)
 for i, d in Config.World.Dumpsters do
 	local red = d.zone == "Red"
 	table.insert(places, {
@@ -831,6 +836,7 @@ local function describe(place: Place): string
 		quest = "daily quest",
 		contact = "district permit mission",
 		home = "your storage, pedestals and furniture",
+		story = "story chapters (talk to him)",
 	})[place.kind] or ""
 	return `{area} · {what}`
 end
@@ -1568,6 +1574,13 @@ local function updateFriends()
 		end
 		local e = entry :: { mini: Frame, pin: Pin? }
 		e.mini.Visible = root ~= nil and shown.friend
+		-- Crewmates in green, everyone else blue.
+		local crew = player:GetAttribute("Crew")
+		local mate = crew ~= nil and other:GetAttribute("Crew") == crew
+		e.mini.BackgroundColor3 = if mate then Color3.fromRGB(120, 230, 140) else KINDS.friend.color
+		if e.pin then
+			e.pin.frame.BackgroundColor3 = e.mini.BackgroundColor3
+		end
 		if root then
 			local px, py = toPixel(MINI_SCALE, root.Position.X, root.Position.Z)
 			e.mini.Position = UDim2.fromOffset(px, py)

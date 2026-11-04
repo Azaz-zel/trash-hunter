@@ -42,7 +42,18 @@ end
 function Loot.roll(rng: Random, boost: number, forceRarity: number?, city: string?): Roll
 	local rarity = forceRarity or Loot.rollRarity(rng, boost)
 	local bucket = (Items.ByCity[city or "maple"] or Items.ByCity.maple)[rarity]
-	local item = bucket[rng:NextInteger(1, #bucket)]
+	-- Seasonal items only drop in their months.
+	local month = (os.date("!*t") :: any).month
+	local pool = {}
+	for _, it in bucket do
+		if Items.inSeason(it, month) then
+			table.insert(pool, it)
+		end
+	end
+	if #pool == 0 then
+		pool = bucket
+	end
+	local item = pool[rng:NextInteger(1, #pool)]
 	local mutation: string? = nil
 	for _, m in Items.Mutations do
 		if rng:NextNumber() < m.chance then
