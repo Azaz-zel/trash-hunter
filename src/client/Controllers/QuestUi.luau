@@ -126,7 +126,12 @@ local function renderMission(state: any)
 		local district = districtById(m.district).name
 		dLine.Text = `"{m.intro}"`
 		if m.kind == "bring" then
-			dQuest.Text = m.text .. "\nHand it over to get the " .. district .. " permit + " .. Ui.money(m.reward) .. "."
+			dQuest.Text = m.text
+				.. "\nHand it over to get the "
+				.. district
+				.. " permit + "
+				.. Ui.money(m.reward)
+				.. "."
 			dButton.Text = "Hand over"
 			Ui.setEnabled(dButton, true)
 		elseif active.progress >= m.n then
@@ -134,13 +139,23 @@ local function renderMission(state: any)
 			dButton.Text = "Get permit"
 			Ui.setEnabled(dButton, true)
 		else
-			dQuest.Text = m.text .. "\n" .. missionAmount(m, active.progress) .. "/" .. missionAmount(m, m.n) .. " · Unlocks " .. district
+			dQuest.Text = m.text
+				.. "\n"
+				.. missionAmount(m, active.progress)
+				.. "/"
+				.. missionAmount(m, m.n)
+				.. " · Unlocks "
+				.. district
 			dButton.Text = "In progress"
 			Ui.setEnabled(dButton, false)
 		end
 	elseif nextUp and nextUp.contact == id and not active then
 		dLine.Text = `"{nextUp.intro}"`
-		dQuest.Text = nextUp.text .. "\nReward: " .. districtById(nextUp.district).name .. " permit + " .. Ui.money(nextUp.reward)
+		dQuest.Text = nextUp.text
+			.. "\nReward: "
+			.. districtById(nextUp.district).name
+			.. " permit + "
+			.. Ui.money(nextUp.reward)
 		dButton.Text = "Accept"
 		Ui.setEnabled(dButton, true)
 	else
@@ -183,7 +198,13 @@ local function renderDialog(state: any)
 		dButton.Text = `Claim {reward}`
 		Ui.setEnabled(dButton, true)
 	else
-		dQuest.Text = def.text .. "\n" .. amount(def, quest.progress) .. "/" .. amount(def, def.n) .. " · Reward: " .. reward
+		dQuest.Text = def.text
+			.. "\n"
+			.. amount(def, quest.progress)
+			.. "/"
+			.. amount(def, def.n)
+			.. " · Reward: "
+			.. reward
 		dButton.Text = "In progress"
 		Ui.setEnabled(dButton, false)
 	end

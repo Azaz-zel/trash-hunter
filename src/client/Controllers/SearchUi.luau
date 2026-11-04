@@ -453,9 +453,9 @@ local function onSearchResult(payload: any)
 		else Config.Sounds.OPEN
 	Store.play(sound, 0.7)
 	if payload.rarity >= 4 then
-		cameraShake(if payload.rarity >= 6 then 1.2 else 0.6)
+		cameraShake(if payload.rarity >= 7 then 2 elseif payload.rarity >= 6 then 1.2 else 0.6)
 	end
-	pause(if payload.rarity >= 5 then 0.5 else 0.25)
+	pause(if payload.rarity >= 7 then 1.2 elseif payload.rarity >= 5 then 0.5 else 0.25)
 
 	skipConn:Disconnect()
 	skipLayer.Visible = false

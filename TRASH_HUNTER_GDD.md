@@ -1158,3 +1158,77 @@ original, bukan salinan map game lain.
 -   Izin distrik: Midtown, Vista Hills, Downtown, dan The Docks.
 -   UI shop dipisah dari Bag/Book. Konter toko membuka jendela toko itu,
     tombol R$ membuka Robux Shop, dan tombol Shop (pass) membuka semua toko.
+
+# Lampiran K — Kota Realistis, Misi Distrik, Mythic & Secret
+
+Referensi tata kota yang dipakai:
+-   Hierarki jalan: arterial, collector, local, cul-de-sac.
+-   Desain kota game (Dimopoulos, Mafia 3).
+-   Jalan tidak semuanya lurus; ada T-junction, ukuran blok bervariasi, dan
+    elevasi supaya ada vista.
+
+## Jalan
+-   Jalan sekarang berupa graph dengan polyline, jadi bisa melengkung dan
+    menanjak.
+-   Grid arterial dibuat sedikit miring dan tidak sempurna. Beberapa kolom
+    berhenti di tengah, sehingga muncul T-junction.
+-   Isi tiap superblock sesuai karakter distrik:
+    -   Downtown dan Southside: grid rapat.
+    -   Midtown: jalan crescent melengkung.
+    -   Pinggiran kota: collector berkelok dengan cul-de-sac yang ujungnya
+        berupa bulatan dengan taman kecil di tengah.
+-   Ocean Dr berkelok mengikuti garis pantai.
+-   Vista Hills memakai terrain asli. Vista Dr dan Canyon Rd naik zig-zag,
+    Crest Rd menyusuri punggung bukit, dengan beberapa court villa.
+-   Harbor Fwy melengkung di ketinggian 36 dengan jembatan ke Port Haven.
+-   Simpang punya bantalan aspal bulat, sudut trotoar, zebra cross, dan
+    lampu lalu lintas (simpang besar) atau rambu STOP.
+
+## Kehidupan kota
+-   Lalu lintas mengikuti lajur jalan yang berkelok, dengan kecepatan sesuai
+    jenis jalan. Mobil berhenti saat lampu merah; lampu server dan mobil
+    memakai jam yang sama. Di ujung cul-de-sac mobil putar balik. Ada 3 mobil
+    polisi ikut berpatroli.
+-   NPC:
+    -   64 pejalan kaki, lebih ramai di Downtown. Mereka berpindah blok dan
+        menyeberang di sudut jalan.
+    -   26 NPC nongkrong di halte, gerobak makanan, dan bangku plaza atau
+        taman.
+-   Ornamen jalan: 48 halte bus berbillboard dan 25 gerobak makanan
+    (Downtown dan pantai).
+-   Isi blok tidak lagi hanya di pinggir jalan. Bagian dalam blok terisi
+    halaman belakang (pohon, gudang kecil, kolam), parkiran di kota, dan
+    tumpukan kontainer di area industri.
+
+## Misi pembuka distrik
+Hanya Southside yang terbuka sejak awal. Setiap area lain dibuka lewat misi
+dari NPC kontak, yang muncul sebagai pin "!" di peta:
+
+| Area | Kontak | Misi |
+|---|---|---|
+| Eastgate | Marcus | Cari 5 tempat sampah di Southside |
+| Westshore | Kai | Temukan 3 item Uncommon+ |
+| Midtown | Nova | Jual barang senilai $1.500 |
+| Downtown | Tony | Serahkan 1 item Rare+ |
+| Vista Hills | Victoria | Cari 6 tempat sampah di Downtown |
+| Industrial | Joe | Temukan 1 item Epic+ |
+| Old Port | Captain Mae | Jual barang senilai $6.000 |
+| The Docks | Captain Mae | Cari 8 tempat sampah di Old Port |
+
+Tempat sampah di area terkunci memberi tahu siapa kontak yang harus dicari.
+Tracker selalu menampilkan target berikutnya.
+
+Quest harian sekarang punya 6 pemberi, termasuk Zed di Downtown, Lola di
+pantai, dan Pete di pelabuhan.
+
+## Item
+-   Rarity baru: **Mythic** (pink, ±0,003% per kantong di kota) dan
+    **Secret** (cyan, ±0,0004%).
+-   Ada 22 item baru, sehingga total menjadi 57 item. Mythic: Neon Katana,
+    Cybernetic Arm, Kraken Eye. Secret: Alien Egg dan Mermaid's Crown.
+
+## Peta
+-   Jalan digambar mengikuti lengkungannya, dengan nama jalan dan bulatan
+    cul-de-sac.
+-   Pin "!" menandai kontak misi.
+-   Waypoint menampilkan rute GPS terpendek lewat jalan.

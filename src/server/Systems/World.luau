@@ -430,7 +430,7 @@ local function stopSign(parent: Instance, pos: Vector3, yaw: number)
 	sign(plate, Enum.NormalId.Front, "STOP", C.signRed, C.white)
 end
 
-local function trafficLight(parent: Instance, pos: Vector3, yaw: number)
+local function trafficLight(parent: Instance, pos: Vector3, yaw: number, group: string?)
 	local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(yaw), 0)
 	box(parent, "SignalPole", cf, Vector3.new(0.9, 20, 0.9), C.darkMetal, M.Metal)
 	box(
@@ -460,6 +460,7 @@ local function trafficLight(parent: Instance, pos: Vector3, yaw: number)
 			Color = C.ink,
 		})
 	end
+	signal:SetAttribute("Group", group or "A")
 	signal.Parent = parent
 	CollectionService:AddTag(signal, "TrafficSignal")
 end
@@ -2578,8 +2579,18 @@ local SIGNAL_COLORS = {
 	Green = Color3.fromRGB(60, 230, 110),
 }
 
-local function setSignals(lit: string)
+-- Signal heads show the phase of their approach, on the same clock the
+-- client traffic uses: group A (east-west) is green first, then B; the last
+-- 3 seconds of each phase are amber for the group that had green.
+local SIGNAL_PHASE = 16
+local function updateSignals()
+	local t = workspace:GetServerTimeNow()
+	local greenA = math.floor(t / SIGNAL_PHASE) % 2 == 0
+	local amber = t % SIGNAL_PHASE > SIGNAL_PHASE - 3
 	for _, signal in CollectionService:GetTagged("TrafficSignal") do
+		local group = signal:GetAttribute("Group")
+		local mine = (group == "A") == greenA
+		local lit = if not mine then "Red" elseif amber then "Yellow" else "Green"
 		for name, color in SIGNAL_COLORS do
 			local bulb = signal:FindFirstChild(name)
 			if bulb and bulb:IsA("BasePart") then
@@ -2680,12 +2691,8 @@ function World.start()
 
 	task.spawn(function()
 		while true do
-			setSignals("Green")
-			task.wait(10)
-			setSignals("Yellow")
-			task.wait(3)
-			setSignals("Red")
-			task.wait(10)
+			updateSignals()
+			task.wait(1)
 		end
 	end)
 end

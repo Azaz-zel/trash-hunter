@@ -117,6 +117,31 @@ local function marker(
 	return dot
 end
 
+-- A road or route piece between two world points.
+local function segment(
+	parent: Instance,
+	scale: number,
+	a: Vector3,
+	b: Vector3,
+	width: number,
+	color: Color3,
+	z: number
+): Frame
+	local ax, ay = toPixel(scale, a.X, a.Z)
+	local bx, by = toPixel(scale, b.X, b.Z)
+	local len = math.sqrt((bx - ax) ^ 2 + (by - ay) ^ 2)
+	return Ui.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset((ax + bx) / 2, (ay + by) / 2),
+		Size = UDim2.fromOffset(len + width * 0.5, width),
+		Rotation = math.deg(math.atan2(by - ay, bx - ax)),
+		BackgroundColor3 = color,
+		BorderSizePixel = 0,
+		ZIndex = z,
+		Parent = parent,
+	})
+end
+
 -- Draws the whole town into a canvas frame at the given scale.
 local function drawWorld(parent: Instance, scale: number, labels: boolean): Canvas
 	local world = Ui.new("Frame", {
@@ -129,8 +154,11 @@ local function drawWorld(parent: Instance, scale: number, labels: boolean): Canv
 	for _, r in CityPlan.LAND do
 		rect(world, scale, r.x0, r.x1, r.z0, r.z1, Color3.fromRGB(58, 70, 54), 0, 1)
 	end
-	local sand = CityPlan.BEACH
-	rect(world, scale, sand.x0, sand.x1, sand.z0, sand.z1, Color3.fromRGB(214, 196, 150), 0, 1)
+	-- Sand: strips from the shore to the winding coastal drive.
+	for z = -1990, 2040, 60 do
+		local edge = CityPlan.sandEdge(z + 30)
+		rect(world, scale, -2250, edge, z, z + 60, Color3.fromRGB(214, 196, 150), 0, 1)
+	end
 	for _, d in Config.Districts do
 		rect(world, scale, d.x0, d.x1, d.z0, d.z1, DISTRICT_TINT[d.id] or C.panelLight, 0.55, 1)
 		if labels then
@@ -160,38 +188,60 @@ local function drawWorld(parent: Instance, scale: number, labels: boolean): Canv
 		0.35,
 		2
 	)
-	-- Freeways in amber, streets in light grey, drawn at their real widths.
-	for _, r in CityPlan.ROADS do
-		local color = if r.kind == "freeway"
+	-- Roads follow their curves: freeway amber, arterials white, others grey.
+	for _, e in CityPlan.EDGES do
+		local color = if e.kind == "freeway"
 			then Color3.fromRGB(240, 180, 60)
-			else Color3.fromRGB(200, 202, 206)
-		local half = r.w / 2
-		if r.axis == "X" then
-			rect(
-				world,
-				scale,
-				r.from,
-				r.to,
-				r.at - half,
-				r.at + half,
-				color,
-				0.1,
-				if r.kind == "freeway" then 4 else 3
-			)
-		else
-			rect(
-				world,
-				scale,
-				r.at - half,
-				r.at + half,
-				r.from,
-				r.to,
-				color,
-				0.1,
-				if r.kind == "freeway" then 4 else 3
-			)
+			elseif e.kind == "arterial" then Color3.fromRGB(232, 234, 238)
+			else Color3.fromRGB(176, 180, 186)
+		local z = if e.kind == "freeway" then 4 else 3
+		local wpx =
+			math.max(if e.kind == "arterial" or e.kind == "freeway" then 2 else 1, e.w * scale)
+		for k = 2, #e.points do
+			segment(world, scale, e.points[k - 1], e.points[k], wpx, color, z)
 		end
 	end
+	for _, n in CityPlan.NODES do
+		if n.bulb then
+			local px, py = toPixel(scale, n.pos.X, n.pos.Z)
+			local r = math.max(3, CityPlan.BULB_R * 2 * scale)
+			Ui.new("Frame", {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromOffset(px, py),
+				Size = UDim2.fromOffset(r, r),
+				BackgroundColor3 = Color3.fromRGB(176, 180, 186),
+				ZIndex = 3,
+				Parent = world,
+			}, { Ui.corner(r) })
+		end
+	end
+	-- Mission contacts: amber "!" pins.
+	for id, contact in Config.Contacts do
+		local pin = marker(
+			world,
+			scale,
+			contact.pos,
+			Color3.fromRGB(255, 170, 30),
+			if labels then 16 else 12,
+			if labels then contact.name else nil,
+			7
+		)
+		pin.Name = "Contact_" .. id
+		Ui.label("!", if labels then 13 else 10, {
+			Size = UDim2.fromScale(1, 1),
+			TextColor3 = C.ink,
+			ZIndex = 8,
+			Parent = pin,
+		})
+	end
+	-- The GPS route to the waypoint is drawn into this layer.
+	Ui.new("Frame", {
+		Name = "Route",
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1, 1),
+		ZIndex = 5,
+		Parent = world,
+	})
 	for i, hideout in Config.World.HIDEOUTS do
 		marker(
 			world,
@@ -280,24 +330,32 @@ local function drawWorld(parent: Instance, scale: number, labels: boolean): Canv
 		ZIndex = 9,
 		Parent = arrow,
 	}, { Ui.corner(2) })
-	-- Street names along named roads (full map only).
+	-- Street names on the longest piece of each named road (full map only).
 	if labels then
-		for _, r in MapData.ROADS do
-			if r.name then
-				local mid = (r.from + r.to) / 2
-				local x = if r.axis == "X" then mid else r.at
-				local z = if r.axis == "X" then r.at else mid
-				local px, py = toPixel(scale, x, z)
-				Ui.label(r.name, 10, {
-					AnchorPoint = Vector2.new(0.5, 0.5),
-					Position = UDim2.fromOffset(px, py),
-					Size = UDim2.fromOffset(120, 12),
-					Rotation = if r.axis == "Z" then 90 else 0,
-					TextColor3 = Color3.fromRGB(60, 62, 66),
-					ZIndex = 4,
-					Parent = world,
-				})
+		local longest: { [string]: any } = {}
+		for _, e in CityPlan.EDGES do
+			if e.name and (longest[e.name] == nil or e.length > longest[e.name].length) then
+				longest[e.name] = e
 			end
+		end
+		for name, e in longest do
+			local mid, t = CityPlan.pointAt(e, e.length / 2)
+			local px, py = toPixel(scale, mid.X, mid.Z)
+			local angle = math.deg(math.atan2(-t.Z, t.X))
+			if angle > 90 then
+				angle -= 180
+			elseif angle < -90 then
+				angle += 180
+			end
+			Ui.label(name, 10, {
+				AnchorPoint = Vector2.new(0.5, 0.5),
+				Position = UDim2.fromOffset(px, py),
+				Size = UDim2.fromOffset(120, 12),
+				Rotation = angle,
+				TextColor3 = Color3.fromRGB(50, 52, 56),
+				ZIndex = 4,
+				Parent = world,
+			})
 		end
 	end
 	return { world = world, scale = scale, dots = dots, arrow = arrow, waypoint = wp }
@@ -315,7 +373,7 @@ local function refreshDots(canvas: Canvas)
 	local state = Store.get()
 	for i, dot in canvas.dots do
 		local ready = (cooling[i] or 0) <= now
-		local locked = state ~= nil and not Quests.permitted(state.stats, dumpsterDistrict[i])
+		local locked = state ~= nil and not Quests.permitted(state.permits, dumpsterDistrict[i])
 		dot.BackgroundTransparency = if ready and not locked then 0 else 0.75
 		if locked then
 			dot.BackgroundColor3 = Color3.fromRGB(150, 150, 156)
@@ -330,13 +388,22 @@ end
 local setWaypoint: (Vector3?) -> ()
 
 local function nearestStreet(pos: Vector3): string?
-	local best, bestDist = nil, 30
-	for _, r in CityPlan.ROADS do
-		local along = if r.axis == "X" then pos.X else pos.Z
-		local across = if r.axis == "X" then pos.Z else pos.X
-		local dist = math.abs(across - r.at)
-		if r.name and along >= r.from - 10 and along <= r.to + 10 and dist < bestDist then
-			best, bestDist = r.name, dist
+	local best, bestDist = nil, 26
+	for _, e in CityPlan.EDGES do
+		if e.name then
+			for k = 2, #e.points do
+				local a = Vector3.new(e.points[k - 1].X, 0, e.points[k - 1].Z)
+				local b = Vector3.new(e.points[k].X, 0, e.points[k].Z)
+				local p = Vector3.new(pos.X, 0, pos.Z)
+				local ab = b - a
+				local t = if ab.Magnitude > 0
+					then math.clamp((p - a):Dot(ab) / ab:Dot(ab), 0, 1)
+					else 0
+				local d = (p - (a + ab * t)).Magnitude - e.w / 2
+				if d < bestDist then
+					best, bestDist = e.name, d
+				end
+			end
 		end
 	end
 	return best
@@ -573,8 +640,62 @@ local function showCard(title: string, sub: string, stripe: Color3)
 	end)
 end
 
+-- GPS: the shortest road route from `from` to the waypoint, drawn on both maps.
+local routeFrom: Vector3? = nil
+local function drawRoute(from: Vector3?)
+	routeFrom = from
+	for _, canvas in { mini, full } do
+		local layer = canvas and canvas.world:FindFirstChild("Route")
+		if layer then
+			layer:ClearAllChildren()
+		end
+	end
+	local wp = waypoint
+	if not wp or not from then
+		return
+	end
+	local nodes = CityPlan.route(from, wp)
+	local points = { from }
+	for k, n in nodes do
+		local nextNode = nodes[k + 1]
+		if nextNode then
+			local e = CityPlan.edgeBetween(n, nextNode)
+			if e then
+				local pts = e.points
+				local forward = e.a == n
+				for q = 1, #pts do
+					table.insert(points, pts[if forward then q else #pts - q + 1])
+				end
+			end
+		else
+			table.insert(points, n.pos)
+		end
+	end
+	table.insert(points, wp)
+	for _, canvas in { mini, full } do
+		local layer = canvas and canvas.world:FindFirstChild("Route")
+		if layer then
+			local width = math.max(3, 8 * canvas.scale)
+			for k = 2, #points do
+				segment(
+					layer,
+					canvas.scale,
+					points[k - 1],
+					points[k],
+					width,
+					Color3.fromRGB(255, 80, 120),
+					6
+				)
+			end
+		end
+	end
+end
+
 setWaypoint = function(spot: Vector3?)
 	waypoint = spot
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	drawRoute(if spot and root then root.Position else nil)
 	if waypointPart then
 		waypointPart:Destroy()
 		waypointPart, waypointText = nil, nil
@@ -690,6 +811,14 @@ function MapUi.start()
 			if dist < 18 then
 				setWaypoint(nil)
 			else
+				-- Re-route once the player has moved well away from the last start.
+				if
+					routeFrom == nil
+					or (Vector3.new(routeFrom.X, 0, routeFrom.Z) - Vector3.new(pos.X, 0, pos.Z)).Magnitude
+						> 60
+				then
+					drawRoute(pos)
+				end
 				if waypointText then
 					waypointText.Text = `{math.floor(dist)} studs`
 				end
@@ -722,13 +851,17 @@ function MapUi.start()
 		if d and d.id ~= lastDistrict then
 			lastDistrict = d.id
 			local state = Store.get()
-			local gate = Config.Gates[d.id]
+			local m = Quests.missionFor(d.id)
 			if red then
 				return -- the private-property card already showed
 			elseif d.tier == 0 then
 				showCard(d.name, d.note or "", Color3.fromRGB(196, 120, 60))
-			elseif gate and state and not Quests.permitted(state.stats, d.id) then
-				showCard(d.name, `Permit needed: {gate.text}`, Color3.fromRGB(150, 150, 156))
+			elseif m and state and not Quests.permitted(state.permits, d.id) then
+				showCard(
+					d.name,
+					`Locked · find {Config.Contacts[m.contact].name} for a permit`,
+					Color3.fromRGB(150, 150, 156)
+				)
 			else
 				local stars = string.rep("★", d.tier)
 					.. string.rep("☆", Districts.MAX_TIER - d.tier)
