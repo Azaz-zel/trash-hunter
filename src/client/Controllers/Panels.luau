@@ -383,35 +383,26 @@ local function renderBag(state: any)
 		emptySlot(g, i)
 	end
 
-	-- The display shelf only matters at the Hideout, the pedestals at home.
-	if inHideout then
-		heading("Display shelf", 10, `{#state.shelf}/{state.shelfSlots}`)
-		if #state.shelf == 0 then
+	-- House storage (the chest in your house); the best of it is on show.
+	if atHome then
+		heading("House storage", 14, `{#state.home}/{state.storage} · ♥ {state.likes}`)
+		if #state.home == 0 then
 			note(
-				"Put your best finds on the shelf. Other players can see them; they are kept, not sold.",
-				11
+				"Store finds here to keep them safe. Your most valuable ones stand on the pedestals.",
+				15
 			)
 		end
-		local s = grid(12, 176)
-		for i, e in state.shelf do
-			itemCard(s, i, e.id, e.mutation, { selectable = { uid = e.uid, from = "shelf" } })
-		end
-	end
-	local homeSlots = if state.houseLevel > 0 then Config.Houses[state.houseLevel].slots else 0
-	if atHome then
-		heading("House pedestals", 14, `{#state.home}/{homeSlots} · ♥ {state.likes}`)
 		local h = grid(16, 176)
 		for i, e in state.home do
 			itemCard(h, i, e.id, e.mutation, { selectable = { uid = e.uid, from = "home" } })
 		end
 	end
 	if not inHideout and not atHome then
-		note("Sell and display your finds at the Hideout.", 13)
+		note("Sell at the Hideout. Keep things in your house's storage (Sunset Ln).", 13)
 	end
 
 	local sel = selected
 	local bagEntry = sel and sel.from == "backpack" and find(state.backpack, sel.uid)
-	local shelfEntry = sel and sel.from == "shelf" and find(state.shelf, sel.uid)
 	local homeEntry = sel and sel.from == "home" and find(state.home, sel.uid)
 	if bagEntry then
 		local e = bagEntry
@@ -426,21 +417,12 @@ local function renderBag(state: any)
 					Store.action("sell", e.uid)
 				end,
 			})
-			table.insert(buttons, {
-				text = "Display",
-				style = "secondary",
-				enabled = #state.shelf < state.shelfSlots,
-				fn = function()
-					selected = nil
-					Store.action("display", e.uid)
-				end,
-			})
 		end
 		if atHome then
 			table.insert(buttons, {
-				text = "Pedestal",
+				text = "Store",
 				style = "secondary",
-				enabled = #state.home < homeSlots,
+				enabled = #state.home < state.storage,
 				fn = function()
 					selected = nil
 					Store.action("homeDisplay", e.uid)
@@ -475,19 +457,6 @@ local function renderBag(state: any)
 				fn = function()
 					selected = nil
 					Store.action("homeTake", e.uid)
-				end,
-			},
-		}, Items.label(e.id, e.mutation))
-	elseif shelfEntry then
-		local e = shelfEntry
-		actions({
-			{
-				text = "Take back",
-				style = "secondary",
-				enabled = #state.backpack < state.capacity,
-				fn = function()
-					selected = nil
-					Store.action("undisplay", e.uid)
 				end,
 			},
 		}, Items.label(e.id, e.mutation))
@@ -838,7 +807,7 @@ function Panels.start()
 		end)
 	end
 	ProximityPromptService.PromptTriggered:Connect(function(prompt)
-		if prompt.Name == "SellPrompt" then
+		if prompt.Name == "SellPrompt" or prompt.Name == "StoragePrompt" then
 			open("bag")
 		elseif prompt.Name == "TrunkPrompt" then
 			local car = prompt:FindFirstAncestorWhichIsA("Model")

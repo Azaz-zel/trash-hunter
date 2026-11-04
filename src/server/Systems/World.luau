@@ -1378,77 +1378,34 @@ local function buildHideout(parent: Instance)
 		end
 	end
 
-	-- Display shelves along the side walls: one per player (Economy assigns them).
-	local shelves = Instance.new("Folder")
-	shelves.Name = "Shelves"
-	shelves.Parent = folder
-	local spots = {}
-	for i = 0, 3 do
-		table.insert(spots, { x = -w / 2 + 3, z = -14 + i * 9, yaw = -90 })
-		table.insert(spots, { x = w / 2 - 3, z = -14 + i * 9, yaw = 90 })
-	end
-	for i, spot in spots do
-		local model = Instance.new("Model")
-		model.Name = "Shelf" .. i
-		local cf = base * CFrame.new(spot.x, 0.5, spot.z) * CFrame.Angles(0, math.rad(spot.yaw), 0)
-		local back = box(
-			model,
-			"Back",
-			cf * CFrame.new(0, 0, 0.9),
-			Vector3.new(7, 7, 0.3),
-			C.darkMetal,
-			M.Metal
-		)
-		local board = box(
-			model,
-			"Board",
-			cf * CFrame.new(0, 2.6, 0),
-			Vector3.new(7, 0.3, 2),
-			C.metal,
-			M.Metal
-		)
+	-- Storage moved to the players' houses: a board says so, and a few crates
+	-- fill the space the old shelves took.
+	local notice = box(
+		folder,
+		"StorageNotice",
+		base * CFrame.new(-w / 2 + 0.8, 5, 0) * CFrame.Angles(0, math.rad(90), 0),
+		Vector3.new(14, 6, 0.3),
+		Color3.fromRGB(30, 34, 40),
+		M.SmoothPlastic
+	)
+	sign(
+		notice,
+		Enum.NormalId.Front,
+		"YOUR STASH LIVES AT HOME\nSunset Ln · open the chest in your house",
+		Color3.fromRGB(30, 34, 40),
+		Color3.fromRGB(255, 200, 80)
+	)
+	for i = 0, 4 do
 		box(
-			model,
-			"LowerBoard",
-			cf * CFrame.new(0, 0.6, 0),
-			Vector3.new(7, 0.3, 2),
-			C.metal,
-			M.Metal
+			folder,
+			"Crate",
+			base
+				* CFrame.new(w / 2 - 4, 0.5 + (i % 2) * 3, -12 + math.floor(i / 2) * 5)
+				* CFrame.Angles(0, math.rad(i * 17), 0),
+			Vector3.new(3, 3, 3),
+			C.wood,
+			M.WoodPlanks
 		)
-		for _, x in { -3.4, 3.4 } do
-			box(
-				model,
-				"Upright",
-				cf * CFrame.new(x, 0, 0),
-				Vector3.new(0.3, 7, 2),
-				C.darkMetal,
-				M.Metal
-			)
-		end
-		for k, x in { -2.3, 0, 2.3 } do
-			local slot = Instance.new("Attachment")
-			slot.Name = "Slot" .. k
-			slot.Position = Vector3.new(x, 1.1, 0)
-			slot.Parent = board
-		end
-		local tag = Instance.new("BillboardGui")
-		tag.Name = "OwnerTag"
-		tag.Size = UDim2.fromOffset(200, 34)
-		tag.StudsOffset = Vector3.new(0, 4.6, 0)
-		tag.MaxDistance = 60
-		tag.Enabled = false
-		local label = Instance.new("TextLabel")
-		label.Name = "Label"
-		label.Size = UDim2.fromScale(1, 1)
-		label.BackgroundTransparency = 1
-		label.Font = FONT
-		label.TextScaled = true
-		label.TextColor3 = C.white
-		label.TextStrokeTransparency = 0.4
-		label.Parent = tag
-		tag.Parent = back
-		model.PrimaryPart = board
-		model.Parent = shelves
 	end
 
 	box(
@@ -1545,12 +1502,12 @@ local function buildHideout(parent: Instance)
 	-- SpawnLocation sits at the origin (Downtown, tier 4): reuse it, and drop
 	-- any others so nobody starts across the city.
 	local spawn: SpawnLocation? = nil
-	for _, d in workspace:GetDescendants() do
-		if d:IsA("SpawnLocation") then
+	for _, inst in workspace:GetDescendants() do
+		if inst:IsA("SpawnLocation") then
 			if spawn then
-				d:Destroy()
+				inst:Destroy()
 			else
-				spawn = d
+				spawn = inst
 			end
 		end
 	end

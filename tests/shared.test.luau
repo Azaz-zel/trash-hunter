@@ -54,3 +54,23 @@ for level = 1, 59 do
 	check(Levels.toNext(level + 1) > Levels.toNext(level), "xp curve must rise")
 end
 print(`signals ok, {vendors} vendors ({near} near the Hideout)`)
+
+-- Config consistency: houses, pass cars, Robux keys.
+local Config = load("Config")
+local seen = {}
+check(Config.Houses[1].id == "trailer" and Config.Houses[1].price == 0, "the free Trailer comes first")
+for _, h in Config.Houses do
+	check(not seen[h.id], `duplicate house id {h.id}`)
+	seen[h.id] = true
+	check(h.storage >= h.pedestals, `{h.id} shows more than it stores`)
+end
+check(#Config.Lots >= 8, "a lot for each of the 8 players")
+for _, car in Config.Cars do
+	if car.pass then
+		check(Config.Robux.Passes[car.pass] ~= nil, `{car.id} needs pass {car.pass}`)
+	end
+end
+for key in Config.Robux.Products do
+	check(Config.Robux.Passes[key] == nil, `{key} is both a pass and a product`)
+end
+print(`{#Config.Houses} house types, {#Config.Lots} lots`)

@@ -38,6 +38,7 @@ local digButton: TextButton
 local digGrade: TextLabel
 local bagsTimer: Frame
 local bagsBonus: TextLabel
+local rerollButton: TextButton
 local bagsFrame: Frame
 local bagsRow: Frame
 local bagsHint: TextLabel
@@ -304,6 +305,16 @@ local function onSearchBags(payload: {
 	if combo > 1 and comboLive then
 		table.insert(bonus, `Combo x{combo}`)
 	end
+	local state = Store.get()
+	if state and state.luckUntil > workspace:GetServerTimeNow() then
+		table.insert(bonus, "Lucky Hour")
+	end
+	if state and state.passes.lucky then
+		table.insert(bonus, "Lucky Charm")
+	end
+	local rerolls = if state then state.rerolls else 0
+	rerollButton.Visible = rerolls > 0
+	rerollButton.Text = `🎲 Reroll ({rerolls})`
 	bagsBonus.Text = table.concat(bonus, "  ·  ")
 	bagsBonus.Visible = #bonus > 0
 	bagsTimer.Size = UDim2.fromScale(1, 1)
@@ -706,6 +717,24 @@ local function build()
 		Visible = false,
 		Parent = bagsFrame,
 	})
+	-- Bag Reroll (bought): new bags in place of these.
+	rerollButton = Ui.new("TextButton", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -12, 0, 8),
+		Size = UDim2.fromOffset(120, 28),
+		BackgroundColor3 = Color3.fromRGB(60, 40, 90),
+		Font = Ui.FONT,
+		TextSize = 14,
+		TextColor3 = C.cream,
+		Visible = false,
+		ZIndex = 3,
+		Parent = bagsFrame,
+	}, { Ui.corner(8), Ui.stroke(1, Color3.fromRGB(180, 130, 255)) })
+	rerollButton.Activated:Connect(function()
+		if not picking then
+			task.spawn(Store.action, "reroll")
+		end
+	end)
 	-- Time left to choose before a bag is picked at random.
 	local timerTrack = Ui.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 1),

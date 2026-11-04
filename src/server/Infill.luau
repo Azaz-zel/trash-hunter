@@ -970,27 +970,675 @@ local function midrisePlan(k: Kit, pastel: boolean): Plan
 	}
 end
 
+-- ─── more city archetypes ─────────────────────────────────────────────────
+-- Each builds on a lot frame `cf` (origin at the sidewalk edge, +Z away from
+-- the street), like midrise() above.
+
+local GLASS_TINTS = {
+	Color3.fromRGB(70, 110, 140),
+	Color3.fromRGB(60, 90, 80),
+	Color3.fromRGB(110, 90, 140),
+	Color3.fromRGB(150, 120, 70),
+	Color3.fromRGB(40, 50, 70),
+}
+
+-- Art Deco tower: stacked tiers stepping in, stone piers, a lit crown.
+local function setbackTower(k: Kit, parent: Instance, cf: CFrame, w: number, d: number, h: number)
+	local C, M = k.C, k.M
+	local model = Instance.new("Model")
+	model.Name = "DecoTower"
+	local stone = pick(k, {
+		Color3.fromRGB(214, 200, 170),
+		Color3.fromRGB(190, 170, 140),
+		Color3.fromRGB(170, 160, 150),
+	})
+	local base = cf * CFrame.new(0, 0, d / 2)
+	local y, tw, td = 0, w, d
+	local tiers = k.rng:NextInteger(3, 4)
+	for t = 1, tiers do
+		local th = h * (if t == 1 then 0.45 else 0.55 / (tiers - 1))
+		k.box(
+			model,
+			"Tier",
+			base * CFrame.new(0, y, 0),
+			Vector3.new(tw, th, td),
+			stone,
+			M.Limestone
+		)
+		-- Vertical piers with dark glass between them on the street face.
+		for x = -tw / 2 + 3, tw / 2 - 3, 6 do
+			k.box(
+				model,
+				"Pier",
+				base * CFrame.new(x, y, -td / 2 - 0.3),
+				Vector3.new(1.2, th, 0.6),
+				stone:Lerp(C.white, 0.25),
+				M.Limestone
+			)
+		end
+		local glass = k.box(
+			model,
+			"Glass",
+			base * CFrame.new(0, y + 1, -td / 2 - 0.05),
+			Vector3.new(tw - 2, th - 2, 0.2),
+			Color3.fromRGB(40, 46, 56),
+			M.Glass
+		)
+		glass.Reflectance = 0.25
+		y += th
+		tw, td = tw * 0.72, td * 0.72
+	end
+	local crown = k.box(
+		model,
+		"Crown",
+		base * CFrame.new(0, y, 0),
+		Vector3.new(tw * 0.6, 10, td * 0.6),
+		Color3.fromRGB(230, 200, 120),
+		M.Foil
+	)
+	k.light(
+		crown,
+		"PointLight",
+		{ Range = 40, Brightness = 2, Color = Color3.fromRGB(255, 220, 150) }
+	)
+	k.box(model, "Spire", base * CFrame.new(0, y + 10, 0), Vector3.new(1, 18, 1), C.metal, M.Metal)
+	model.Parent = parent
+end
+
+-- Glass tower: two offset slabs of tinted glass, an LED crown and a helipad.
+local function glassTower(k: Kit, parent: Instance, cf: CFrame, w: number, d: number, h: number)
+	local C, M = k.C, k.M
+	local model = Instance.new("Model")
+	model.Name = "GlassTower"
+	local tint = pick(k, GLASS_TINTS)
+	local base = cf * CFrame.new(0, 0, d / 2)
+	local h2 = h * k.rng:NextNumber(0.55, 0.8)
+	for i, spec in { { -w * 0.18, w * 0.64, h }, { w * 0.22, w * 0.56, h2 } } do
+		local slab = k.box(
+			model,
+			"Slab",
+			base * CFrame.new(spec[1], 0, if i == 1 then -d * 0.08 else d * 0.1),
+			Vector3.new(spec[2], spec[3], d * 0.8),
+			tint,
+			M.Glass
+		)
+		slab.Reflectance = 0.35
+		-- Floor lines.
+		for f = 12, spec[3] - 6, 12 do
+			k.box(
+				model,
+				"FloorLine",
+				base
+					* CFrame.new(
+						spec[1],
+						f,
+						(if i == 1 then -d * 0.08 else d * 0.1) - d * 0.4 - 0.1
+					),
+				Vector3.new(spec[2], 0.4, 0.2),
+				C.concreteDark,
+				M.Metal
+			)
+		end
+	end
+	local led = k.box(
+		model,
+		"LedCrown",
+		base * CFrame.new(-w * 0.18, h - 3, -d * 0.08),
+		Vector3.new(w * 0.66, 3, d * 0.82),
+		if k.NEON then pick(k, k.NEON) else C.white,
+		M.Neon
+	)
+	led.Transparency = 0.2
+	k.box(
+		model,
+		"Helipad",
+		base * CFrame.new(-w * 0.18, h, -d * 0.08),
+		Vector3.new(w * 0.4, 0.4, w * 0.4),
+		C.concreteDark,
+		M.Concrete
+	)
+	model.Parent = parent
+end
+
+-- Brick walk-up: shops below, zig-zag fire escapes, a cornice, rooftop tank.
+local function brickWalkup(k: Kit, parent: Instance, cf: CFrame, w: number, floors: number)
+	local C, M = k.C, k.M
+	local model = Instance.new("Model")
+	model.Name = "Walkup"
+	local d = 36
+	local brick = pick(k, {
+		Color3.fromRGB(150, 70, 55),
+		Color3.fromRGB(120, 60, 50),
+		Color3.fromRGB(170, 110, 80),
+		Color3.fromRGB(110, 80, 70),
+		Color3.fromRGB(90, 70, 80),
+	})
+	local fh = 10
+	local body = cf * CFrame.new(0, 0, d / 2)
+	k.box(model, "Walls", body, Vector3.new(w, floors * fh, d), brick, M.Brick)
+	k.box(
+		model,
+		"Cornice",
+		body * CFrame.new(0, floors * fh, 0),
+		Vector3.new(w + 1.6, 1.4, d + 1.6),
+		Color3.fromRGB(200, 190, 170),
+		M.Concrete
+	)
+	-- Windows with white lintels, a few lit.
+	for f = 1, floors - 1 do
+		for x = -w / 2 + 4, w / 2 - 4, 6 do
+			local win = k.box(
+				model,
+				"Window",
+				cf * CFrame.new(x, f * fh + 2, -0.15),
+				Vector3.new(2.6, 4.2, 0.2),
+				if k.rng:NextNumber() < 0.3
+					then Color3.fromRGB(255, 220, 150)
+					else Color3.fromRGB(40, 46, 56),
+				if k.rng:NextNumber() < 0.3 then M.Neon else M.Glass
+			)
+			win.Transparency = 0.1
+			k.box(
+				model,
+				"Lintel",
+				cf * CFrame.new(x, f * fh + 6.3, -0.25),
+				Vector3.new(3.2, 0.5, 0.3),
+				Color3.fromRGB(220, 214, 200),
+				M.Concrete
+			)
+		end
+	end
+	-- Fire escape: landings and slanted ladders down one side of the face.
+	local fx = w / 2 - 7
+	for f = 1, floors - 1 do
+		k.box(
+			model,
+			"Landing",
+			cf * CFrame.new(fx, f * fh, -1.6),
+			Vector3.new(8, 0.3, 3),
+			C.darkMetal,
+			M.Metal
+		)
+		k.box(
+			model,
+			"Rail",
+			cf * CFrame.new(fx, f * fh + 0.3, -3),
+			Vector3.new(8, 2.6, 0.15),
+			C.darkMetal,
+			M.DiamondPlate
+		)
+		local dir = if f % 2 == 0 then 1 else -1
+		k.box(
+			model,
+			"Ladder",
+			cf * CFrame.new(fx, f * fh - fh / 2, -2.2) * CFrame.Angles(0, 0, math.rad(48 * dir)),
+			Vector3.new(0.4, fh * 1.2, 1.4),
+			C.darkMetal,
+			M.Metal
+		)
+	end
+	-- Ground-floor shop with a striped awning.
+	k.box(
+		model,
+		"ShopGlass",
+		cf * CFrame.new(-w / 4, 0, -0.2),
+		Vector3.new(w / 2 - 4, 8, 0.3),
+		Color3.fromRGB(50, 60, 70),
+		M.Glass
+	)
+	local awning = pick(
+		k,
+		{ Color3.fromRGB(30, 110, 60), Color3.fromRGB(170, 30, 40), Color3.fromRGB(30, 60, 140) }
+	)
+	k.wedge(
+		model,
+		"Awning",
+		cf * CFrame.new(-w / 4, 8.5, -2) * CFrame.Angles(0, math.pi, 0),
+		Vector3.new(w / 2 - 2, 2, 4),
+		awning
+	)
+	local sign = k.box(
+		model,
+		"Sign",
+		cf * CFrame.new(-w / 4, 11, -0.4),
+		Vector3.new(w / 2 - 6, 2, 0.3),
+		Color3.fromRGB(20, 20, 24),
+		M.SmoothPlastic
+	)
+	k.sign(
+		sign,
+		Enum.NormalId.Front,
+		pick(k, SHOP_NAMES),
+		Color3.fromRGB(20, 20, 24),
+		Color3.fromRGB(255, 230, 180)
+	)
+	k.box(
+		model,
+		"WaterTank",
+		body * CFrame.new(-w / 5, floors * fh + 1.4, 4),
+		Vector3.new(5, 6, 5),
+		C.wood,
+		M.WoodPlanks
+	)
+	model.Parent = parent
+end
+
+-- Cyberpunk megablock: a wide slab hung with boxy add-on modules, vertical
+-- neon signs, AC units and a holo billboard on the roof.
+local function megablock(k: Kit, parent: Instance, cf: CFrame, w: number, d: number, h: number)
+	local C, M = k.C, k.M
+	local model = Instance.new("Model")
+	model.Name = "Megablock"
+	local base = cf * CFrame.new(0, 0, d / 2)
+	local concrete = pick(
+		k,
+		{ Color3.fromRGB(90, 92, 100), Color3.fromRGB(70, 74, 84), Color3.fromRGB(110, 104, 100) }
+	)
+	k.box(model, "Core", base, Vector3.new(w, h, d), concrete, M.Concrete)
+	for _ = 1, math.floor(w * h / 220) do
+		local mw, mh = k.rng:NextNumber(5, 12), k.rng:NextNumber(4, 9)
+		local x = k.rng:NextNumber(-w / 2 + mw / 2, w / 2 - mw / 2)
+		local y = k.rng:NextNumber(12, h - mh)
+		local pod = k.box(
+			model,
+			"Module",
+			cf * CFrame.new(x, y, -1.5),
+			Vector3.new(mw, mh, 3),
+			concrete:Lerp(Color3.fromRGB(40, 40, 50), k.rng:NextNumber(0, 0.6)),
+			M.Metal
+		)
+		if k.rng:NextNumber() < 0.5 then
+			local strip = k.box(
+				model,
+				"PodLight",
+				cf * CFrame.new(x, y + mh - 0.6, -3.1),
+				Vector3.new(mw, 0.3, 0.2),
+				if k.NEON then pick(k, k.NEON) else C.white,
+				M.Neon
+			)
+			strip.CanCollide = false
+		end
+		local _ = pod
+	end
+	for i = 1, k.rng:NextInteger(2, 3) do
+		local x = -w / 2 + i * w / 4
+		local tall = k.box(
+			model,
+			"VerticalSign",
+			cf * CFrame.new(x, 14, -3.5),
+			Vector3.new(2.4, k.rng:NextNumber(14, 26), 0.6),
+			Color3.fromRGB(15, 15, 22),
+			M.SmoothPlastic
+		)
+		k.box(
+			model,
+			"SignGlow",
+			cf * CFrame.new(x, 14, -3.85),
+			Vector3.new(2, tall.Size.Y - 0.6, 0.1),
+			if k.NEON then pick(k, k.NEON) else C.white,
+			M.Neon
+		).CanCollide =
+			false
+	end
+	local holo = k.box(
+		model,
+		"Holo",
+		base * CFrame.new(0, h + 2, -d / 2 + 2),
+		Vector3.new(w * 0.6, 12, 0.3),
+		if k.NEON then pick(k, k.NEON) else C.white,
+		M.ForceField
+	)
+	holo.Transparency = 0.35
+	holo.CanCollide = false
+	model.Parent = parent
+end
+
+-- Retro chrome diner with a neon roof sign and a few parking bays.
+local function diner(k: Kit, parent: Instance, cf: CFrame)
+	local C, M = k.C, k.M
+	local model = Instance.new("Model")
+	model.Name = "Diner"
+	local body = cf * CFrame.new(0, 0, 26)
+	k.box(model, "Lot", cf * CFrame.new(0, 0.05, 9), Vector3.new(44, 0.1, 18), C.asphalt, M.Asphalt)
+	k.box(
+		model,
+		"Body",
+		body,
+		Vector3.new(36, 10, 16),
+		Color3.fromRGB(205, 210, 215),
+		M.DiamondPlate
+	)
+	k.box(
+		model,
+		"Stripe",
+		body * CFrame.new(0, 3, -8.1),
+		Vector3.new(36, 1.2, 0.2),
+		pick(k, { Color3.fromRGB(200, 30, 40), Color3.fromRGB(30, 170, 170) }),
+		M.SmoothPlastic
+	)
+	local glass = k.box(
+		model,
+		"Windows",
+		body * CFrame.new(0, 4.6, -8.15),
+		Vector3.new(30, 3.6, 0.2),
+		Color3.fromRGB(255, 220, 160),
+		M.Neon
+	)
+	glass.Transparency = 0.25
+	k.part(model, {
+		Name = "RoundEnd",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(10, 16, 16),
+		CFrame = body * CFrame.new(18, 5, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(205, 210, 215),
+		Material = M.DiamondPlate,
+	})
+	local sign = k.box(
+		model,
+		"DinerSign",
+		body * CFrame.new(0, 10, 0),
+		Vector3.new(16, 4, 0.4),
+		Color3.fromRGB(20, 20, 26),
+		M.SmoothPlastic
+	)
+	k.sign(
+		sign,
+		Enum.NormalId.Front,
+		pick(k, { "MOON DINER", "ROUTE 9 EATS", "STARLITE DINER", "MEL'S 24/7" }),
+		Color3.fromRGB(20, 20, 26),
+		Color3.fromRGB(255, 80, 120)
+	)
+	k.light(
+		sign,
+		"PointLight",
+		{ Range = 22, Brightness = 1.5, Color = Color3.fromRGB(255, 90, 140) }
+	)
+	for x = -16, 16, 8 do
+		k.box(
+			model,
+			"BayLine",
+			cf * CFrame.new(x, 0.12, 9),
+			Vector3.new(0.3, 0.05, 14),
+			C.white,
+			M.SmoothPlastic
+		)
+	end
+	model.Parent = parent
+end
+
+-- Gas station: lit canopy over two pump islands and a little shop.
+local function gasStation(k: Kit, parent: Instance, cf: CFrame)
+	local C, M = k.C, k.M
+	local model = Instance.new("Model")
+	model.Name = "GasStation"
+	local brand = pick(k, {
+		{ "FUEL-X", Color3.fromRGB(230, 60, 40) },
+		{ "BLUEWAY", Color3.fromRGB(40, 110, 220) },
+		{ "SUNOIL", Color3.fromRGB(240, 180, 30) },
+	})
+	k.box(
+		model,
+		"Apron",
+		cf * CFrame.new(0, 0.05, 20),
+		Vector3.new(56, 0.1, 40),
+		C.concrete,
+		M.Concrete
+	)
+	local roof = k.box(
+		model,
+		"Canopy",
+		cf * CFrame.new(-6, 11, 16),
+		Vector3.new(34, 1.4, 18),
+		C.white,
+		M.SmoothPlastic
+	)
+	k.box(
+		model,
+		"CanopyBand",
+		cf * CFrame.new(-6, 12.4, 16),
+		Vector3.new(34.4, 1.2, 18.4),
+		brand[2],
+		M.SmoothPlastic
+	)
+	k.light(
+		roof,
+		"SurfaceLight",
+		{ Face = Enum.NormalId.Bottom, Range = 18, Brightness = 1.4, Angle = 90 }
+	)
+	for _, x in { -14, 2 } do
+		k.box(model, "Column", cf * CFrame.new(x, 0, 16), Vector3.new(1, 11, 1), C.white, M.Metal)
+		for _, z in { 12, 20 } do
+			k.box(
+				model,
+				"Pump",
+				cf * CFrame.new(x, 0, z),
+				Vector3.new(1.6, 4.6, 1.2),
+				brand[2],
+				M.SmoothPlastic
+			)
+		end
+	end
+	k.box(
+		model,
+		"Shop",
+		cf * CFrame.new(18, 0, 30),
+		Vector3.new(18, 10, 14),
+		Color3.fromRGB(230, 226, 214),
+		M.Plaster
+	)
+	local sign = k.box(
+		model,
+		"Pylon",
+		cf * CFrame.new(24, 0, 2),
+		Vector3.new(4, 18, 1),
+		Color3.fromRGB(30, 30, 34),
+		M.Metal
+	)
+	local face = k.box(
+		model,
+		"PylonFace",
+		cf * CFrame.new(24, 12, 1.4),
+		Vector3.new(4, 5, 0.2),
+		brand[2],
+		M.Neon
+	)
+	k.sign(face, Enum.NormalId.Front, brand[1], brand[2], C.white)
+	local _ = sign
+	model.Parent = parent
+end
+
+-- Open parking garage: concrete decks on columns, striped ramps, lights.
+local function parkingGarage(k: Kit, parent: Instance, cf: CFrame, w: number, levels: number)
+	local C, M = k.C, k.M
+	local model = Instance.new("Model")
+	model.Name = "ParkingGarage"
+	local d = 50
+	local body = cf * CFrame.new(0, 0, d / 2)
+	for l = 1, levels do
+		local deck = k.box(
+			model,
+			"Deck",
+			body * CFrame.new(0, l * 10 - 1, 0),
+			Vector3.new(w, 1, d),
+			C.concrete,
+			M.Concrete
+		)
+		k.box(
+			model,
+			"Parapet",
+			cf * CFrame.new(0, l * 10, -0.3),
+			Vector3.new(w, 3, 0.6),
+			C.concreteDark,
+			M.Concrete
+		)
+		k.box(
+			model,
+			"Stripe",
+			cf * CFrame.new(0, l * 10 + 1.2, -0.65),
+			Vector3.new(w, 0.5, 0.1),
+			pick(k, { Color3.fromRGB(250, 200, 40), Color3.fromRGB(40, 160, 220) }),
+			M.SmoothPlastic
+		)
+		if l % 2 == 0 then
+			k.light(
+				deck,
+				"SurfaceLight",
+				{ Face = Enum.NormalId.Bottom, Range = 14, Brightness = 0.8, Angle = 90 }
+			)
+		end
+	end
+	for x = -w / 2 + 2, w / 2 - 2, 12 do
+		for _, z in { -d / 2 + 2, 0, d / 2 - 2 } do
+			k.box(
+				model,
+				"Column",
+				body * CFrame.new(x, 0, z),
+				Vector3.new(1.4, levels * 10, 1.4),
+				C.concrete,
+				M.Concrete
+			)
+		end
+	end
+	local sign = k.box(
+		model,
+		"PSign",
+		cf * CFrame.new(w / 2 - 4, 4, -0.8),
+		Vector3.new(4, 4, 0.3),
+		Color3.fromRGB(30, 80, 170),
+		M.SmoothPlastic
+	)
+	k.sign(sign, Enum.NormalId.Front, "P", Color3.fromRGB(30, 80, 170), C.white)
+	model.Parent = parent
+end
+
+-- Old theatre: a stone box with a bulb-lit marquee and a vertical name sign.
+local function theater(k: Kit, parent: Instance, cf: CFrame, w: number)
+	local M = k.M
+	local model = Instance.new("Model")
+	model.Name = "Theater"
+	local d = 50
+	k.box(
+		model,
+		"Hall",
+		cf * CFrame.new(0, 0, d / 2),
+		Vector3.new(w, 30, d),
+		Color3.fromRGB(150, 60, 50),
+		M.Brick
+	)
+	local marquee = k.box(
+		model,
+		"Marquee",
+		cf * CFrame.new(0, 10, -3),
+		Vector3.new(w - 8, 5, 6),
+		Color3.fromRGB(240, 230, 210),
+		M.SmoothPlastic
+	)
+	k.sign(
+		marquee,
+		Enum.NormalId.Front,
+		pick(k, { "TONIGHT: NEON NIGHTS", "NOW SHOWING: TRASH KING", "LIVE: THE DUMPSTERS" }),
+		Color3.fromRGB(240, 230, 210),
+		Color3.fromRGB(30, 30, 30)
+	)
+	k.box(
+		model,
+		"Bulbs",
+		cf * CFrame.new(0, 14.7, -3),
+		Vector3.new(w - 8, 0.5, 6.2),
+		Color3.fromRGB(255, 220, 140),
+		M.Neon
+	)
+	local blade = k.box(
+		model,
+		"Blade",
+		cf * CFrame.new(-w / 2 + 6, 16, -2),
+		Vector3.new(1, 14, 4),
+		Color3.fromRGB(20, 20, 24),
+		M.SmoothPlastic
+	)
+	k.sign(
+		blade,
+		Enum.NormalId.Left,
+		"ROXY",
+		Color3.fromRGB(20, 20, 24),
+		Color3.fromRGB(255, 60, 60)
+	)
+	k.light(
+		marquee,
+		"PointLight",
+		{ Range = 26, Brightness = 1.6, Color = Color3.fromRGB(255, 210, 140) }
+	)
+	model.Parent = parent
+end
+
+local function sized(width: number, depth: number, build: (Kit, Instance, CFrame) -> ()): Plan
+	return { width = width, depth = depth, build = build }
+end
+
+local function towerPlan(k: Kit): Plan
+	local w = k.rng:NextInteger(5, 8) * 10
+	local d = k.rng:NextInteger(5, 7) * 10
+	local h = k.rng:NextInteger(10, 26) * 10
+	local kind = choose(k, { { 3, "neon" }, { 2, "deco" }, { 2, "glass" }, { 2, "mega" } })
+	return sized(w + 4, d + 6, function(kit, parent, cf)
+		if kind == "deco" then
+			setbackTower(kit, parent, cf * CFrame.new(0, 0, 3), w, d, h)
+		elseif kind == "glass" then
+			glassTower(kit, parent, cf * CFrame.new(0, 0, 3), w, d, h)
+		elseif kind == "mega" then
+			megablock(kit, parent, cf * CFrame.new(0, 0, 3), w, d, math.min(h, 120))
+		else
+			kit.neonTower(parent, cf * CFrame.new(0, 0, d / 2 + 3), w, d, h)
+		end
+	end)
+end
+
+local function walkupPlan(k: Kit): Plan
+	local w = k.rng:NextInteger(4, 7) * 8
+	local floors = k.rng:NextInteger(3, 6)
+	return sized(w + 2, 40, function(kit, parent, cf)
+		brickWalkup(kit, parent, cf * CFrame.new(0, 0, 2), w, floors)
+	end)
+end
+
+local function garagePlan(k: Kit): Plan
+	local w = k.rng:NextInteger(5, 7) * 10
+	local levels = k.rng:NextInteger(3, 5)
+	return sized(w + 2, 54, function(kit, parent, cf)
+		parkingGarage(kit, parent, cf * CFrame.new(0, 0, 2), w, levels)
+	end)
+end
+
+local function theaterPlan(k: Kit): Plan
+	local w = k.rng:NextInteger(5, 6) * 10
+	return sized(w + 2, 54, function(kit, parent, cf)
+		theater(kit, parent, cf * CFrame.new(0, 0, 2), w)
+	end)
+end
+
+local DINER = sized(50, 40, diner)
+local GAS = sized(60, 44, gasStation)
+
 -- What to build in a district; nil means leave the land alone.
 local function planFor(k: Kit, districtId: string?): Plan?
 	if districtId == "downtown" then
-		if k.rng:NextNumber() < 0.75 then
-			local w = k.rng:NextInteger(5, 9) * 10
-			local d = k.rng:NextInteger(5, 7) * 10
-			local h = k.rng:NextInteger(8, 26) * 10
-			return {
-				width = w + 4,
-				depth = d + 6,
-				build = function(kit, parent, cf)
-					kit.neonTower(parent, cf * CFrame.new(0, 0, d / 2 + 3), w, d, h)
-				end,
-			}
-		end
-		return shopPlan(k)
+		return choose(k, {
+			{ 13, towerPlan(k) },
+			{ 2, walkupPlan(k) },
+			{ 1, theaterPlan(k) },
+			{ 1, garagePlan(k) },
+			{ 2, shopPlan(k) },
+		})
 	elseif districtId == "midtown" or districtId == "oldport" then
 		return choose(k, {
 			{ 4, midrisePlan(k, false) },
-			{ 4, shopPlan(k) },
+			{ 4, walkupPlan(k) },
+			{ 3, shopPlan(k) },
 			{ 2, home(townhouses, 58, 10) },
+			{ 1, DINER },
+			{ 1, GAS },
+			{ 1, garagePlan(k) },
+			{ 1, theaterPlan(k) },
 		})
 	elseif districtId == "southside" then
 		return choose(k, {
@@ -998,6 +1646,9 @@ local function planFor(k: Kit, districtId: string?): Plan?
 			{ 3, home(cottage, 42, 12) },
 			{ 2, home(porchBungalow, 56, 14) },
 			{ 2, home(townhouses, 58, 10) },
+			{ 2, walkupPlan(k) },
+			{ 1, DINER },
+			{ 1, GAS },
 			{
 				1,
 				{
@@ -1017,12 +1668,14 @@ local function planFor(k: Kit, districtId: string?): Plan?
 			{ 2, home(modernHome, 78, 18) },
 			{ 2, home(openHouse, 40, 14) },
 			{ 1, home(stuccoHouse, 56, 14) },
+			{ 1, GAS },
 		})
 	elseif districtId == "beach" then
 		return choose(k, {
 			{ 3, home(stuccoHouse, 58, 14) },
 			{ 3, shopPlan(k) },
 			{ 2, midrisePlan(k, true) },
+			{ 1, DINER },
 		})
 	elseif districtId == "hills" then
 		return choose(k, {

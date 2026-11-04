@@ -27,8 +27,8 @@ local ACCENT = {
 local SUBTITLE = {
 	gear = "Tools and bigger backpacks",
 	cars = "Faster cars with bigger trunks",
-	house = "Homes on Sunset Ln",
-	robux = "Convenience only. Robux never buys loot or luck.",
+	house = "Homes on Sunset Ln · your storage lives there",
+	robux = "Passes, cash, boosts and luck",
 }
 
 local ShopUi = {}
@@ -225,17 +225,17 @@ end
 local function renderHouses(state: any, order: number): number
 	section("Homes", order)
 	for i, house in Config.Houses do
-		local owned = state.houseLevel >= i
-		local isNext = state.houseLevel + 1 == i
+		local owned = state.houses[house.id] == true
+		local home = state.house == house.id
 		product(
 			order + i,
-			{ color = ACCENT.house, text = tostring(house.slots) },
+			{ color = ACCENT.house, text = tostring(house.storage) },
 			house.name,
-			`{house.slots} pedestals to show off your finds`,
-			if owned then "Owned" elseif isNext then Ui.money(house.price) else "Locked",
-			isNext and state.cash >= house.price,
+			`Stores {house.storage} things · {house.pedestals} on show`,
+			if home then "Your home" elseif owned then "Move in" else Ui.money(house.price),
+			not home and (owned or state.cash >= house.price),
 			function()
-				Store.action("buyHouse")
+				Store.action("buyHouse", house.id)
 			end
 		)
 	end
@@ -248,9 +248,9 @@ local function renderHouses(state: any, order: number): number
 			order + i,
 			{ color = Color3.fromRGB(150, 110, 200), text = "🛋" },
 			d.name,
-			if state.houseLevel < 1 then "Buy a house first" else "Shows up in your house",
+			"Shows up in your house",
 			if owned then "Owned" else Ui.money(d.price),
-			not owned and state.houseLevel >= 1 and state.cash >= d.price,
+			not owned and state.cash >= d.price,
 			function()
 				Store.action("buyDecor", d.id)
 			end

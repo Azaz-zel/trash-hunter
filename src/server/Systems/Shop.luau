@@ -1,8 +1,8 @@
 --!strict
 -- Gear bench (tools for cash), car dealer (cars for cash), the garage
 -- (switch owned cars anywhere, custom paint), house furniture, player
--- settings, and Robux items. Robux never buys loot or odds: game passes give
--- comfort, looks and sell bonuses; products give cash or skip a wait.
+-- settings, and Robux items: comfort, looks, sell bonuses, cash, skipping a
+-- wait, and luck (Lucky Charm, Lucky Hour, Bag Reroll).
 -- Receipts are idempotent and saved before they are granted.
 
 local MarketplaceService = game:GetService("MarketplaceService")
@@ -175,9 +175,7 @@ local function buyDecor(player: Player, id: any): (boolean, string?)
 	if not ok then
 		return false, message
 	end
-	if profile.houseLevel < 1 then
-		return false, "Buy a house first."
-	end
+
 	if profile.decor[decor.id] then
 		return false, "You already have that."
 	end
@@ -301,6 +299,13 @@ local function processReceipt(receipt: any): Enum.ProductPurchaseDecision
 	end
 	local cash = product.cash or 0
 	profile.cash += cash
+	-- Saved grants (rolled back with the cash if the save fails).
+	local luckBefore, rerollsBefore = profile.luckUntil, profile.rerolls
+	if product == R.Products.luckyhour then
+		profile.luckUntil = math.max(os.time(), profile.luckUntil) + R.LUCK.HOUR_SECONDS
+	elseif product == R.Products.reroll then
+		profile.rerolls += R.LUCK.REROLLS
+	end
 	table.insert(profile.receipts, id)
 	while #profile.receipts > RECEIPT_MEMORY do
 		table.remove(profile.receipts, 1)
@@ -308,6 +313,7 @@ local function processReceipt(receipt: any): Enum.ProductPurchaseDecision
 	-- Only confirm once the grant is on disk; otherwise Roblox retries later.
 	if not Data.saveNow(player) then
 		profile.cash -= cash
+		profile.luckUntil, profile.rerolls = luckBefore, rerollsBefore
 		table.remove(profile.receipts, table.find(profile.receipts, id) :: number)
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end

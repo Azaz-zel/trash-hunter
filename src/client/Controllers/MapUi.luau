@@ -68,6 +68,14 @@ local KINDS: { [string]: Kind } = {
 		order = 2,
 	},
 	guarded = { color = Color3.fromRGB(255, 120, 110), name = "Guarded", order = 3 },
+	-- Your house this server (player attribute HomePos, set by Housing).
+	home = {
+		color = Color3.fromRGB(120, 220, 160),
+		name = "My house",
+		go = "My house",
+		order = 1.5,
+		noFilter = true,
+	},
 	-- Fresh drops are dumpsters too; this entry is only their "Go to" button.
 	fresh = {
 		color = Color3.fromRGB(255, 205, 60),
@@ -822,6 +830,7 @@ local function describe(place: Place): string
 		store = "buy gear and cars",
 		quest = "daily quest",
 		contact = "district permit mission",
+		home = "your storage, pedestals and furniture",
 	})[place.kind] or ""
 	return `{area} · {what}`
 end
@@ -868,6 +877,12 @@ end
 local function nearest(kind: string): Place?
 	local pos = myPos() or Config.World.SPAWN
 	local best, bestD = nil, math.huge
+	if kind == "home" then
+		local at = player:GetAttribute("HomePos")
+		return if typeof(at) == "Vector3"
+			then { kind = "home", name = "My house", pos = at }
+			else nil
+	end
 	local fresh = if kind == "fresh" then freshSet() else nil
 	for _, p in places do
 		local match = if fresh

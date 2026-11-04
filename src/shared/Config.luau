@@ -179,7 +179,20 @@ return table.freeze({
 	-- Creator Dashboard; an id of 0 shows the item as "Coming soon".
 	Robux = table.freeze({
 		POCKETS_BONUS = 6,
+		-- Luck you can buy (Lucky Charm pass, Lucky Hour, Bag Reroll).
+		LUCK = table.freeze({
+			CHARM_BOOST = 0.25, -- forever, with the pass
+			HOUR_BOOST = 0.6, -- while a Lucky Hour runs
+			HOUR_SECONDS = 1800,
+			REROLLS = 3, -- per Bag Reroll purchase
+		}),
 		Passes = table.freeze({
+			lucky = table.freeze({
+				id = 0,
+				name = "Lucky Charm",
+				price = 249,
+				desc = "Better odds in every dumpster, forever.",
+			}),
 			vip = table.freeze({
 				id = 0,
 				name = "Scrapper VIP",
@@ -232,6 +245,18 @@ return table.freeze({
 		Products = table.freeze({
 			cash_small = table.freeze({ id = 0, name = "Cash Stack", price = 49, cash = 600 }),
 			cash_large = table.freeze({ id = 0, name = "Cash Briefcase", price = 199, cash = 3000 }),
+			luckyhour = table.freeze({
+				id = 0,
+				name = "Lucky Hour",
+				price = 49,
+				desc = "Much better odds for 30 minutes (stacks).",
+			}),
+			reroll = table.freeze({
+				id = 0,
+				name = "Bag Reroll x3",
+				price = 35,
+				desc = "Swap the bags in front of you for new ones, 3 times.",
+			}),
 			lawyer = table.freeze({
 				id = 0,
 				name = "Call a Lawyer",
@@ -309,10 +334,46 @@ return table.freeze({
 
 	-- Houses on Sunset Ln: a trophy room other players can visit and like.
 	-- Each level rebuilds the house bigger with more pedestals.
+	-- House types (Maple Realty). Everyone owns the Trailer. You may own
+	-- several and live in one; storage holds your things, pedestals show the
+	-- most valuable of them. Lots are handed out per server (see Housing).
 	Houses = table.freeze({
-		table.freeze({ name = "Starter Home", price = 6000, slots = 4 }),
-		table.freeze({ name = "Family Home", price = 25000, slots = 8 }),
-		table.freeze({ name = "Collector's Villa", price = 90000, slots = 12 }),
+		table.freeze({ id = "trailer", name = "Trailer", price = 0, storage = 8, pedestals = 2 }),
+		table.freeze({
+			id = "starter",
+			name = "Starter Home",
+			price = 6000,
+			storage = 14,
+			pedestals = 4,
+		}),
+		table.freeze({
+			id = "bungalow",
+			name = "Beach Bungalow",
+			price = 15000,
+			storage = 18,
+			pedestals = 4,
+		}),
+		table.freeze({
+			id = "family",
+			name = "Family Home",
+			price = 25000,
+			storage = 22,
+			pedestals = 8,
+		}),
+		table.freeze({
+			id = "loft",
+			name = "Neon Loft",
+			price = 50000,
+			storage = 28,
+			pedestals = 8,
+		}),
+		table.freeze({
+			id = "villa",
+			name = "Collector's Villa",
+			price = 90000,
+			storage = 36,
+			pedestals = 12,
+		}),
 	}),
 	-- Lot fronts on Sunset Ln (z = -640). yaw 0 = house north of the road.
 	-- Lot frames on Sunset Ln (Eastgate): origin at the front, +Z away from the street.

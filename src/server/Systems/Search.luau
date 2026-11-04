@@ -147,6 +147,14 @@ local function boostFor(player: Player, session: Session): number
 	if profile and Data.hasTool(profile, "detector") then
 		boost += T.DETECTOR_BOOST
 	end
+	-- Bought luck: Lucky Charm pass, Lucky Hour.
+	local luck = Config.Robux.LUCK
+	if player:GetAttribute("Pass_lucky") then
+		boost += luck.CHARM_BOOST
+	end
+	if profile and profile.luckUntil > os.time() then
+		boost += luck.HOUR_BOOST
+	end
 	return boost
 end
 
@@ -159,24 +167,8 @@ end
 local resolve: (Player, any) -> (boolean, string?)
 local pick: (Player, any) -> (boolean, string?)
 
-local function finishDig(player: Player, token: number)
-	local session = sessions[player]
-	if not session or session.token ~= token then
-		return
-	end
-	local profile = Data.get(player)
-	if not profile then
-		Search.cancel(player, "error")
-		return
-	end
-	if
-		Guard.isFlagged(player)
-		or Guard.distance(player, dumpsterPos(session.dumpster)) > S.KEEP_RANGE
-	then
-		Search.cancel(player, "moved")
-		return
-	end
-
+-- Rolls the bags for a finished dig (or a Bag Reroll) and shows them.
+local function rollBags(player: Player, session: Session, profile: any)
 	local city = session.dumpster:GetAttribute("City") or "maple"
 	local count = S.BAGS
 		+ (if session.grade == "perfect" then 1 else 0)
@@ -215,11 +207,33 @@ local function finishDig(player: Player, token: number)
 		grade = session.grade,
 		timeout = S.CHOICE_TIMEOUT,
 	})
+end
+
+local function finishDig(player: Player, token: number)
+	local session = sessions[player]
+	if not session or session.token ~= token then
+		return
+	end
+	local profile = Data.get(player)
+	if not profile then
+		Search.cancel(player, "error")
+		return
+	end
+	if
+		Guard.isFlagged(player)
+		or Guard.distance(player, dumpsterPos(session.dumpster)) > S.KEEP_RANGE
+	then
+		Search.cancel(player, "moved")
+		return
+	end
+
+	rollBags(player, session, profile)
 
 	task.delay(S.CHOICE_TIMEOUT, function()
 		local current = sessions[player]
-		if current and current.token == token and current.bags then
-			pick(player, rng:NextInteger(1, #bags))
+		local offered = current and current.token == token and current.bags
+		if offered then
+			pick(player, rng:NextInteger(1, #offered))
 		end
 	end)
 end
@@ -280,6 +294,22 @@ local function digTap(player: Player, at: any): (boolean, any)
 		Ranks.add(player, Config.Levels.PERFECT_XP)
 	end
 	return true, session.grade
+end
+
+-- Bag Reroll: new bags in place of the ones on offer.
+local function reroll(player: Player): (boolean, string?)
+	local session = sessions[player]
+	local profile = Data.get(player)
+	if not session or not session.bags or not profile then
+		return false, nil
+	end
+	if profile.rerolls <= 0 then
+		return false, "No rerolls left. Get more in the Robux shop."
+	end
+	profile.rerolls -= 1
+	rollBags(player, session, profile)
+	Data.push(player)
+	return true, nil
 end
 
 pick = function(player: Player, index: any): (boolean, string?)
@@ -536,6 +566,7 @@ function Search.init()
 	end
 	Router.on("pickBag", 0.2, pick)
 	Router.on("digTap", 0.3, digTap)
+	Router.on("reroll", 0.5, reroll)
 	Router.on("resolve", 0.2, resolve)
 end
 

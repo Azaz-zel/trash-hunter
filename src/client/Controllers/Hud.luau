@@ -39,6 +39,7 @@ local nameLabel: TextLabel
 local levelBadge: TextLabel
 local xpFill: Frame
 local eventChip: TextLabel
+local luckChip: TextLabel
 local levelUp: Frame
 local levelUpTitle: TextLabel
 local levelUpSub: TextLabel
@@ -308,6 +309,21 @@ local function build()
 	Ui.stroke(1, Color3.fromRGB(80, 160, 255)).Parent = eventChip
 	Ui.new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }).Parent =
 		eventChip
+	luckChip = Ui.label("", 13, {
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 28),
+		BackgroundColor3 = Color3.fromRGB(20, 60, 30),
+		BackgroundTransparency = 0.1,
+		Font = Ui.FONT,
+		TextColor3 = Color3.fromRGB(120, 240, 150),
+		Visible = false,
+		LayoutOrder = 4,
+		Parent = chips,
+	})
+	Ui.corner(8).Parent = luckChip
+	Ui.stroke(1, Color3.fromRGB(80, 200, 110)).Parent = luckChip
+	Ui.new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }).Parent =
+		luckChip
 	comboChip = Ui.new("Frame", {
 		Size = UDim2.fromOffset(120, 28),
 		BackgroundColor3 = Color3.fromRGB(60, 30, 16),
@@ -608,9 +624,10 @@ local function onBusted(payload: { count: number, value: number, by: string? })
 	local who = if payload.by == "police" then "The police" else "The guard"
 	if payload.count > 0 then
 		bustedBody.Text =
-			`{who} took {payload.count} item(s) worth {Ui.money(payload.value)}. You kept your best find.\nCash, trunk, shelf and upgrades are safe.`
+			`{who} took {payload.count} item(s) worth {Ui.money(payload.value)}. You kept your best find.\nCash, trunk, house storage and upgrades are safe.`
 	else
-		bustedBody.Text = "You lost nothing this time.\nCash, trunk, shelf and upgrades are safe."
+		bustedBody.Text =
+			"You lost nothing this time.\nCash, trunk, house storage and upgrades are safe."
 	end
 	busted.Visible = true
 	Ui.pop(busted:FindFirstChildWhichIsA("Frame") :: Frame, 0.6)
@@ -643,6 +660,12 @@ end
 
 -- Combo chip (time left to keep it going), fresh-drop count, live event.
 local function renderChips()
+	local state = Store.get()
+	local luckLeft = if state then state.luckUntil - workspace:GetServerTimeNow() else 0
+	luckChip.Visible = luckLeft > 0
+	if luckLeft > 0 then
+		luckChip.Text = `🍀 Lucky Hour {math.ceil(luckLeft / 60)}m`
+	end
 	local eventName = tostring(workspace:GetAttribute("EventName") or "")
 	eventChip.Visible = eventName ~= ""
 	eventChip.Text = `🎉 {eventName}`

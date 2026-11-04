@@ -22,7 +22,7 @@ cannot change it) and save the place.
 
 ### Server settings
 
-Set Max Players to 8 (the Hideout has 8 display shelves, one per player).
+Set Max Players to 8 (Sunset Ln has 8 house lots, one per player per server).
 
 Turn on Workspace > StreamingEnabled (scripts cannot) so phones only load the
 part of the city around them; players can also pick Low graphics in Settings.
@@ -31,8 +31,17 @@ part of the city around them; players can also pick Low graphics in Settings.
 
 Every pass and product in `Config.Robux` has `id = 0` until you create it in
 the Creator Dashboard (Monetization) and paste its id. Until then the shop
-shows "Coming soon". Robux never buys loot or odds: passes give comfort,
-looks and a sell bonus (VIP), products give cash or skip a wait.
+shows "Coming soon". Passes give comfort, looks, a sell bonus (VIP) and luck
+(Lucky Charm); products give cash, skip a wait or add luck (Lucky Hour, Bag
+Reroll).
+
+### Houses and storage
+
+Storage lives in each player's house (the old Hideout shelf moved into it on
+load). Everyone owns the Trailer; Maple Realty sells five more house types,
+and an owner of several chooses which one to live in. Players never clash
+over a house: a profile stores house *types*, and each server hands every
+player one of Sunset Ln's lots when they join and builds their type there.
 
 ### Tests
 

@@ -158,7 +158,34 @@ local function reconcile(raw: any): Profile
 			end
 		end
 	end
-	local houseLevel = math.clamp(math.floor(tonumber(data.houseLevel) or 0), 0, #Config.Houses)
+	-- Houses: everyone owns the Trailer. Saves from before house types had a
+	-- level (1-3) that maps to Starter / Family / Villa, with the ones below.
+	local houses: { [string]: boolean } = { trailer = true }
+	if typeof(data.houses) == "table" then
+		for _, h in Config.Houses do
+			if data.houses[h.id] == true then
+				houses[h.id] = true
+			end
+		end
+	end
+	local legacy = { "starter", "family", "villa" }
+	local oldLevel = math.clamp(math.floor(tonumber(data.houseLevel) or 0), 0, #legacy)
+	for i = 1, oldLevel do
+		houses[legacy[i]] = true
+	end
+	local house = if typeof(data.house) == "string" and houses[data.house]
+		then data.house
+		elseif oldLevel > 0 then legacy[oldLevel]
+		else "trailer"
+	-- Storage = old pedestals + the old Hideout shelf (the shelf is gone).
+	local maxStorage = 0
+	for _, h in Config.Houses do
+		maxStorage = math.max(maxStorage, h.storage)
+	end
+	local home = sanitizeBag(data.home, maxStorage + Config.SHELF_SLOTS)
+	for _, entry in sanitizeBag(data.shelf, Config.SHELF_SLOTS) do
+		table.insert(home, entry)
+	end
 	return {
 		version = VERSION,
 		cash = math.max(math.floor(tonumber(data.cash) or 0), 0),
@@ -168,7 +195,7 @@ local function reconcile(raw: any): Profile
 			data.backpack,
 			Config.Backpack[level].capacity + Config.Robux.POCKETS_BONUS
 		),
-		shelf = sanitizeBag(data.shelf, Config.SHELF_SLOTS),
+		shelf = {},
 		collection = collection,
 		tutorial = math.clamp(math.floor(tonumber(data.tutorial) or 0), 0, 4),
 		nextUid = math.max(math.floor(tonumber(data.nextUid) or 1), 1),
@@ -180,14 +207,17 @@ local function reconcile(raw: any): Profile
 		underglow = data.underglow == true,
 		xp = math.max(math.floor(tonumber(data.xp) or 0), 0),
 		bestCombo = math.max(math.floor(tonumber(data.bestCombo) or 0), 0),
+		luckUntil = math.max(math.floor(tonumber(data.luckUntil) or 0), 0),
+		rerolls = math.clamp(math.floor(tonumber(data.rerolls) or 0), 0, 999),
 		decor = decor,
 		settings = settings,
 		milestones = math.clamp(math.floor(tonumber(data.milestones) or 0), 0, #Config.Milestones),
 		receipts = receipts,
 		sinceEpic = math.max(math.floor(tonumber(data.sinceEpic) or 0), 0),
 		sinceLegendary = math.max(math.floor(tonumber(data.sinceLegendary) or 0), 0),
-		houseLevel = houseLevel,
-		home = sanitizeBag(data.home, Config.Houses[#Config.Houses].slots),
+		house = house,
+		houses = houses,
+		home = home,
 		likes = math.max(math.floor(tonumber(data.likes) or 0), 0),
 		stats = stats,
 		streak = math.max(math.floor(tonumber(data.streak) or 0), 0),
@@ -404,8 +434,6 @@ function Data.snapshot(profile: Profile, player: Player?): Types.State
 		capacity = Data.capacity(profile, player),
 		backpackLevel = profile.backpackLevel,
 		nextUpgrade = if next then { capacity = next.capacity, price = next.price } else nil,
-		shelf = profile.shelf,
-		shelfSlots = Config.SHELF_SLOTS,
 		collection = profile.collection,
 		tutorial = profile.tutorial,
 		tools = profile.tools,
@@ -414,8 +442,10 @@ function Data.snapshot(profile: Profile, player: Player?): Types.State
 		trunk = profile.trunk,
 		trunkCapacity = Data.trunkCapacity(profile),
 		passes = passes,
-		houseLevel = profile.houseLevel,
+		house = profile.house,
+		houses = profile.houses,
 		home = profile.home,
+		storage = Data.storageCapacity(profile),
 		likes = profile.likes,
 		stats = profile.stats,
 		streak = profile.streak,
@@ -428,7 +458,19 @@ function Data.snapshot(profile: Profile, player: Player?): Types.State
 		decor = profile.decor,
 		settings = profile.settings,
 		bestCombo = profile.bestCombo,
+		luckUntil = profile.luckUntil,
+		rerolls = profile.rerolls,
 	}
+end
+
+-- How many things the current house's storage holds.
+function Data.storageCapacity(profile: Profile): number
+	for _, h in Config.Houses do
+		if h.id == profile.house then
+			return h.storage
+		end
+	end
+	return Config.Houses[1].storage
 end
 
 -- What `base` worth of loot sells for: VIP pass and happy hour pay more.

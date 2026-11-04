@@ -13,7 +13,7 @@ export type PlayerProfile = {
 	cash: number,
 	backpackLevel: number,
 	backpack: { BagItem },
-	shelf: { BagItem },
+	shelf: { BagItem }, -- old Hideout shelf; moved into house storage on load
 	collection: { [string]: boolean },
 	tutorial: number, -- 0 search, 1 sell, 2 upgrade, 3 visit red zone, 4 done
 	nextUid: number,
@@ -25,14 +25,17 @@ export type PlayerProfile = {
 	underglow: boolean,
 	xp: number,
 	bestCombo: number,
+	luckUntil: number, -- Unix time a Lucky Hour runs until
+	rerolls: number, -- Bag Rerolls left
 	decor: { [string]: boolean }, -- owned house furniture, by Config.Decor id
 	settings: Settings,
 	milestones: number, -- collection milestones already paid out
 	sinceEpic: number, -- searches since the last Epic+ pick (pity)
 	sinceLegendary: number, -- searches since the last Legendary+ pick (pity)
 	receipts: { string }, -- recent Robux purchase ids, newest last
-	houseLevel: number, -- 0 = no house, else index into Config.Houses
-	home: { BagItem }, -- items on the house pedestals
+	house: string, -- id of the Config.Houses type you live in
+	houses: { [string]: boolean }, -- house types owned (always the Trailer)
+	home: { BagItem }, -- house storage; the best of it stands on the pedestals
 	likes: number, -- likes other players gave the house
 	stats: { [string]: number }, -- searches, rares, earned (only grow; permits read them)
 	streak: number, -- consecutive login days
@@ -69,8 +72,6 @@ export type State = {
 	capacity: number,
 	backpackLevel: number,
 	nextUpgrade: { capacity: number, price: number }?,
-	shelf: { BagItem },
-	shelfSlots: number,
 	collection: { [string]: boolean },
 	tutorial: number,
 	tools: { [string]: boolean },
@@ -79,8 +80,10 @@ export type State = {
 	trunk: { BagItem },
 	trunkCapacity: number,
 	passes: { [string]: boolean },
-	houseLevel: number,
+	house: string,
+	houses: { [string]: boolean },
 	home: { BagItem },
+	storage: number, -- capacity of the current house
 	likes: number,
 	stats: { [string]: number },
 	streak: number,
@@ -93,6 +96,8 @@ export type State = {
 	decor: { [string]: boolean },
 	settings: Settings,
 	bestCombo: number,
+	luckUntil: number,
+	rerolls: number,
 }
 
 return nil

@@ -1,7 +1,17 @@
 --!strict
--- Houses on Sunset Lane. Buying (and upgrading) happens at the Maple Realty
--- counter. Owners get a lot for the session; the house shows their best finds
--- on pedestals, and visitors can like it once per server.
+-- Houses on Sunset Lane, and each player's storage. Every player owns the
+-- free Trailer; Maple Realty sells other homes (Config.Houses), and owning
+-- several you choose which one you live in.
+--
+-- No two players ever fight over a house: what you buy is the house *type*,
+-- saved in your profile. The street's lots are handed out per server, one
+-- free lot to each player as they join (8 lots, 8 players per server), and
+-- your house type is built on whichever lot you got. Two players with the
+-- same Villa simply get two Villas side by side.
+--
+-- Storage lives in the house (it used to be the Hideout shelf): the house's
+-- storage holds Config.Houses[i].storage items; the most valuable ones stand
+-- on the pedestals for visitors, who can like the house once per server.
 
 local Players = game:GetService("Players")
 
@@ -15,13 +25,92 @@ local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local World = require(script.Parent.World)
 
--- Footprint and look per house level (Config.Houses holds price and slots).
-local SHAPE = {
-	{ w = 36, d = 30, h = 12, cols = 2 },
-	{ w = 46, d = 36, h = 14, cols = 4 },
-	{ w = 58, d = 44, h = 16, cols = 4 },
+-- Footprint and look per house type (Config.Houses holds price and sizes).
+type Style = {
+	w: number,
+	d: number,
+	h: number,
+	cols: number,
+	wall: Color3,
+	mat: Enum.Material,
+	roof: string, -- "gable" | "flat" | "thatch" | "trailer"
+	trim: Color3?,
+	neon: boolean?,
+	stilts: boolean?,
 }
+local STYLE: { [string]: Style } = {
+	trailer = {
+		w = 30,
+		d = 16,
+		h = 10,
+		cols = 2,
+		wall = Color3.fromRGB(214, 214, 204),
+		mat = Enum.Material.DiamondPlate,
+		roof = "trailer",
+		trim = Color3.fromRGB(60, 120, 160),
+	},
+	starter = {
+		w = 36,
+		d = 30,
+		h = 12,
+		cols = 2,
+		wall = Color3.fromRGB(170, 190, 200),
+		mat = Enum.Material.WoodPlanks,
+		roof = "gable",
+	},
+	bungalow = {
+		w = 40,
+		d = 30,
+		h = 11,
+		cols = 2,
+		wall = Color3.fromRGB(240, 226, 196),
+		mat = Enum.Material.WoodPlanks,
+		roof = "thatch",
+		stilts = true,
+		trim = Color3.fromRGB(40, 150, 150),
+	},
+	family = {
+		w = 46,
+		d = 36,
+		h = 14,
+		cols = 4,
+		wall = Color3.fromRGB(196, 170, 140),
+		mat = Enum.Material.Brick,
+		roof = "gable",
+		trim = Color3.fromRGB(240, 240, 236),
+	},
+	loft = {
+		w = 50,
+		d = 40,
+		h = 18,
+		cols = 4,
+		wall = Color3.fromRGB(40, 42, 52),
+		mat = Enum.Material.Concrete,
+		roof = "flat",
+		neon = true,
+	},
+	villa = {
+		w = 58,
+		d = 44,
+		h = 16,
+		cols = 4,
+		wall = Color3.fromRGB(232, 230, 224),
+		mat = Enum.Material.Plaster,
+		roof = "flat",
+		trim = Color3.fromRGB(200, 170, 110),
+	},
+}
+
+local function houseOf(profile: any): (any, Style)
+	for _, h in Config.Houses do
+		if h.id == profile.house then
+			return h, STYLE[h.id] or STYLE.starter
+		end
+	end
+	return Config.Houses[1], STYLE.trailer
+end
 local SETBACK = 12 -- lawn between sidewalk and the front wall
+local STILT_LIFT = 3 -- the beach bungalow's floor height
 local LIKE_RANGE = 18
 
 type Lot = { cf: CFrame, owner: Player?, folder: Folder }
@@ -59,9 +148,7 @@ local function forSaleSign(lot: Lot)
 	)
 end
 
-local function pedestalSpots(lot: Lot, level: number): { CFrame }
-	local shape = SHAPE[level]
-	local slots = Config.Houses[level].slots
+local function pedestalSpots(lot: Lot, shape: Style, slots: number): { CFrame }
 	local rows = math.ceil(slots / shape.cols)
 	local out = {}
 	for i = 1, slots do
@@ -69,7 +156,7 @@ local function pedestalSpots(lot: Lot, level: number): { CFrame }
 		local row = math.floor((i - 1) / shape.cols)
 		local x = (col - (shape.cols - 1) / 2) * ((shape.w - 14) / math.max(shape.cols - 1, 1))
 		local z = SETBACK + 9 + row * ((shape.d - 16) / math.max(rows - 1, 1))
-		table.insert(out, lot.cf * CFrame.new(x, 1.2, z))
+		table.insert(out, lot.cf * CFrame.new(x, 1.2 + (if shape.stilts then STILT_LIFT else 0), z))
 	end
 	return out
 end
@@ -258,22 +345,20 @@ local function render(lot: Lot)
 	lot.folder:ClearAllChildren()
 	local owner = lot.owner
 	local profile = owner and Data.get(owner)
-	if not owner or not profile or profile.houseLevel < 1 then
+	if not owner or not profile or profile.house == "" then
 		forSaleSign(lot)
 		return
 	end
 	local k = World.kit
 	local C, M = k.C, k.M
-	local level = profile.houseLevel
-	local shape = SHAPE[level]
+	local spec, shape = houseOf(profile)
 	local w, d, h = shape.w, shape.d, shape.h
-	local base = lot.cf * CFrame.new(0, 0, SETBACK + d / 2)
-	local villa = level >= 3
-	local wallColor = if villa
-		then Color3.fromRGB(232, 230, 224)
-		elseif level == 2 then Color3.fromRGB(196, 170, 140)
-		else Color3.fromRGB(170, 190, 200)
-	local wallMat = if villa then M.Plaster else M.WoodPlanks
+	-- Beach bungalows stand on stilts: everything is lifted.
+	local lift = if shape.stilts then STILT_LIFT else 0
+	local base = lot.cf * CFrame.new(0, lift, SETBACK + d / 2)
+	local villa = shape.roof == "flat"
+	local wallColor = shape.wall
+	local wallMat = shape.mat
 	local model = Instance.new("Model")
 	model.Name = "House"
 
@@ -362,7 +447,7 @@ local function render(lot: Lot)
 	)
 
 	local top = base * CFrame.new(0, 1.2 + h, 0)
-	if villa then
+	if shape.roof == "flat" then
 		k.box(model, "Roof", top, Vector3.new(w + 2, 1, d + 2), C.concreteDark, M.Concrete)
 		for _, sx in { -1, 1 } do
 			k.box(
@@ -370,19 +455,57 @@ local function render(lot: Lot)
 				"Parapet",
 				top * CFrame.new(sx * (w / 2 + 0.5), 1, 0),
 				Vector3.new(1, 1.6, d + 2),
-				wallColor,
+				shape.trim or wallColor,
 				M.Plaster
 			)
 		end
-	else
-		k.gableRoof(
+		if shape.neon then
+			-- Neon Loft: glowing trim along the roofline and a rooftop sign.
+			for _, sz in { -1, 1 } do
+				local strip = k.box(
+					model,
+					"NeonTrim",
+					top * CFrame.new(0, 0.4, sz * (d / 2 + 1.1)),
+					Vector3.new(w + 2, 0.3, 0.3),
+					Color3.fromRGB(255, 60, 200),
+					M.Neon
+				)
+				strip.CanCollide = false
+			end
+			local glow = k.box(
+				model,
+				"NeonSide",
+				base * CFrame.new(-w / 2 - 0.3, 1.2, 0),
+				Vector3.new(0.3, h, 0.4),
+				Color3.fromRGB(0, 230, 255),
+				M.Neon
+			)
+			glow.CanCollide = false
+		end
+	elseif shape.roof == "trailer" then
+		-- Rounded metal roof and a coloured band round the trailer.
+		k.part(model, {
+			Name = "Roof",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(w + 1, 6, d + 1),
+			CFrame = top * CFrame.new(0, -1, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = wallColor,
+			Material = M.DiamondPlate,
+		})
+		k.box(
 			model,
-			top,
-			w + 2,
-			d + 2,
-			if level == 2 then 9 else 7,
-			Color3.fromRGB(70, 60, 56)
+			"Band",
+			base * CFrame.new(0, 4, -d / 2 - 0.15),
+			Vector3.new(w, 1.4, 0.3),
+			shape.trim or C.white,
+			M.SmoothPlastic
 		)
+	elseif shape.roof == "thatch" then
+		k.gableRoof(model, top, w + 6, d + 6, 8, Color3.fromRGB(170, 140, 80))
+	else
+		k.gableRoof(model, top, w + 2, d + 2, if w > 40 then 9 else 7, Color3.fromRGB(70, 60, 56))
+	end
+	if villa then
 		k.box(
 			model,
 			"Ceiling",
@@ -390,6 +513,38 @@ local function render(lot: Lot)
 			Vector3.new(w, 0.2, d),
 			Color3.fromRGB(236, 232, 224),
 			M.SmoothPlastic
+		)
+	end
+	if shape.stilts then
+		for _, sx in { -1, 1 } do
+			for _, sz in { -1, 1 } do
+				k.box(
+					model,
+					"Stilt",
+					lot.cf * CFrame.new(sx * (w / 2 - 1), 0, SETBACK + d / 2 + sz * (d / 2 - 1)),
+					Vector3.new(1, lift, 1),
+					Color3.fromRGB(120, 90, 60),
+					M.Wood
+				)
+			end
+		end
+		k.box(
+			model,
+			"Steps",
+			lot.cf * CFrame.new(0, 0, SETBACK - 1.5),
+			Vector3.new(8, lift + 1.2, 3),
+			Color3.fromRGB(150, 110, 74),
+			M.WoodPlanks
+		)
+	end
+	if shape.trim and shape.roof == "gable" then
+		k.box(
+			model,
+			"Shutter",
+			base * CFrame.new(-w / 4, 4, -d / 2 - 0.3),
+			Vector3.new(1, 6, 0.3),
+			shape.trim,
+			M.WoodPlanks
 		)
 	end
 	local lamp = k.box(
@@ -408,8 +563,30 @@ local function render(lot: Lot)
 
 	furnish(model, base, w, d, h, profile.decor)
 
-	-- Pedestals with the owner's finds.
-	for i, spot in pedestalSpots(lot, level) do
+	-- Storage chest: open it to move things between bag and house storage.
+	local chest = k.box(
+		model,
+		"StorageChest",
+		base * CFrame.new(w / 2 - 4, 1.2, d / 2 - 3),
+		Vector3.new(5, 3, 3),
+		Color3.fromRGB(110, 75, 45),
+		M.Wood
+	)
+	local chestPrompt = Instance.new("ProximityPrompt")
+	chestPrompt.Name = "StoragePrompt"
+	chestPrompt.ActionText = "Open storage"
+	chestPrompt.ObjectText = `{#profile.home}/{spec.storage} stored`
+	chestPrompt.HoldDuration = 0
+	chestPrompt.MaxActivationDistance = 10
+	chestPrompt.RequiresLineOfSight = false
+	chestPrompt.Parent = chest
+
+	-- Pedestals show the most valuable things in storage.
+	local showcase = table.clone(profile.home)
+	table.sort(showcase, function(a, b)
+		return Items.value(a.id, a.mutation) > Items.value(b.id, b.mutation)
+	end)
+	for i, spot in pedestalSpots(lot, shape, spec.pedestals) do
 		k.box(
 			model,
 			"Pedestal",
@@ -418,7 +595,7 @@ local function render(lot: Lot)
 			Color3.fromRGB(236, 234, 230),
 			M.Marble
 		)
-		local entry = profile.home[i]
+		local entry = showcase[i]
 		if entry then
 			showItem(model, spot, entry)
 		end
@@ -444,7 +621,7 @@ local function render(lot: Lot)
 	label.TextScaled = true
 	label.TextColor3 = Color3.fromRGB(246, 247, 249)
 	label.TextStrokeTransparency = 0.3
-	label.Text = `{owner.DisplayName}'s {Config.Houses[level].name}\n♥ {profile.likes}`
+	label.Text = `{owner.DisplayName}'s {spec.name}\n♥ {profile.likes}`
 	label.Parent = plate
 	plate.Parent = box
 	local prompt = Instance.new("ProximityPrompt")
@@ -461,7 +638,7 @@ end
 
 local function assign(player: Player)
 	local profile = Data.get(player)
-	if lotOf[player] or not profile or profile.houseLevel < 1 then
+	if lotOf[player] or not profile or profile.house == "" then
 		return
 	end
 	for _, lot in lots do
@@ -469,6 +646,8 @@ local function assign(player: Player)
 			lot.owner = player
 			lotOf[player] = lot
 			render(lot)
+			-- The map's "My house" button routes here.
+			player:SetAttribute("HomePos", (lot.cf * CFrame.new(0, 0, SETBACK)).Position)
 			return
 		end
 	end
@@ -486,41 +665,54 @@ local function release(player: Player)
 		render(lot)
 	end
 	player:SetAttribute("InOwnHouse", nil)
+	player:SetAttribute("HomePos", nil)
 end
 
-local function buyHouse(player: Player): (boolean, string?)
+-- Buys a house type, or moves into one you own (Maple Realty counter).
+local function buyHouse(player: Player, id: any): (boolean, string?)
 	local profile = Data.get(player)
-	if not profile then
+	local spec = nil
+	for _, h in Config.Houses do
+		if h.id == id then
+			spec = h
+		end
+	end
+	if not profile or not spec then
 		return false, nil
 	end
 	local ok, message = Guard.atStore(player, "house")
 	if not ok then
 		return false, message
 	end
-	local nextHouse = Config.Houses[profile.houseLevel + 1]
-	if not nextHouse then
-		return false, "You already own the best house."
+	if profile.house == spec.id then
+		return false, "You already live there."
 	end
-	if profile.cash < nextHouse.price then
-		return false, `You need ${nextHouse.price - profile.cash} more.`
+	if not profile.houses[spec.id] then
+		if profile.cash < spec.price then
+			return false, `You need ${spec.price - profile.cash} more.`
+		end
+		profile.cash -= spec.price
+		profile.houses[spec.id] = true
+		Router.send(player, "bought", { name = spec.name })
 	end
-	profile.cash -= nextHouse.price
-	profile.houseLevel += 1
+	if #profile.home > spec.storage then
+		Data.push(player)
+		return false,
+			`Your storage holds {#profile.home} things; the {spec.name} fits {spec.storage}. Take some out first.`
+	end
+	profile.house = spec.id
 	assign(player)
 	local lot = lotOf[player]
 	if lot then
 		render(lot)
-	end
-	Data.push(player)
-	Router.send(player, "bought", { name = nextHouse.name })
-	if not lot then
 		Router.send(
 			player,
-			"toast",
-			{ text = "Sunset Lane is full on this server. Your house shows up when a lot frees." }
+			"routeTo",
+			{ pos = (lot.cf * CFrame.new(0, 0, SETBACK)).Position, name = spec.name }
 		)
 	end
-	return true, nil
+	Data.push(player)
+	return true, if lot then `Moved into the {spec.name}. GPS set.` else nil
 end
 
 local function inOwnHouse(player: Player): boolean
@@ -529,14 +721,15 @@ end
 
 local function homeDisplay(player: Player, uid: any): (boolean, string?)
 	local profile = Data.get(player)
-	if not profile or profile.houseLevel < 1 then
+	if not profile or profile.house == "" then
 		return false, nil
 	end
 	if not inOwnHouse(player) then
-		return false, "Stand inside your house to set up the pedestals."
+		return false, "Stand inside your house to use its storage."
 	end
-	if #profile.home >= Config.Houses[profile.houseLevel].slots then
-		return false, "Every pedestal is taken. Upgrade at Maple Realty for more."
+	local spec = houseOf(profile)
+	if #profile.home >= spec.storage then
+		return false, "Storage is full. Bigger houses at Maple Realty hold more."
 	end
 	local entry = Data.removeItem(profile.backpack, uid)
 	if not entry then
@@ -557,7 +750,7 @@ local function homeTake(player: Player, uid: any): (boolean, string?)
 		return false, nil
 	end
 	if not inOwnHouse(player) then
-		return false, "Stand inside your house to take things back."
+		return false, "Stand inside your house to use its storage."
 	end
 	if #profile.backpack >= Data.capacity(profile, player) then
 		return false, "Backpack full."
@@ -652,8 +845,8 @@ function Housing.start()
 				local profile = Data.get(player)
 				local root = Guard.root(player)
 				local inside = false
-				if profile and root and profile.houseLevel >= 1 then
-					local shape = SHAPE[profile.houseLevel]
+				if profile and root and profile.house ~= "" then
+					local _, shape = houseOf(profile)
 					local rel = (lot.cf * CFrame.new(0, 0, SETBACK + shape.d / 2)):PointToObjectSpace(
 						root.Position
 					)

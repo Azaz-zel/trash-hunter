@@ -1,21 +1,15 @@
 --!strict
--- Hideout actions: sell, put on / take off the display shelf, buy the
--- backpack upgrade. All of them require standing inside the Hideout.
-
-local Players = game:GetService("Players")
+-- Selling at the Hideout and the backpack upgrade at Hank's Hardware.
+-- (Storage and the display pedestals live in your house: Housing.luau.)
 
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Config = require(Shared.Config)
 local Items = require(Shared.Items)
-local ItemModels = require(Shared.ItemModels)
 local Router = require(script.Parent.Parent.Router)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local Avatar = require(script.Parent.Avatar)
 local Progress = require(script.Parent.Progress)
-
-local stations: { Model } = {}
-local assigned: { [Player]: Model } = {}
 
 local Economy = {}
 
@@ -27,73 +21,6 @@ local function atHideout(player: Player): (boolean, string?)
 		return false, "You can only do that in the Hideout."
 	end
 	return true, nil
-end
-
-local function renderShelf(player: Player)
-	local station = assigned[player]
-	local profile = Data.get(player)
-	if not station then
-		return
-	end
-	local board = station:FindFirstChild("Board") :: BasePart
-	for _, child in board:GetChildren() do
-		if child.Name == "Display" then
-			child:Destroy()
-		end
-	end
-	local back = station:FindFirstChild("Back") :: BasePart
-	local tag = back:FindFirstChild("OwnerTag") :: BillboardGui
-	tag.Enabled = true;
-	(tag:FindFirstChild("Label") :: TextLabel).Text = player.DisplayName .. "'s Shelf"
-	if not profile then
-		return
-	end
-	for i, entry in profile.shelf do
-		local slot = board:FindFirstChild("Slot" .. i) :: Attachment?
-		local item = Items.ById[entry.id]
-		if not slot or not item then
-			continue
-		end
-		local rarity = Items.Rarities[item.rarity]
-		-- The real item model, standing on the board and facing the aisle.
-		local top = board.Position.Y + board.Size.Y / 2
-		local facing = board.CFrame - board.CFrame.Position
-		local display = ItemModels.trophy(
-			entry.id,
-			entry.mutation,
-			2.1,
-			CFrame.new(slot.WorldPosition.X, top, slot.WorldPosition.Z)
-				* facing
-				* CFrame.Angles(0, math.rad(160), 0)
-		)
-		display.Name = "Display"
-		local tagGui = Instance.new("BillboardGui")
-		tagGui.Size = UDim2.fromOffset(160, 44)
-		tagGui.StudsOffset = Vector3.new(0, 2.6, 0) -- clears the shelf back board
-		tagGui.MaxDistance = 40
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.fromScale(1, 1)
-		label.BackgroundTransparency = 1
-		label.Font = Enum.Font.GothamBold
-		label.TextScaled = true
-		label.TextColor3 = rarity.color
-		label.TextStrokeTransparency = 0.2
-		label.Text = Items.label(entry.id, entry.mutation)
-		label.Parent = tagGui
-		tagGui.Parent = display.PrimaryPart
-		display.Parent = board
-	end
-end
-
-local function clearShelf(station: Model)
-	local board = station:FindFirstChild("Board") :: BasePart
-	for _, child in board:GetChildren() do
-		if child.Name == "Display" then
-			child:Destroy()
-		end
-	end
-	local back = station:FindFirstChild("Back") :: BasePart;
-	(back:FindFirstChild("OwnerTag") :: BillboardGui).Enabled = false
 end
 
 local function sell(player: Player, payload: any): (boolean, string?)
@@ -132,50 +59,6 @@ local function sell(player: Player, payload: any): (boolean, string?)
 	return true, nil
 end
 
-local function display(player: Player, uid: any): (boolean, string?)
-	local profile = Data.get(player)
-	if not profile then
-		return false, nil
-	end
-	local ok, message = atHideout(player)
-	if not ok then
-		return false, message
-	end
-	if #profile.shelf >= Config.SHELF_SLOTS then
-		return false, "Your shelf is full."
-	end
-	local entry = Data.removeItem(profile.backpack, uid)
-	if not entry then
-		return false, "That item is gone."
-	end
-	table.insert(profile.shelf, entry)
-	renderShelf(player)
-	Data.push(player)
-	return true, nil
-end
-
-local function undisplay(player: Player, uid: any): (boolean, string?)
-	local profile = Data.get(player)
-	if not profile then
-		return false, nil
-	end
-	local ok, message = atHideout(player)
-	if not ok then
-		return false, message
-	end
-	if #profile.backpack >= Data.capacity(profile, player) then
-		return false, "Backpack full."
-	end
-	local entry = Data.removeItem(profile.shelf, uid)
-	if not entry then
-		return false, "That item is gone."
-	end
-	table.insert(profile.backpack, entry)
-	renderShelf(player)
-	Data.push(player)
-	return true, nil
-end
-
 local function buyUpgrade(player: Player): (boolean, string?)
 	local profile = Data.get(player)
 	if not profile then
@@ -203,47 +86,7 @@ end
 
 function Economy.init()
 	Router.on("sell", 0.15, sell)
-	Router.on("display", 0.2, display)
-	Router.on("undisplay", 0.2, undisplay)
 	Router.on("buyUpgrade", 0.5, buyUpgrade)
-
-	-- Registered in init so no player can finish loading before this exists.
-	Data.onLoaded(function(player)
-		if #stations == 0 then
-			local folder =
-				workspace:WaitForChild("Town"):WaitForChild("Hideout"):WaitForChild("Shelves")
-			for i = 1, #folder:GetChildren() do
-				local station = folder:FindFirstChild("Shelf" .. i)
-				if station and station:IsA("Model") then
-					table.insert(stations, station)
-				end
-			end
-		end
-		for _, station in stations do
-			local taken = false
-			for _, owned in assigned do
-				if owned == station then
-					taken = true
-					break
-				end
-			end
-			if not taken then
-				assigned[player] = station
-				break
-			end
-		end
-		renderShelf(player)
-	end)
-end
-
-function Economy.start()
-	Players.PlayerRemoving:Connect(function(player)
-		local station = assigned[player]
-		assigned[player] = nil
-		if station then
-			clearShelf(station)
-		end
-	end)
 end
 
 return Economy
