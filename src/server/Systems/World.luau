@@ -17,6 +17,7 @@ local Districts = require(ReplicatedStorage.Shared.Districts)
 local MapData = require(ReplicatedStorage.Shared.MapData)
 local CityDistricts = require(script.Parent.Parent.CityDistricts)
 local Infill = require(script.Parent.Parent.Infill)
+local Npc = require(script.Parent.Parent.Npc)
 
 local W = Config.World
 local FONT = Enum.Font.GothamBold
@@ -3015,7 +3016,53 @@ local function updateHotDistrict()
 	workspace:SetAttribute("HotDistrict", candidates[day % #candidates + 1])
 end
 
+-- A clerk stands behind every sell counter and store counter (the side
+-- away from the customer, which is local +Z of the counter).
+local function spawnClerks(town: Instance)
+	local folder = Instance.new("Folder")
+	folder.Name = "Clerks"
+	folder.Parent = town
+	local clerkRng = Random.new(11)
+	local counters = {}
+	for _, d in town:GetDescendants() do
+		if d:IsA("BasePart") and (d.Name == "SellCounter" or d:GetAttribute("Store")) then
+			table.insert(counters, d)
+		end
+	end
+	for _, counter in counters do
+		local isSell = counter.Name == "SellCounter"
+		local behind = counter.CFrame * CFrame.new(0, 0, counter.Size.Z / 2 + 2)
+		local stand = Vector3.new(behind.X, counter.Position.Y - counter.Size.Y / 2 + 3, behind.Z)
+		local npc = Npc.new(
+			"civilian",
+			if isSell then "PawnClerk" else "StoreClerk",
+			CFrame.lookAt(stand, Vector3.new(counter.Position.X, stand.Y, counter.Position.Z)),
+			folder,
+			clerkRng
+		)
+		if npc then
+			npc.root.Anchored = true
+			local tag = Instance.new("BillboardGui")
+			tag.Size = UDim2.fromOffset(140, 26)
+			tag.StudsOffset = Vector3.new(0, 2.6, 0)
+			tag.MaxDistance = 40
+			local label = Instance.new("TextLabel")
+			label.Size = UDim2.fromScale(1, 1)
+			label.BackgroundTransparency = 1
+			label.Font = Enum.Font.BuilderSansBold
+			label.TextScaled = true
+			label.TextColor3 = Color3.fromRGB(240, 196, 70)
+			label.TextStrokeTransparency = 0.3
+			label.Text = if isSell then "Pawn Clerk" else "Clerk"
+			label.Parent = tag
+			tag.Parent = npc.head
+		end
+		task.wait()
+	end
+end
+
 function World.start()
+	task.spawn(spawnClerks, workspace:WaitForChild("Town"))
 	task.spawn(loadVehicles, workspace:WaitForChild("Town"), stalls)
 	updateHotDistrict()
 	task.spawn(function()

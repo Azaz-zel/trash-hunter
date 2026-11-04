@@ -1,5 +1,5 @@
 --!strict
--- Client-only life: traffic on Main St, Maple Ave and Industrial Rd, a police
+-- Client-only life: a police
 -- cruiser patrolling past the Meridian yard, light bars that flash when the
 -- yard alarm is up, day/night ambience and chase music. Cars are clones of
 -- server-prepared templates moved with one tween on an anchored root.
@@ -16,19 +16,8 @@ local player = Players.LocalPlayer
 local rng = Random.new()
 
 local ROAD_TOP = 0.2
-local CAR_SPEED = 30
 local CRUISER_SPEED = 22
 local ROAD_END = 1230
-
--- Right-hand traffic: +X lanes on the south half of each street.
-local LANES = {
-	{ z = -8, dir = 1 },
-	{ z = 8, dir = -1 },
-	{ z = -248, dir = 1 },
-	{ z = -232, dir = -1 },
-	{ z = 292, dir = 1 },
-	{ z = 708, dir = -1 },
-}
 
 local Ambience = {}
 
@@ -171,21 +160,7 @@ function Ambience.start()
 		if not templates then
 			return
 		end
-		local cars = {}
-		for _, t in templates:GetChildren() do
-			if t:IsA("Model") and t.Name ~= "PoliceCar" then
-				table.insert(cars, t)
-			end
-		end
-		if #cars > 0 then
-			for i, lane in LANES do
-				for k = 0, 1 do
-					local car = cars[rng:NextInteger(1, #cars)]:Clone()
-					car.Parent = folder
-					task.delay(i * 2 + k * 9, drive, car, lane, CAR_SPEED + rng:NextNumber(-4, 4))
-				end
-			end
-		end
+		-- Civilian traffic lives in Traffic.luau; only the yard cruiser runs here.
 		local police = templates:FindFirstChild("PoliceCar")
 		if police and police:IsA("Model") then
 			local cruiser = police:Clone()

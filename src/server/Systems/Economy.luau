@@ -7,6 +7,7 @@ local Players = game:GetService("Players")
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Config = require(Shared.Config)
 local Items = require(Shared.Items)
+local ItemModels = require(Shared.ItemModels)
 local Router = require(script.Parent.Parent.Router)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
@@ -54,22 +55,21 @@ local function renderShelf(player: Player)
 			continue
 		end
 		local rarity = Items.Rarities[item.rarity]
-		local display = Instance.new("Part")
+		-- The real item model, standing on the board and facing the aisle.
+		local top = board.Position.Y + board.Size.Y / 2
+		local facing = board.CFrame - board.CFrame.Position
+		local display = ItemModels.trophy(
+			entry.id,
+			entry.mutation,
+			2.1,
+			CFrame.new(slot.WorldPosition.X, top, slot.WorldPosition.Z)
+				* facing
+				* CFrame.Angles(0, math.rad(160), 0)
+		)
 		display.Name = "Display"
-		display.Anchored = true
-		display.CanCollide = false
-		display.Size = Vector3.new(1.4, 1.4, 1.4)
-		display.Material = if entry.mutation == "golden"
-			then Enum.Material.Foil
-			else Enum.Material.Neon
-		display.Color = if entry.mutation == "golden"
-			then Color3.fromRGB(255, 216, 0)
-			else rarity.color
-		display.CFrame = CFrame.new(slot.WorldPosition)
-			* CFrame.Angles(0, math.rad(45), math.rad(20))
 		local tagGui = Instance.new("BillboardGui")
 		tagGui.Size = UDim2.fromOffset(160, 44)
-		tagGui.StudsOffset = Vector3.new(0, 3.4, 0) -- clears the shelf back board
+		tagGui.StudsOffset = Vector3.new(0, 2.6, 0) -- clears the shelf back board
 		tagGui.MaxDistance = 40
 		local label = Instance.new("TextLabel")
 		label.Size = UDim2.fromScale(1, 1)
@@ -80,7 +80,7 @@ local function renderShelf(player: Player)
 		label.TextStrokeTransparency = 0.2
 		label.Text = Items.label(entry.id, entry.mutation)
 		label.Parent = tagGui
-		tagGui.Parent = display
+		tagGui.Parent = display.PrimaryPart
 		display.Parent = board
 	end
 end

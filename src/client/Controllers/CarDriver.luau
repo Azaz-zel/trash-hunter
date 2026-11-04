@@ -109,7 +109,8 @@ local function drive(seat: VehicleSeat)
 		end
 		local throttle, steer = readInput()
 		local velocity = Chassis.GetAverageVelocity()
-		Chassis.UpdateSteering(steer, velocity)
+		-- The kit chassis steers opposite to SteerFloat's sign (D = +1 turned left).
+		Chassis.UpdateSteering(-steer, velocity)
 		Chassis.UpdateThrottle(velocity, throttle)
 		if throttle == 0 and math.abs(velocity) < 2 then
 			Chassis.EnableHandbrake()

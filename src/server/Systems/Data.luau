@@ -442,6 +442,17 @@ function Data.start()
 			return profile ~= nil
 		end
 		grant.Parent = game:GetService("ServerStorage")
+		local give = Instance.new("BindableFunction")
+		give.Name = "StudioGiveItem"
+		give.OnInvoke = function(player: Player, itemId: string, mutation: string?)
+			local profile = profiles[player]
+			if profile and Items.ById[itemId] then
+				Data.addItem(profile, itemId, mutation)
+				Data.push(player)
+			end
+			return profile ~= nil
+		end
+		give.Parent = game:GetService("ServerStorage")
 	end
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	for _, player in Players:GetPlayers() do

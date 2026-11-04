@@ -982,6 +982,19 @@ function ItemModels.build(itemId: string, mutation: string?): Model
 	return model
 end
 
+-- A copy for world displays (shelves, pedestals): scaled to fit a `fit`-stud
+-- cube and set down with its bottom on `base` (turned by `base`'s rotation).
+function ItemModels.trophy(itemId: string, mutation: string?, fit: number, base: CFrame): Model
+	local model = ItemModels.build(itemId, mutation)
+	local _, size = model:GetBoundingBox()
+	model:ScaleTo(math.min(1.5, fit / math.max(size.X, size.Y, size.Z)))
+	local cf, scaled = model:GetBoundingBox()
+	local lift = model:GetPivot().Position.Y - (cf.Position.Y - scaled.Y / 2)
+	model:PivotTo(base * CFrame.new(0, lift, 0))
+	model.Name = "Trophy"
+	return model
+end
+
 -- Puts a slowly turning item into a ViewportFrame. `silhouette` hides what it is.
 function ItemModels.show(
 	viewport: ViewportFrame,

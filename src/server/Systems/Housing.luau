@@ -80,13 +80,13 @@ local function showItem(parent: Instance, spot: CFrame, entry: Types.BagItem)
 	if not item then
 		return
 	end
-	local model = ItemModels.build(entry.id, entry.mutation)
-	local _, size = model:GetBoundingBox()
-	local scale = math.min(1, 3 / math.max(size.X, size.Y, size.Z))
-	model:ScaleTo(scale)
+	local model = ItemModels.trophy(
+		entry.id,
+		entry.mutation,
+		3,
+		spot * CFrame.new(0, 3.4, 0) * CFrame.Angles(0, math.rad(30), 0)
+	)
 	local _, scaled = model:GetBoundingBox()
-	model:PivotTo(spot * CFrame.new(0, 3.4 + scaled.Y / 2, 0) * CFrame.Angles(0, math.rad(30), 0))
-	model.Name = "Trophy"
 	model.Parent = parent
 	local tag = Instance.new("BillboardGui")
 	tag.Size = UDim2.fromOffset(150, 36)
