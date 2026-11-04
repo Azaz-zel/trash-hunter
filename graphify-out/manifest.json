@@ -1,0 +1,326 @@
+{
+  ".codex/hooks.json": {
+    "mtime": 1793772480.4516964,
+    "seen": 1793808466.0651343,
+    "ast_hash": "859a8b2ad59df5577aa3243ae7658d6d",
+    "semantic_hash": "859a8b2ad59df5577aa3243ae7658d6d"
+  },
+  "default.project.json": {
+    "mtime": 1793675031.921983,
+    "seen": 1793808466.0651343,
+    "ast_hash": "e7f49bfe2ff024deb3313c80bfecc422",
+    "semantic_hash": "e7f49bfe2ff024deb3313c80bfecc422"
+  },
+  "src/client/Controllers/Ambience.luau": {
+    "mtime": 1793769441.216153,
+    "seen": 1793808466.0651343,
+    "ast_hash": "6874a87d2b9b825c93ad77b3892c244e",
+    "semantic_hash": "6874a87d2b9b825c93ad77b3892c244e"
+  },
+  "src/client/Controllers/BarterUi.luau": {
+    "mtime": 1793746773.7563386,
+    "seen": 1793808466.0651343,
+    "ast_hash": "7a0a4782813b3b34ac8d119d66d2df57",
+    "semantic_hash": "7a0a4782813b3b34ac8d119d66d2df57"
+  },
+  "src/client/Controllers/CarDriver.luau": {
+    "mtime": 1793764269.9716227,
+    "seen": 1793808466.0651343,
+    "ast_hash": "68baf6d36c0fbc7415ca1e694abea8ef",
+    "semantic_hash": "68baf6d36c0fbc7415ca1e694abea8ef"
+  },
+  "src/client/Controllers/Guide.luau": {
+    "mtime": 1793769583.6023443,
+    "seen": 1793808466.0651343,
+    "ast_hash": "3a68b4d73d562ce4ec3ffe955022820c",
+    "semantic_hash": "3a68b4d73d562ce4ec3ffe955022820c"
+  },
+  "src/client/Controllers/Hud.luau": {
+    "mtime": 1793771081.5524073,
+    "seen": 1793808466.0651343,
+    "ast_hash": "f4e83cb3d2d47d217ec19ccd0311c62f",
+    "semantic_hash": "f4e83cb3d2d47d217ec19ccd0311c62f"
+  },
+  "src/client/Controllers/MapUi.luau": {
+    "mtime": 1793805772.3913133,
+    "seen": 1793808466.0651343,
+    "ast_hash": "fbf83e6627036a860e9e6901618209ea",
+    "semantic_hash": "fbf83e6627036a860e9e6901618209ea"
+  },
+  "src/client/Controllers/Panels.luau": {
+    "mtime": 1793770568.5409584,
+    "seen": 1793808466.0651343,
+    "ast_hash": "e6526db5520356447daa630d11b09bba",
+    "semantic_hash": "e6526db5520356447daa630d11b09bba"
+  },
+  "src/client/Controllers/QuestUi.luau": {
+    "mtime": 1793805131.886398,
+    "seen": 1793808466.0651343,
+    "ast_hash": "8ecea708732db1b3cdbfaea41b8d09c4",
+    "semantic_hash": "8ecea708732db1b3cdbfaea41b8d09c4"
+  },
+  "src/client/Controllers/SearchUi.luau": {
+    "mtime": 1793805919.0526695,
+    "seen": 1793808466.0651343,
+    "ast_hash": "8fa1407a637865cea9ae9dca99fdbbe8",
+    "semantic_hash": "8fa1407a637865cea9ae9dca99fdbbe8"
+  },
+  "src/client/Controllers/ShopUi.luau": {
+    "mtime": 1793770616.1430788,
+    "seen": 1793808466.0651343,
+    "ast_hash": "900cea26c27067d33e3ef90ea585ef68",
+    "semantic_hash": "900cea26c27067d33e3ef90ea585ef68"
+  },
+  "src/client/Controllers/Traffic.luau": {
+    "mtime": 1793806764.146761,
+    "seen": 1793808466.0651343,
+    "ast_hash": "d1f1246a36c66009200c02a1e1c079ae",
+    "semantic_hash": "d1f1246a36c66009200c02a1e1c079ae"
+  },
+  "src/client/Store.luau": {
+    "mtime": 1793677047.6671937,
+    "seen": 1793808466.0651343,
+    "ast_hash": "eeb77ce42c7b517dc9fa1ee9b5bb5e54",
+    "semantic_hash": "eeb77ce42c7b517dc9fa1ee9b5bb5e54"
+  },
+  "src/client/Ui.luau": {
+    "mtime": 1793696670.2376695,
+    "seen": 1793808466.0651343,
+    "ast_hash": "ffe6a46929dcc463155f5ac4846ba651",
+    "semantic_hash": "ffe6a46929dcc463155f5ac4846ba651"
+  },
+  "src/client/init.client.luau": {
+    "mtime": 1793675045.8475351,
+    "seen": 1793808466.0651343,
+    "ast_hash": "ce76842002e00605f0188e128c3c4c95",
+    "semantic_hash": "ce76842002e00605f0188e128c3c4c95"
+  },
+  "src/server/CityDistricts.luau": {
+    "mtime": 1793789682.7273715,
+    "seen": 1793808466.0651343,
+    "ast_hash": "4a6a7dddc9ec2409f99f796fc31c7d11",
+    "semantic_hash": "4a6a7dddc9ec2409f99f796fc31c7d11"
+  },
+  "src/server/Infill.luau": {
+    "mtime": 1793789842.3536801,
+    "seen": 1793808466.0651343,
+    "ast_hash": "01f2816b39002c8b2d6afdf6180db35f",
+    "semantic_hash": "01f2816b39002c8b2d6afdf6180db35f"
+  },
+  "src/server/Npc.luau": {
+    "mtime": 1793696670.266772,
+    "seen": 1793808466.0651343,
+    "ast_hash": "e5b8c3bd547671a283810ecb2844cb6a",
+    "semantic_hash": "e5b8c3bd547671a283810ecb2844cb6a"
+  },
+  "src/server/Roads.luau": {
+    "mtime": 1793805469.224667,
+    "seen": 1793808466.0651343,
+    "ast_hash": "ab72eb5f7a14bf0659d0ed3adbe1ab1e",
+    "semantic_hash": "ab72eb5f7a14bf0659d0ed3adbe1ab1e"
+  },
+  "src/server/Router.luau": {
+    "mtime": 1793710474.1730895,
+    "seen": 1793808466.0651343,
+    "ast_hash": "655dde9a2f468690fe3893b062330e1b",
+    "semantic_hash": "655dde9a2f468690fe3893b062330e1b"
+  },
+  "src/server/Systems/Avatar.luau": {
+    "mtime": 1793710820.3244207,
+    "seen": 1793808466.0651343,
+    "ast_hash": "950740961bc61c8cc239698f10f8664d",
+    "semantic_hash": "950740961bc61c8cc239698f10f8664d"
+  },
+  "src/server/Systems/Barter.luau": {
+    "mtime": 1793746380.9881003,
+    "seen": 1793808466.0651343,
+    "ast_hash": "61dff5f4c3360ff69325d180135bd3c2",
+    "semantic_hash": "61dff5f4c3360ff69325d180135bd3c2"
+  },
+  "src/server/Systems/Data.luau": {
+    "mtime": 1793790275.2789514,
+    "seen": 1793808466.0651343,
+    "ast_hash": "94655cd82d454552db51ac86817911c6",
+    "semantic_hash": "94655cd82d454552db51ac86817911c6"
+  },
+  "src/server/Systems/Economy.luau": {
+    "mtime": 1793764400.833179,
+    "seen": 1793808466.0651343,
+    "ast_hash": "a5d5e8fd088349ea0d8d7b2a5edc98f8",
+    "semantic_hash": "a5d5e8fd088349ea0d8d7b2a5edc98f8"
+  },
+  "src/server/Systems/Guard.luau": {
+    "mtime": 1793731623.04029,
+    "seen": 1793808466.0651343,
+    "ast_hash": "00d95035ab8608656b2c6d8677b566f1",
+    "semantic_hash": "00d95035ab8608656b2c6d8677b566f1"
+  },
+  "src/server/Systems/Housing.luau": {
+    "mtime": 1793768965.0475876,
+    "seen": 1793808466.0651343,
+    "ast_hash": "cb78d931a2c7e33575e62d637de64ca9",
+    "semantic_hash": "cb78d931a2c7e33575e62d637de64ca9"
+  },
+  "src/server/Systems/Pedestrians.luau": {
+    "mtime": 1793805604.0643802,
+    "seen": 1793808466.0651343,
+    "ast_hash": "38f91fa44edf8f26312f4fc560529674",
+    "semantic_hash": "38f91fa44edf8f26312f4fc560529674"
+  },
+  "src/server/Systems/Police.luau": {
+    "mtime": 1793710642.8123345,
+    "seen": 1793808466.0651343,
+    "ast_hash": "2cee3cea7ac1cd4220bc72593d4fd928",
+    "semantic_hash": "2cee3cea7ac1cd4220bc72593d4fd928"
+  },
+  "src/server/Systems/Progress.luau": {
+    "mtime": 1793790401.9910607,
+    "seen": 1793808466.0651343,
+    "ast_hash": "66bb08d33c8c11817c37a28435076fd1",
+    "semantic_hash": "66bb08d33c8c11817c37a28435076fd1"
+  },
+  "src/server/Systems/Search.luau": {
+    "mtime": 1793769622.3899524,
+    "seen": 1793808466.0651343,
+    "ast_hash": "e6d60e3dbbeab945fd5d3c76af0c0c4c",
+    "semantic_hash": "e6d60e3dbbeab945fd5d3c76af0c0c4c"
+  },
+  "src/server/Systems/Shop.luau": {
+    "mtime": 1793731623.1688738,
+    "seen": 1793808466.0651343,
+    "ast_hash": "08ed549b86e11515b33889742172d394",
+    "semantic_hash": "08ed549b86e11515b33889742172d394"
+  },
+  "src/server/Systems/Social.luau": {
+    "mtime": 1793676723.207381,
+    "seen": 1793808466.0651343,
+    "ast_hash": "012fc1658d31a6906cda751d63d6b0e0",
+    "semantic_hash": "012fc1658d31a6906cda751d63d6b0e0"
+  },
+  "src/server/Systems/Vehicles.luau": {
+    "mtime": 1793762255.5700176,
+    "seen": 1793808466.0651343,
+    "ast_hash": "740a345fe40337f600f349eff13f330d",
+    "semantic_hash": "740a345fe40337f600f349eff13f330d"
+  },
+  "src/server/Systems/World.luau": {
+    "mtime": 1793805469.2236748,
+    "seen": 1793808466.0651343,
+    "ast_hash": "75ab48ef51115090cd57b31d2287cbd5",
+    "semantic_hash": "75ab48ef51115090cd57b31d2287cbd5"
+  },
+  "src/server/init.server.luau": {
+    "mtime": 1793675043.907616,
+    "seen": 1793808466.0651343,
+    "ast_hash": "d0409f2d4c4d8400459b632679f3de2f",
+    "semantic_hash": "d0409f2d4c4d8400459b632679f3de2f"
+  },
+  "src/shared/CityPlan.luau": {
+    "mtime": 1793789140.8572886,
+    "seen": 1793808466.0651343,
+    "ast_hash": "cd33ec9a7514e9801a41d24264944d02",
+    "semantic_hash": "cd33ec9a7514e9801a41d24264944d02"
+  },
+  "src/shared/Config.luau": {
+    "mtime": 1793790128.7436023,
+    "seen": 1793808466.0651343,
+    "ast_hash": "c314c1ccccb79ce267568a14fef4509d",
+    "semantic_hash": "c314c1ccccb79ce267568a14fef4509d"
+  },
+  "src/shared/Districts.luau": {
+    "mtime": 1793731457.0717285,
+    "seen": 1793808466.0651343,
+    "ast_hash": "179c6bba0cdecfec41ff8377102589c1",
+    "semantic_hash": "179c6bba0cdecfec41ff8377102589c1"
+  },
+  "src/shared/ItemModels.luau": {
+    "mtime": 1793790030.5460162,
+    "seen": 1793808466.0651343,
+    "ast_hash": "6ddf09f2c94c084498adec7feeb53217",
+    "semantic_hash": "6ddf09f2c94c084498adec7feeb53217"
+  },
+  "src/shared/Items.luau": {
+    "mtime": 1793789947.5660174,
+    "seen": 1793808466.0651343,
+    "ast_hash": "6c9628aedff9d44148692c482966f7e4",
+    "semantic_hash": "6c9628aedff9d44148692c482966f7e4"
+  },
+  "src/shared/Loot.luau": {
+    "mtime": 1793731457.0784576,
+    "seen": 1793808466.0651343,
+    "ast_hash": "87aca60a6747ba789cb051aa3f2f9ee2",
+    "semantic_hash": "87aca60a6747ba789cb051aa3f2f9ee2"
+  },
+  "src/shared/MapData.luau": {
+    "mtime": 1793805252.3248308,
+    "seen": 1793808466.0651343,
+    "ast_hash": "bddc9dc42af3e3b8161e9900f0a14477",
+    "semantic_hash": "bddc9dc42af3e3b8161e9900f0a14477"
+  },
+  "src/shared/Net.luau": {
+    "mtime": 1793676630.9965985,
+    "seen": 1793808466.0651343,
+    "ast_hash": "8a40098d915471ec5c5790c1c8eeca9f",
+    "semantic_hash": "8a40098d915471ec5c5790c1c8eeca9f"
+  },
+  "src/shared/Quests.luau": {
+    "mtime": 1793790275.3180697,
+    "seen": 1793808466.0651343,
+    "ast_hash": "5ed8ebab3c0bc7eac8ae01dbce572bf2",
+    "semantic_hash": "5ed8ebab3c0bc7eac8ae01dbce572bf2"
+  },
+  "src/shared/Types.luau": {
+    "mtime": 1793790186.1228704,
+    "seen": 1793808466.0651343,
+    "ast_hash": "ad65ba94ba768244a44d3d292c203d41",
+    "semantic_hash": "ad65ba94ba768244a44d3d292c203d41"
+  },
+  ".github/workflows/ci.yml": {
+    "mtime": 1793675039.6787117,
+    "seen": 1793808466.0651343,
+    "ast_hash": "6fc9b058bb301b780ae1f55c4f77a2dd",
+    "semantic_hash": "6fc9b058bb301b780ae1f55c4f77a2dd"
+  },
+  ".serena/project.yml": {
+    "mtime": 1793675572.0892348,
+    "seen": 1793808466.0651343,
+    "ast_hash": "d17348db927286f7fb6bc6a3ae07f022",
+    "semantic_hash": "d17348db927286f7fb6bc6a3ae07f022"
+  },
+  "README.md": {
+    "mtime": 1793695073.0244799,
+    "seen": 1793808466.0651343,
+    "ast_hash": "2107995dc2fea53ba82ee6ecdc54e2d7",
+    "semantic_hash": "2107995dc2fea53ba82ee6ecdc54e2d7"
+  },
+  "TRASH_HUNTER_GDD.md": {
+    "mtime": 1793807143.4279718,
+    "seen": 1793808466.0651343,
+    "ast_hash": "4cb870045e4ea4cd7a57483416f06df3",
+    "semantic_hash": "4cb870045e4ea4cd7a57483416f06df3"
+  },
+  "TRASH_HUNTER_GDD_v1.md": {
+    "mtime": 1793673955.6918626,
+    "seen": 1793808466.0651343,
+    "ast_hash": "a9f652bc300445b9eda68a846ff5c1b5",
+    "semantic_hash": "a9f652bc300445b9eda68a846ff5c1b5"
+  },
+  "docs/prompts/district-expansion.md": {
+    "mtime": 1793695783.464598,
+    "seen": 1793808466.0651343,
+    "ast_hash": "08d2fbcdf2a671abce001c5e01bfd754",
+    "semantic_hash": "08d2fbcdf2a671abce001c5e01bfd754"
+  },
+  "docs/superpowers/specs/2026-11-04-phase1-feel-navigation-design.md": {
+    "mtime": 1793727734.2694523,
+    "seen": 1793808466.0651343,
+    "ast_hash": "036cf77a506a6db378aefe271c0ec258",
+    "semantic_hash": "036cf77a506a6db378aefe271c0ec258"
+  },
+  "docs/superpowers/specs/2026-11-05-city-rebuild-design.md": {
+    "mtime": 1793767359.5387044,
+    "seen": 1793808466.0651343,
+    "ast_hash": "e8f6ba8c0a65d6e9340d7636baef24d4",
+    "semantic_hash": "e8f6ba8c0a65d6e9340d7636baef24d4"
+  }
+}
