@@ -5,6 +5,16 @@
 -- Flashlight, the rarity of one bag. After the pick, the other bags are shown
 -- so near-misses are visible. Then: keep / dig deeper (new bags, better odds,
 -- lose this find) / leave. Per-player cooldown per dumpster.
+--
+-- Skill and flow on top of the luck:
+-- - Perfect Dig: while rummaging a marker sweeps the bar; tapping inside the
+--   gold zone ("Perfect") adds an extra bag and better odds, inside the wider
+--   zone ("Good") better odds. The server times the tap itself and only
+--   accepts the client's reading within TAP_SLACK (lag), so it cannot be faked.
+-- - Combo: each search within COMBO_WINDOW of the last raises the odds, up
+--   to COMBO_MAX. Shown on the HUD (player attributes Combo / ComboUntil).
+-- - Fresh drops: every FRESH_EVERY seconds a few dumpsters are refilled
+--   (attribute Fresh, sparkles, gold on the map). The first pick takes it.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -27,6 +37,10 @@ type Session = {
 	dumpster: Model,
 	depth: number,
 	token: number,
+	started: number, -- os.clock() when this dig began
+	duration: number,
+	zone: number, -- centre of the gold zone (0..1 of the bar)
+	grade: string?, -- "perfect" | "good" | "miss" once tapped
 	bags: { Loot.Roll }?, -- rolled, waiting for a pick
 	pending: Loot.Roll?, -- picked, waiting for keep / deeper / leave
 }
@@ -34,6 +48,7 @@ type Session = {
 local sessions: { [Player]: Session } = {}
 local cooldowns: { [Player]: { [Model]: number } } = {}
 local lastPrompt: { [Player]: number } = {}
+local combos: { [Player]: { n: number, last: number } } = {}
 local tokenCounter = 0
 
 local Search = {}
@@ -115,6 +130,18 @@ local function boostFor(player: Player, session: Session): number
 	if Social.hasFriendHere(player) then
 		boost += Config.Boost.FRIEND
 	end
+	if dumpster:GetAttribute("Fresh") then
+		boost += S.FRESH_BOOST
+	end
+	local combo = combos[player]
+	if combo and os.clock() - combo.last < S.COMBO_WINDOW then
+		boost += S.COMBO_STEP * combo.n
+	end
+	if session.grade == "perfect" then
+		boost += S.PERFECT_BOOST
+	elseif session.grade == "good" then
+		boost += S.GOOD_BOOST
+	end
 	local profile = Data.get(player)
 	if profile and Data.hasTool(profile, "detector") then
 		boost += T.DETECTOR_BOOST
@@ -151,6 +178,7 @@ local function finishDig(player: Player, token: number)
 
 	local city = session.dumpster:GetAttribute("City") or "maple"
 	local count = S.BAGS
+		+ (if session.grade == "perfect" then 1 else 0)
 		+ (if Data.hasTool(profile, "crowbar") then 1 else 0)
 		+ (if city == "port" and Data.hasTool(profile, "magnet") then 1 else 0)
 	local boost = boostFor(player, session)
@@ -179,11 +207,13 @@ local function finishDig(player: Player, token: number)
 		looks[lit].rarity = bags[lit].rarity
 	end
 	session.bags = bags
-	Router.send(
-		player,
-		"searchBags",
-		{ dumpster = session.dumpster, bags = looks, depth = session.depth }
-	)
+	Router.send(player, "searchBags", {
+		dumpster = session.dumpster,
+		bags = looks,
+		depth = session.depth,
+		grade = session.grade,
+		timeout = S.CHOICE_TIMEOUT,
+	})
 
 	task.delay(S.CHOICE_TIMEOUT, function()
 		local current = sessions[player]
@@ -199,18 +229,53 @@ local function beginDig(player: Player, session: Session)
 	session.token = token
 	session.bags = nil
 	session.pending = nil
+	session.grade = nil
 	local profile = Data.get(player)
-	local duration = if session.depth == 0 then S.TIME else S.DEEPER_TIME
+	local duration = if session.depth == 0 then S.DIG_TIME else S.DEEPER_TIME * 1.4
 	if profile and Data.hasTool(profile, "gloves") then
 		duration *= T.GLOVES_SPEED
 	end
+	session.started = os.clock()
+	session.duration = duration
+	-- The gold zone sits in the back half so there is time to react.
+	session.zone = rng:NextNumber(0.5, 0.85)
 	setDigging(player, if session.depth == 0 then 1 else Config.Suspicion.DEEPER_MULT)
-	Router.send(
-		player,
-		"searchStarted",
-		{ dumpster = session.dumpster, duration = duration, depth = session.depth }
-	)
+	Router.send(player, "searchStarted", {
+		dumpster = session.dumpster,
+		duration = duration,
+		depth = session.depth,
+		zone = session.zone,
+		perfect = S.PERFECT_WIDTH,
+		good = S.GOOD_WIDTH,
+	})
 	task.delay(duration, finishDig, player, token)
+end
+
+-- Perfect Dig tap. `at` is where the client saw the marker (0..1); the
+-- server's own clock must agree within TAP_SLACK.
+local function digTap(player: Player, at: any): (boolean, any)
+	local session = sessions[player]
+	if not session or session.bags or session.pending or session.grade then
+		return false, nil
+	end
+	if typeof(at) ~= "number" or at ~= at then
+		return false, nil
+	end
+	-- The client saw the dig start one trip late and its tap arrives one
+	-- trip late: take the round trip off the server's own timing.
+	local okPing, ping = pcall(player.GetNetworkPing, player)
+	local trip = if okPing and typeof(ping) == "number" then math.min(ping, 0.5) else 0.1
+	local measured = (os.clock() - session.started - 2 * trip) / session.duration
+	if at < 0 or at > 1 or measured > 1.15 or math.abs(measured - at) > S.TAP_SLACK then
+		session.grade = "miss"
+		return true, "miss"
+	end
+	local off = math.abs(at - session.zone)
+	session.grade = if off <= S.PERFECT_WIDTH / 2
+		then "perfect"
+		elseif off <= S.GOOD_WIDTH / 2 then "good"
+		else "miss"
+	return true, session.grade
 end
 
 pick = function(player: Player, index: any): (boolean, string?)
@@ -235,6 +300,18 @@ pick = function(player: Player, index: any): (boolean, string?)
 	local roll = bags[index]
 	session.bags = nil
 	session.pending = roll
+	-- Combo: the first pick at each dumpster counts.
+	if session.depth == 0 then
+		local now = os.clock()
+		local c = combos[player]
+		local n = if c and now - c.last < S.COMBO_WINDOW then math.min(S.COMBO_MAX, c.n + 1) else 1
+		combos[player] = { n = n, last = now }
+		player:SetAttribute("Combo", n)
+		player:SetAttribute("ComboUntil", workspace:GetServerTimeNow() + S.COMBO_WINDOW)
+	end
+	if session.dumpster:GetAttribute("Fresh") then
+		session.dumpster:SetAttribute("Fresh", false)
+	end
 	-- Pity counters move only on picks, so a player always benefits from them.
 	profile.sinceEpic = if roll.rarity >= 4 then 0 else profile.sinceEpic + 1
 	profile.sinceLegendary = if roll.rarity >= 5 then 0 else profile.sinceLegendary + 1
@@ -265,6 +342,8 @@ pick = function(player: Player, index: any): (boolean, string?)
 		bags = all,
 		depth = session.depth,
 		canDeeper = session.depth < S.MAX_DEEPER,
+		grade = session.grade,
+		combo = player:GetAttribute("Combo"),
 	})
 	Data.push(player)
 	local token = session.token
@@ -318,8 +397,17 @@ local function tryStart(player: Player, dumpster: Model): (boolean, string?)
 	if #profile.backpack >= Data.capacity(profile, player) then
 		return false, "Backpack full! Stash it in your car or sell at the Hideout."
 	end
-	local session: Session =
-		{ dumpster = dumpster, depth = 0, token = 0, bags = nil, pending = nil }
+	local session: Session = {
+		dumpster = dumpster,
+		depth = 0,
+		token = 0,
+		started = 0,
+		duration = 1,
+		zone = 0.5,
+		grade = nil,
+		bags = nil,
+		pending = nil,
+	}
 	sessions[player] = session
 	beginDig(player, session)
 	return true, nil
@@ -395,6 +483,7 @@ function Search.init()
 		require(Shared.CityPlan).selfCheck()
 	end
 	Router.on("pickBag", 0.2, pick)
+	Router.on("digTap", 0.3, digTap)
 	Router.on("resolve", 0.2, resolve)
 end
 
@@ -419,6 +508,74 @@ function Search.start()
 		sessions[player] = nil
 		cooldowns[player] = nil
 		lastPrompt[player] = nil
+		combos[player] = nil
+	end)
+
+	-- Fresh drops: refill a few dumpsters now and then, with sparkles.
+	local function setFresh(model: Model, on: boolean)
+		local body = model:FindFirstChild("Body")
+		local sparkle = body and body:FindFirstChild("FreshSparkle")
+		if on and body and not sparkle then
+			local e = Instance.new("ParticleEmitter")
+			e.Name = "FreshSparkle"
+			e.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+			e.Color = ColorSequence.new(Color3.fromRGB(255, 210, 80))
+			e.Rate = 6
+			e.Lifetime = NumberRange.new(1, 1.6)
+			e.Speed = NumberRange.new(2, 4)
+			e.SpreadAngle = Vector2.new(40, 40)
+			e.Size = NumberSequence.new(0.5, 0)
+			e.LightEmission = 1
+			e.EmissionDirection = Enum.NormalId.Top
+			e.Parent = body
+		elseif not on and sparkle then
+			sparkle:Destroy()
+		end
+	end
+	local function publish()
+		local list = {}
+		for _, model in CollectionService:GetTagged("Dumpster") do
+			if model:GetAttribute("Fresh") then
+				table.insert(list, tostring(model:GetAttribute("Index")))
+			end
+		end
+		workspace:SetAttribute("FreshDumpsters", table.concat(list, ","))
+	end
+	CollectionService:GetInstanceAddedSignal("Dumpster"):Connect(function(model)
+		model:GetAttributeChangedSignal("Fresh"):Connect(function()
+			setFresh(model, model:GetAttribute("Fresh") == true)
+			publish()
+		end)
+	end)
+	for _, model in CollectionService:GetTagged("Dumpster") do
+		model:GetAttributeChangedSignal("Fresh"):Connect(function()
+			setFresh(model, model:GetAttribute("Fresh") == true)
+			publish()
+		end)
+	end
+	task.spawn(function()
+		while true do
+			local pool = {}
+			for _, model in CollectionService:GetTagged("Dumpster") do
+				model:SetAttribute("Fresh", false)
+				if
+					model:GetAttribute("Zone") ~= "Red"
+					and not model:GetAttribute("Tutorial")
+					and not model:GetAttribute("Heavy")
+				then
+					table.insert(pool, model)
+				end
+			end
+			for _ = 1, math.min(S.FRESH_COUNT, #pool) do
+				local model = table.remove(pool, rng:NextInteger(1, #pool)) :: Model
+				model:SetAttribute("Fresh", true)
+			end
+			Router.broadcast(
+				"toast",
+				{ text = "Fresh trash just got dumped! Look for gold on the map." }
+			)
+			task.wait(S.FRESH_EVERY)
+		end
 	end)
 end
 

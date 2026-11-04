@@ -4,6 +4,10 @@
 -- then the reveal: lid shakes, rarity glow leaks out, lid pops, item card with
 -- a 3D picture, plus what the other bags held. Presentation only; the server
 -- already rolled everything.
+--
+-- Perfect Dig: while rummaging a marker sweeps the bar. Tap DIG (or F) while
+-- it is in the gold zone for a Perfect (extra bag, better odds) or in the
+-- green zone for a Good. One tap per dig; the server checks the timing.
 
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -27,6 +31,13 @@ local gui: ScreenGui
 local digFrame: Frame
 local digFill: Frame
 local digHint: TextLabel
+local digMarker: Frame
+local digGood: Frame
+local digPerfect: Frame
+local digButton: TextButton
+local digGrade: TextLabel
+local bagsTimer: Frame
+local bagsBonus: TextLabel
 local bagsFrame: Frame
 local bagsRow: Frame
 local bagsHint: TextLabel
@@ -37,6 +48,14 @@ local closedLid: { [Model]: CFrame } = {}
 local revealToken = 0
 local digTween: Tween? = nil
 local picking = false
+-- The dig in progress, for the Perfect Dig tap.
+local dig: { started: number, duration: number, tapped: boolean, token: number }? = nil
+
+local GRADE_LOOK = {
+	perfect = { text = "PERFECT!", color = Color3.fromRGB(255, 205, 60) },
+	good = { text = "Good", color = Color3.fromRGB(90, 220, 130) },
+	miss = { text = "Miss", color = Color3.fromRGB(170, 170, 178) },
+}
 
 local function lidOf(dumpster: Model): BasePart?
 	return dumpster:FindFirstChild("Lid") :: BasePart?
@@ -99,6 +118,7 @@ local function hideAll()
 		digTween = nil
 	end
 	digFrame.Visible = false
+	dig = nil
 	bagsFrame.Visible = false
 	reveal.Visible = false
 	skipLayer.Visible = false
@@ -112,23 +132,68 @@ local function clearChildren(frame: Instance)
 	end
 end
 
--- 1. Rummaging: a short progress bar and trash flying out of the dumpster.
-local function onSearchStarted(payload: { dumpster: Model, duration: number, depth: number })
+-- Perfect Dig tap: where the marker is now, sent once per dig.
+local function tapDig()
+	local d = dig
+	if not d or d.tapped then
+		return
+	end
+	d.tapped = true
+	local at = math.clamp((os.clock() - d.started) / d.duration, 0, 1)
+	digMarker.BackgroundColor3 = C.cream
+	Ui.bump(digButton)
+	task.spawn(function()
+		local ok, grade = Store.action("digTap", at)
+		if not ok or not dig or dig.token ~= d.token then
+			return
+		end
+		local look = GRADE_LOOK[grade] or GRADE_LOOK.miss
+		digGrade.Text = look.text
+		digGrade.TextColor3 = look.color
+		digGrade.Visible = true
+		Ui.pop(digGrade, 0.5)
+		if grade == "perfect" then
+			Store.play(Config.Sounds.RARE, 0.5)
+			cameraShake(0.3)
+		end
+	end)
+end
+
+-- 1. Rummaging: the bar fills while a marker sweeps it; tap in the zone.
+local function onSearchStarted(payload: {
+	dumpster: Model,
+	duration: number,
+	depth: number,
+	zone: number,
+	perfect: number,
+	good: number,
+})
 	hideAll()
 	revealToken += 1
 	local token = revealToken
 	digHint.Text = if payload.depth > 0
-		then `Digging deeper ({payload.depth}/{Config.Search.MAX_DEEPER})...`
-		else "Rummaging..."
+		then `Digging deeper ({payload.depth}/{Config.Search.MAX_DEEPER}) · tap in the gold!`
+		else "Rummaging · tap DIG in the gold zone!"
 	digFill.Size = UDim2.fromScale(0, 1)
+	digGood.Position = UDim2.fromScale(payload.zone - payload.good / 2, 0)
+	digGood.Size = UDim2.fromScale(payload.good, 1)
+	digPerfect.Position = UDim2.fromScale(payload.zone - payload.perfect / 2, 0)
+	digPerfect.Size = UDim2.fromScale(payload.perfect, 1)
+	digMarker.Position = UDim2.fromScale(0, 0.5)
+	digMarker.BackgroundColor3 = Color3.fromRGB(255, 80, 120)
+	digGrade.Visible = false
 	digFrame.Visible = true
 	Ui.pop(digFrame, 0.9)
+	dig = { started = os.clock(), duration = payload.duration, tapped = false, token = token }
 	digTween = TweenService:Create(
 		digFill,
 		TweenInfo.new(payload.duration, Enum.EasingStyle.Linear),
 		{ Size = UDim2.fromScale(1, 1) }
 	);
 	(digTween :: Tween):Play()
+	TweenService:Create(digMarker, TweenInfo.new(payload.duration, Enum.EasingStyle.Linear), {
+		Position = UDim2.fromScale(1, 0.5),
+	}):Play()
 	Store.play(Config.Sounds.RUMMAGE, 0.5)
 	local body = bodyOf(payload.dumpster)
 	local burst = body and body:FindFirstChild("Burst") :: ParticleEmitter?
@@ -219,9 +284,34 @@ local function onSearchBags(payload: {
 	dumpster: Model,
 	bags: { { weight: number, rarity: number? } },
 	depth: number,
+	grade: string?,
+	timeout: number?,
 })
 	hideAll()
 	picking = false
+	local bonus = {}
+	if payload.grade == "perfect" then
+		table.insert(bonus, "Perfect Dig: +1 bag, better odds")
+	elseif payload.grade == "good" then
+		table.insert(bonus, "Good dig: better odds")
+	end
+	if payload.dumpster:GetAttribute("Fresh") then
+		table.insert(bonus, "Fresh drop")
+	end
+	local combo = tonumber(player:GetAttribute("Combo")) or 0
+	local comboLive = (tonumber(player:GetAttribute("ComboUntil")) or 0)
+		> workspace:GetServerTimeNow()
+	if combo > 1 and comboLive then
+		table.insert(bonus, `Combo x{combo}`)
+	end
+	bagsBonus.Text = table.concat(bonus, "  ·  ")
+	bagsBonus.Visible = #bonus > 0
+	bagsTimer.Size = UDim2.fromScale(1, 1)
+	TweenService:Create(
+		bagsTimer,
+		TweenInfo.new(payload.timeout or Config.Search.CHOICE_TIMEOUT, Enum.EasingStyle.Linear),
+		{ Size = UDim2.fromScale(0, 1) }
+	):Play()
 	clearChildren(bagsRow)
 	Ui.list(Enum.FillDirection.Horizontal, 10, Enum.HorizontalAlignment.Center).Parent = bagsRow
 	bagsHint.Text = if payload.depth > 0
@@ -361,7 +451,9 @@ local function showRevealCard(payload: any)
 			end
 		end)
 	end
-	local keep = Ui.button(`Keep it`, "primary", UDim2.new(1, 0, 0, 52), function()
+	local state = Store.get()
+	local room = if state then `  ({#state.backpack + 1}/{state.capacity})` else ""
+	local keep = Ui.button(`Keep it{room}`, "primary", UDim2.new(1, 0, 0, 52), function()
 		choose("take")
 	end)
 	keep.LayoutOrder = 7
@@ -523,28 +615,71 @@ local function build()
 		Name = "Dig",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -28),
-		Size = UDim2.new(0.8, 0, 0, 64),
+		Size = UDim2.new(0.9, 0, 0, 78),
 		Visible = false,
 		Parent = gui,
 	})
-	Ui.new("UISizeConstraint", { MaxSize = Vector2.new(380, 64) }).Parent = digFrame
-	digHint = Ui.label("", 16, {
+	Ui.new("UISizeConstraint", { MaxSize = Vector2.new(470, 78) }).Parent = digFrame
+	digHint = Ui.label("", 15, {
 		Position = UDim2.fromOffset(16, 8),
-		Size = UDim2.new(1, -32, 0, 20),
+		Size = UDim2.new(1, -130, 0, 20),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = digFrame,
 	})
 	local track = Ui.new("Frame", {
 		BackgroundColor3 = C.panelLight,
 		Position = UDim2.new(0, 16, 0, 38),
-		Size = UDim2.new(1, -32, 0, 10),
+		Size = UDim2.new(1, -130, 0, 22),
+		ClipsDescendants = false,
 		Parent = digFrame,
-	}, { Ui.corner(5) })
-	digFill = Ui.new(
-		"Frame",
-		{ BackgroundColor3 = C.cream, Size = UDim2.fromScale(0, 1), Parent = track },
-		{ Ui.corner(5) }
-	)
+	}, { Ui.corner(6) })
+	digFill = Ui.new("Frame", {
+		BackgroundColor3 = C.cream,
+		BackgroundTransparency = 0.75,
+		Size = UDim2.fromScale(0, 1),
+		Parent = track,
+	}, { Ui.corner(6) })
+	digGood = Ui.new("Frame", {
+		BackgroundColor3 = Color3.fromRGB(90, 220, 130),
+		BackgroundTransparency = 0.35,
+		ZIndex = 2,
+		Parent = track,
+	}, { Ui.corner(4) })
+	digPerfect = Ui.new("Frame", {
+		BackgroundColor3 = Color3.fromRGB(255, 205, 60),
+		ZIndex = 3,
+		Parent = track,
+	}, { Ui.corner(4) })
+	digMarker = Ui.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.new(0, 5, 1, 12),
+		BackgroundColor3 = Color3.fromRGB(255, 80, 120),
+		ZIndex = 4,
+		Parent = track,
+	}, { Ui.corner(2), Ui.stroke(1, C.ink) })
+	digGrade = Ui.label("", 22, {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, -57, 0, -6),
+		Size = UDim2.fromOffset(200, 26),
+		Font = Ui.FONT,
+		TextStrokeTransparency = 0.2,
+		Visible = false,
+		Parent = digFrame,
+	})
+	digButton = Ui.button("DIG", "primary", UDim2.fromOffset(96, 58), tapDig)
+	digButton.AnchorPoint = Vector2.new(1, 0.5)
+	digButton.Position = UDim2.new(1, -10, 0.5, 0)
+	digButton.TextSize = 22
+	digButton.Parent = digFrame
+	if not UserInputService.TouchEnabled then
+		Ui.label("F", 11, {
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.new(1, -4, 0, 2),
+			Size = UDim2.fromOffset(14, 14),
+			TextColor3 = C.ink,
+			Parent = digButton,
+		})
+	end
 
 	bagsFrame = Ui.panel({
 		Name = "Bags",
@@ -561,10 +696,33 @@ local function build()
 		TextColor3 = C.muted,
 		Parent = bagsFrame,
 	})
+	bagsBonus = Ui.label("", 13, {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 0, -4),
+		Size = UDim2.new(1, 0, 0, 16),
+		Font = Ui.FONT,
+		TextColor3 = Color3.fromRGB(255, 205, 60),
+		TextStrokeTransparency = 0.3,
+		Visible = false,
+		Parent = bagsFrame,
+	})
+	-- Time left to choose before a bag is picked at random.
+	local timerTrack = Ui.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -6),
+		Size = UDim2.new(1, -28, 0, 3),
+		BackgroundColor3 = C.panelLight,
+		Parent = bagsFrame,
+	}, { Ui.corner(2) })
+	bagsTimer = Ui.new("Frame", {
+		BackgroundColor3 = C.accent,
+		Size = UDim2.fromScale(1, 1),
+		Parent = timerTrack,
+	}, { Ui.corner(2) })
 	bagsRow = Ui.new("Frame", {
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(14, 40),
-		Size = UDim2.new(1, -28, 1, -54),
+		Size = UDim2.new(1, -28, 1, -58),
 		Parent = bagsFrame,
 	})
 
@@ -611,6 +769,10 @@ function SearchUi.start()
 	Store.on("cooldown", onCooldown)
 	-- Number keys pick bags on keyboard.
 	UserInputService.InputBegan:Connect(function(input, processed)
+		if not processed and input.KeyCode == Enum.KeyCode.F and digFrame.Visible then
+			tapDig()
+			return
+		end
 		if processed or not bagsFrame.Visible then
 			return
 		end

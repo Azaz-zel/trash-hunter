@@ -160,6 +160,7 @@ function Ui.button(text: string, style: string, size: UDim2, onClick: () -> ()):
 	}, {
 		Ui.corner(10),
 		Ui.stroke(),
+		Ui.shade(if style == "primary" then 0.82 else 0.7),
 		Ui.new("UISizeConstraint", { MinSize = Vector2.new(52, 52) }),
 	})
 	-- Press feedback: squish on press, spring back on release.
@@ -194,13 +195,27 @@ function Ui.setEnabled(button: TextButton, enabled: boolean)
 	button.TextTransparency = if enabled then 0 else 0.45
 end
 
+-- Vertical shade: full colour at the top, darker toward the bottom. A
+-- UIGradient multiplies, so a lighter base colour shaded down reads as a
+-- soft lit-from-above surface.
+function Ui.shade(bottom: number?): UIGradient
+	local b = bottom or 0.55
+	return Ui.new("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.new(b, b, b)),
+	})
+end
+
+-- Panels: a dark slate lit from the top, rounded, with a hairline border.
 function Ui.panel(props: { [string]: any }?): Frame
-	local base: { [string]: any } =
-		{ BackgroundColor3 = C.panel, BackgroundTransparency = Ui.PANEL_ALPHA }
+	local base: { [string]: any } = {
+		BackgroundColor3 = Color3.fromRGB(34, 38, 46),
+		BackgroundTransparency = Ui.PANEL_ALPHA,
+	}
 	for k, v in props or {} do
 		base[k] = v
 	end
-	return Ui.new("Frame", base, { Ui.corner(14), Ui.stroke() })
+	return Ui.new("Frame", base, { Ui.corner(14), Ui.stroke(), Ui.shade() })
 end
 
 function Ui.tween(

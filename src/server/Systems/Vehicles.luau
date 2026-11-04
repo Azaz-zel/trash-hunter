@@ -15,6 +15,7 @@ local Router = require(script.Parent.Parent.Router)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local Progress = require(script.Parent.Progress)
+local Pedestrians = require(script.Parent.Pedestrians)
 
 local CAR_ASSET = 6418230807 -- Roblox-owned drivable "Police Car" from the vehicle kit
 local CAR = Config.CAR
@@ -138,6 +139,88 @@ local function guardSeats(model: Model)
 	end
 end
 
+-- Head and tail lamps on a player car; lit at night (see the loop in start).
+local function addLamps(car: Model)
+	local bb, size = car:GetBoundingBox()
+	local look = bb:VectorToObjectSpace(car:GetPivot().LookVector)
+	local seat = car:FindFirstChildWhichIsA("VehicleSeat", true)
+	if seat then
+		look = bb:VectorToObjectSpace(seat.CFrame.LookVector)
+	end
+	local f = if math.abs(look.X) > math.abs(look.Z)
+		then Vector3.new(math.sign(look.X), 0, 0)
+		else Vector3.new(0, 0, math.sign(look.Z))
+	local r = Vector3.new(-f.Z, 0, f.X)
+	local halfL = (math.abs(f.X) * size.X + math.abs(f.Z) * size.Z) / 2
+	local halfW = (math.abs(r.X) * size.X + math.abs(r.Z) * size.Z) / 2
+	local worldF = bb:VectorToWorldSpace(f)
+	local root = car.PrimaryPart or (seat :: BasePart?)
+	if not root then
+		return
+	end
+	for _, spec in
+		{
+			{ along = halfL, color = Color3.fromRGB(255, 244, 214), name = "HeadLamp" },
+			{ along = -halfL, color = Color3.fromRGB(200, 20, 20), name = "TailLamp" },
+		}
+	do
+		for _, side in { -1, 1 } do
+			local pos = (bb * CFrame.new(
+				f * spec.along + r * side * (halfW - 1) - Vector3.yAxis * size.Y * 0.1
+			)).Position
+			local p = Instance.new("Part")
+			p.Name = spec.name
+			p.Size = Vector3.new(1.1, 0.45, 0.15)
+			p.CFrame = CFrame.lookAt(pos, pos + worldF * math.sign(spec.along))
+			p.Color = spec.color
+			p.Material = Enum.Material.SmoothPlastic
+			p.CanCollide = false
+			p.CanQuery = false
+			p.Massless = true
+			local w = Instance.new("WeldConstraint")
+			w.Part0 = root
+			w.Part1 = p
+			w.Parent = p
+			if spec.name == "HeadLamp" and side == 1 then
+				local beam = Instance.new("SpotLight")
+				beam.Face = Enum.NormalId.Front
+				beam.Angle = 60
+				beam.Range = 55
+				beam.Brightness = 3
+				beam.Enabled = false
+				beam.Parent = p
+			end
+			p.Parent = car
+		end
+	end
+end
+
+local function lampsOn(car: Model, on: boolean)
+	for _, d in car:GetDescendants() do
+		if d:IsA("BasePart") and (d.Name == "HeadLamp" or d.Name == "TailLamp") then
+			d.Material = if on then Enum.Material.Neon else Enum.Material.SmoothPlastic
+			local beam = d:FindFirstChildOfClass("SpotLight")
+			if beam then
+				beam.Enabled = on
+			end
+		end
+	end
+end
+
+-- Horn: people in front of the car jump out of the way.
+local function honk(player: Player): (boolean, string?)
+	local car = cars[player]
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local seat = humanoid and humanoid.SeatPart
+	if not car or not seat or not seat:IsDescendantOf(car) then
+		return false, nil
+	end
+	local ahead = seat.Position + seat.CFrame.LookVector * (CAR.HONK_RANGE / 2)
+	Pedestrians.panic(ahead, CAR.HONK_RANGE / 2, nil)
+	return true, nil
+end
+
 local function removeCar(player: Player)
 	local old = cars[player]
 	cars[player] = nil
@@ -223,6 +306,8 @@ local function spawnCar(player: Player): (boolean, string?)
 		prompt.UIOffset = Vector2.new(0, 60)
 		prompt.Parent = floor
 	end
+	addLamps(car)
+	lampsOn(car, workspace:GetAttribute("Night") == true)
 	car.Parent = folder
 	guardSeats(car)
 	cars[player] = car
@@ -334,6 +419,7 @@ end
 
 function Vehicles.init()
 	Router.on("spawnCar", 1, spawnCar)
+	Router.on("honk", 0.8, honk)
 	Router.on("toTrunk", 0.15, toTrunk)
 	Router.on("fromTrunk", 0.15, fromTrunk)
 	Router.on("sellTrunk", 0.5, sellTrunk)
@@ -360,6 +446,12 @@ function Vehicles.start()
 	Players.PlayerRemoving:Connect(function(player)
 		removeCar(player)
 		lastSpawn[player] = nil
+	end)
+	workspace:GetAttributeChangedSignal("Night"):Connect(function()
+		local night = workspace:GetAttribute("Night") == true
+		for _, car in cars do
+			lampsOn(car, night)
+		end
 	end)
 end
 

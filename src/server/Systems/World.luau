@@ -1069,6 +1069,7 @@ local function dumpster(
 
 	model.PrimaryPart = body
 	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+	model:SetAttribute("Index", table.find(W.Dumpsters, spec) or 0)
 	model:SetAttribute("Zone", spec.zone)
 	model:SetAttribute("District", if district then district.name else "Town Center")
 	model:SetAttribute("DistrictId", if district then district.id else "town")

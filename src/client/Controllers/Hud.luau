@@ -34,19 +34,31 @@ local homeButton: TextButton
 local bagFill: Frame
 local streakLabel: TextLabel
 local shopButton: TextButton
+local comboChip: Frame
+local comboText: TextLabel
+local comboFill: Frame
+local freshChip: TextButton
 
 local function toast(text: string, color: Color3?)
-	local label = Ui.label(text, 20, {
+	local label = Ui.label(text, 19, {
 		Size = UDim2.new(1, 0, 0, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
-		BackgroundTransparency = Ui.PANEL_ALPHA,
+		BackgroundTransparency = 0.08,
 		BackgroundColor3 = C.panel,
 		TextColor3 = color or C.cream,
 		TextXAlignment = Enum.TextXAlignment.Center,
 	})
 	Ui.corner(10).Parent = label
-	Ui.stroke().Parent = label
+	Ui.stroke(1, color or C.hairline).Parent = label
 	Ui.padding(10).Parent = label
+	-- Accent stripe down the left edge in the toast's colour.
+	Ui.new("Frame", {
+		Size = UDim2.new(0, 4, 1, 20),
+		Position = UDim2.fromOffset(-10, -10),
+		BackgroundColor3 = color or C.accent,
+		BorderSizePixel = 0,
+		Parent = label,
+	}, { Ui.corner(2) })
 	label.Parent = toastHolder
 	Ui.pop(label, 0.7)
 	local items = toastHolder:GetChildren()
@@ -233,6 +245,51 @@ local function build()
 		Parent = cardFrame,
 	})
 
+	-- Chips under the card: search combo (with its time running out) and
+	-- fresh drops (tap to open the map).
+	local chips = Ui.new("Frame", {
+		Position = UDim2.fromOffset(16, 108),
+		Size = UDim2.fromOffset(292, 30),
+		BackgroundTransparency = 1,
+		Parent = gui,
+	}, { Ui.list(Enum.FillDirection.Horizontal, 6) })
+	comboChip = Ui.new("Frame", {
+		Size = UDim2.fromOffset(120, 28),
+		BackgroundColor3 = Color3.fromRGB(60, 30, 16),
+		BackgroundTransparency = 0.1,
+		Visible = false,
+		LayoutOrder = 1,
+		Parent = chips,
+	}, { Ui.corner(8), Ui.stroke(1, Color3.fromRGB(255, 140, 40)) })
+	comboText = Ui.label("", 14, {
+		Size = UDim2.new(1, 0, 1, -4),
+		Font = Ui.FONT,
+		TextColor3 = Color3.fromRGB(255, 180, 80),
+		Parent = comboChip,
+	})
+	comboFill = Ui.new("Frame", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 6, 1, -3),
+		Size = UDim2.new(1, -12, 0, 3),
+		BackgroundColor3 = Color3.fromRGB(255, 140, 40),
+		Parent = comboChip,
+	}, { Ui.corner(2) })
+	freshChip = Ui.new("TextButton", {
+		Size = UDim2.fromOffset(150, 28),
+		BackgroundColor3 = Color3.fromRGB(60, 50, 14),
+		BackgroundTransparency = 0.1,
+		Font = Ui.FONT,
+		TextSize = 14,
+		TextColor3 = Color3.fromRGB(255, 215, 90),
+		Text = "",
+		Visible = false,
+		LayoutOrder = 2,
+		Parent = chips,
+	}, { Ui.corner(8), Ui.stroke(1, Color3.fromRGB(255, 205, 60)) })
+	freshChip.Activated:Connect(function()
+		Store.emit("openMap", nil)
+	end)
+
 	suspicionFrame = Ui.panel({
 		Name = "Suspicion",
 		AnchorPoint = Vector2.new(0.5, 0),
@@ -335,12 +392,32 @@ local function build()
 		Size = UDim2.fromOffset(72, 420),
 		Parent = gui,
 	}, { Ui.list(Enum.FillDirection.Vertical, 8, Enum.HorizontalAlignment.Right) })
+	local ICONS = {
+		Bag = "🎒",
+		Shop = "🛒",
+		Book = "📖",
+		Car = "🚗",
+		Home = "🏠",
+		Store = "💎",
+		Invite = "👥",
+	}
 	local function sideButton(text: string, order: number, fn: () -> (), key: string?): TextButton
-		local b = Ui.button(text, "secondary", UDim2.fromOffset(72, 52), fn)
+		local b = Ui.button("", "secondary", UDim2.fromOffset(72, 52), fn)
 		b.Name = text .. "Button"
-		b.TextSize = 16
 		b.LayoutOrder = order
 		b.Parent = side
+		Ui.label(ICONS[text] or "", 20, {
+			Position = UDim2.fromOffset(0, 4),
+			Size = UDim2.new(1, 0, 0, 24),
+			Parent = b,
+		})
+		Ui.label(text, 12, {
+			Position = UDim2.new(0, 0, 1, -20),
+			Size = UDim2.new(1, 0, 0, 16),
+			Font = Ui.FONT,
+			TextColor3 = C.cream,
+			Parent = b,
+		})
 		-- Keyboard shortcut badge (hidden on touch screens).
 		if key and not UserInputService.TouchEnabled then
 			Ui.new("Frame", {
@@ -375,7 +452,7 @@ local function build()
 		Store.action("homeRun")
 	end)
 	homeButton.Visible = false
-	sideButton("R$", 6, function()
+	sideButton("Store", 6, function()
 		Store.emit("openShop", { kind = "robux" })
 	end)
 	-- Heavy bins and the friend loot boost need a second player.
@@ -462,8 +539,32 @@ function Hud.init()
 	Ui.autoScale(gui)
 end
 
+-- Combo chip (time left to keep it going) and fresh-drop count.
+local function renderChips()
+	local n = tonumber(player:GetAttribute("Combo")) or 0
+	local left = (tonumber(player:GetAttribute("ComboUntil")) or 0) - workspace:GetServerTimeNow()
+	local live = n > 1 and left > 0
+	comboChip.Visible = live
+	if live then
+		comboText.Text = `🔥 COMBO x{n}`
+		comboFill.Size = UDim2.new(math.clamp(left / Config.Search.COMBO_WINDOW, 0, 1), -12, 0, 3)
+	end
+	local count = 0
+	for _ in string.gmatch(tostring(workspace:GetAttribute("FreshDumpsters") or ""), "%d+") do
+		count += 1
+	end
+	freshChip.Visible = count > 0
+	freshChip.Text = `✨ {count} fresh drop{if count == 1 then "" else "s"}`
+end
+
 function Hud.start()
 	Store.on("state", renderState)
+	task.spawn(function()
+		while true do
+			renderChips()
+			task.wait(0.25)
+		end
+	end)
 	Store.on("toast", function(payload)
 		toast(payload.text, payload.color)
 	end)

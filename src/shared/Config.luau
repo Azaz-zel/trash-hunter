@@ -25,14 +25,28 @@ return table.freeze({
 	-- shows how heavy it is (a noisy hint of what is inside); tools add bags,
 	-- speed up the dig, or reveal one bag's rarity.
 	Search = table.freeze({
-		TIME = 1.2, -- seconds of rummaging before the bags show up
-		DEEPER_TIME = 1,
+		DEEPER_TIME = 1, -- seconds per dig deeper (x1.4 to leave time to aim)
 		BAGS = 3,
 		MAX_DEEPER = 2,
 		COOLDOWN = 90, -- per player, per dumpster
 		RANGE = 10, -- studs from dumpster to start
 		KEEP_RANGE = 14, -- studs allowed while rummaging
 		CHOICE_TIMEOUT = 20, -- auto-resolve an ignored choice
+		-- Perfect Dig: tap (F / DIG) while the marker crosses the gold zone.
+		DIG_TIME = 1.8, -- the first dig is longer so there is time to aim
+		PERFECT_WIDTH = 0.14, -- share of the bar
+		GOOD_WIDTH = 0.34,
+		PERFECT_BOOST = 0.5, -- plus one extra bag
+		GOOD_BOOST = 0.25,
+		TAP_SLACK = 0.15, -- reported vs server-measured timing (after ping), for jitter
+		-- Combo: searches close together raise the odds.
+		COMBO_WINDOW = 75, -- seconds to reach the next dumpster
+		COMBO_STEP = 0.12, -- boost per combo step
+		COMBO_MAX = 5,
+		-- Fresh drops: a few dumpsters were just filled. Gold on the map.
+		FRESH_COUNT = 6,
+		FRESH_EVERY = 240,
+		FRESH_BOOST = 0.8,
 	}),
 
 	-- Cash tools bought at the Hideout gear bench. Cash sinks with a clear effect.
@@ -86,6 +100,9 @@ return table.freeze({
 	Cars = table.freeze({
 		table.freeze({
 			id = "sedan",
+			top = 64, -- top speed, studs/s
+			accel = 6, -- extra pull, studs/s²
+			nitro = 2.5, -- seconds of nitro per charge
 			name = "Old Sedan",
 			price = 0,
 			trunk = 8,
@@ -93,6 +110,9 @@ return table.freeze({
 		}),
 		table.freeze({
 			id = "wagon",
+			top = 70, -- top speed, studs/s
+			accel = 8, -- extra pull, studs/s²
+			nitro = 3, -- seconds of nitro per charge
 			name = "Station Wagon",
 			price = 1200,
 			trunk = 16,
@@ -100,6 +120,9 @@ return table.freeze({
 		}),
 		table.freeze({
 			id = "pickup",
+			top = 78, -- top speed, studs/s
+			accel = 11, -- extra pull, studs/s²
+			nitro = 3.5, -- seconds of nitro per charge
 			name = "Work Truck",
 			price = 4000,
 			trunk = 30,
@@ -108,6 +131,9 @@ return table.freeze({
 		-- Port Haven cars, sold at Bayside Autos.
 		table.freeze({
 			id = "van",
+			top = 72, -- top speed, studs/s
+			accel = 8, -- extra pull, studs/s²
+			nitro = 3, -- seconds of nitro per charge
 			name = "Harbor Van",
 			price = 2600,
 			trunk = 22,
@@ -116,6 +142,9 @@ return table.freeze({
 		}),
 		table.freeze({
 			id = "hauler",
+			top = 84, -- top speed, studs/s
+			accel = 13, -- extra pull, studs/s²
+			nitro = 4, -- seconds of nitro per charge
 			name = "Dock Hauler",
 			price = 9000,
 			trunk = 44,
@@ -124,6 +153,10 @@ return table.freeze({
 		}),
 	}),
 	CAR = table.freeze({
+		NITRO_PUSH = 34, -- studs/s² while nitro burns
+		NITRO_OVER = 1.3, -- nitro may push past top speed by this factor
+		NITRO_RECHARGE = 9, -- seconds from empty to full
+		HONK_RANGE = 40, -- people this far ahead jump out of the way
 		SPAWN_COOLDOWN = 12,
 		TRUNK_RANGE = 16, -- studs from the car to use the trunk
 		SELL_RANGE = 90, -- the car must be this close to the Hideout to sell the trunk

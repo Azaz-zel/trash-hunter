@@ -6,6 +6,11 @@
 -- and feeds the kit's Chassis module directly. Also shows a speedometer and an
 -- Exit button while driving, and runs the car radio (R or the radio button
 -- cycles Config.Radio stations; it stays hidden while no station has tracks).
+--
+-- Handling on top of the kit: each car has its own top speed and pull
+-- (Config.Cars top / accel), Nitro (Shift or NOS) burns a recharging tank,
+-- the camera widens with speed, a car on its roof turns itself back over,
+-- and H / the horn button honks (people ahead jump out of the way).
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -15,6 +20,7 @@ local UserInputService = game:GetService("UserInputService")
 local Config =
 	require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Config"))
 local Ui = require(script.Parent.Parent.Ui)
+local Store = require(script.Parent.Parent.Store)
 
 local C = Ui.COLORS
 local player = Players.LocalPlayer
@@ -25,11 +31,18 @@ local driving: RBXScriptConnection? = nil
 local gui: ScreenGui
 local hud: Frame
 local speedLabel: TextLabel
+local carLabel: TextLabel
+local nitroFill: Frame
+local speedArc: Frame
+local nitroHeld = false
+local nitroTank = 1 -- 0..1
+local BASE_FOV = 70
 local touchPad: Frame
 -- Held on-screen pedals (touch): -1..1 each.
 local touchThrottle, touchSteer = 0, 0
 
 local STUDS_TO_MPH = 0.6 -- 1 stud ≈ 0.28 m; rounded for a readable dial
+local CAR = Config.CAR
 
 -- ─── radio ────────────────────────────────────────────────────────────────
 
@@ -127,6 +140,8 @@ local function stop()
 		driving:Disconnect()
 		driving = nil
 	end
+	nitroHeld = false
+	Ui.tween(workspace.CurrentCamera, 0.4, { FieldOfView = BASE_FOV })
 	touchThrottle, touchSteer = 0, 0
 	hud.Visible = false
 	radioOn(false)
@@ -155,21 +170,107 @@ local function drive(seat: VehicleSeat)
 	hud.Visible = true
 	touchPad.Visible = UserInputService.TouchEnabled
 	radioOn(true)
-	driving = RunService.Heartbeat:Connect(function()
+	local spec = Config.Cars[1]
+	for _, c in Config.Cars do
+		if c.id == model:GetAttribute("CarId") then
+			spec = c
+		end
+	end
+	carLabel.Text = string.upper(spec.name)
+	local camera = workspace.CurrentCamera
+	local upsideDown = 0
+	driving = RunService.Heartbeat:Connect(function(dt)
 		if not seat.Parent then
 			stop()
 			return
 		end
 		local throttle, steer = readInput()
 		local velocity = Chassis.GetAverageVelocity()
+		local v = seat.AssemblyLinearVelocity
+		local flatVel = Vector3.new(v.X, 0, v.Z)
+		local speed = flatVel.Magnitude
+		local look = Vector3.new(seat.CFrame.LookVector.X, 0, seat.CFrame.LookVector.Z)
+		look = if look.Magnitude > 0.1 then look.Unit else Vector3.zero
+		local forward = flatVel:Dot(look) -- signed speed along the nose
+		-- Top speed: off the gas at this car's limit.
+		if throttle > 0 and forward >= spec.top then
+			throttle = 0
+		end
 		-- The kit chassis steers opposite to SteerFloat's sign (D = +1 turned left).
 		Chassis.UpdateSteering(-steer, velocity)
 		Chassis.UpdateThrottle(velocity, throttle)
 		if throttle == 0 and math.abs(velocity) < 2 then
 			Chassis.EnableHandbrake()
 		end
-		speedLabel.Text = tostring(math.floor(seat.AssemblyLinearVelocity.Magnitude * STUDS_TO_MPH))
+		local grounded = seat.CFrame.UpVector.Y > 0.6
+		-- Extra pull per car, and nitro.
+		local push = 0
+		if throttle > 0 and grounded and forward < spec.top then
+			push += spec.accel * throttle
+		end
+		local burning = nitroHeld and nitroTank > 0 and grounded and throttle >= 0
+		if burning then
+			nitroTank = math.max(0, nitroTank - dt / spec.nitro)
+			if forward < spec.top * CAR.NITRO_OVER then
+				push += CAR.NITRO_PUSH
+			end
+		else
+			nitroTank = math.min(1, nitroTank + dt / CAR.NITRO_RECHARGE)
+		end
+		if push > 0 then
+			seat.AssemblyLinearVelocity += look * push * dt
+		end
+		-- On its roof or side and stopped for a moment: back on its wheels.
+		if not grounded and speed < 4 then
+			upsideDown += dt
+			if upsideDown > 2 then
+				upsideDown = 0
+				local pivot = model:GetPivot()
+				local face = Vector3.new(pivot.LookVector.X, 0, pivot.LookVector.Z)
+				face = if face.Magnitude > 0.1 then face.Unit else Vector3.zAxis
+				local up = pivot.Position + Vector3.new(0, 4, 0)
+				model:PivotTo(CFrame.lookAt(up, up + face))
+				seat.AssemblyLinearVelocity = Vector3.zero
+				seat.AssemblyAngularVelocity = Vector3.zero
+			end
+		else
+			upsideDown = 0
+		end
+		-- The camera widens with speed, more on nitro.
+		local share = math.clamp(speed / spec.top, 0, 1.3)
+		local fov = BASE_FOV + share * 14 + (if burning then 10 else 0)
+		camera.FieldOfView += (fov - camera.FieldOfView) * math.min(1, dt * 4)
+		speedLabel.Text = tostring(math.floor(speed * STUDS_TO_MPH))
+		speedArc.Size = UDim2.fromScale(math.clamp(speed / (spec.top * CAR.NITRO_OVER), 0, 1), 1)
+		speedArc.BackgroundColor3 = if burning then Color3.fromRGB(80, 200, 255) else C.accent
+		nitroFill.Size = UDim2.fromScale(nitroTank, 1)
+		nitroFill.BackgroundColor3 = if nitroTank < 0.15
+			then C.danger
+			else Color3.fromRGB(80, 200, 255)
 	end)
+end
+
+local lastHonk = 0
+local function honk()
+	if os.clock() - lastHonk < 0.8 then
+		return
+	end
+	lastHonk = os.clock()
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	local seat = humanoid and humanoid.SeatPart
+	if seat and Config.Sounds.HORN ~= "" then
+		local horn = Instance.new("Sound")
+		horn.SoundId = Config.Sounds.HORN
+		horn.Volume = 0.8
+		horn.RollOffMaxDistance = 200
+		horn.Parent = seat
+		horn:Play()
+		horn.Ended:Once(function()
+			horn:Destroy()
+		end)
+	end
+	task.spawn(Store.action, "honk")
 end
 
 local function exitCar()
@@ -229,33 +330,65 @@ local function build()
 		Visible = false,
 		Parent = gui,
 	})
-	-- Speedometer, bottom centre.
+	-- Dashboard, bottom centre: car name, speed, speed bar, nitro tank.
 	local dial = Ui.panel({
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -18),
-		Size = UDim2.fromOffset(150, 74),
+		Size = UDim2.fromOffset(210, 96),
 		Parent = hud,
 	})
-	speedLabel = Ui.label("0", 38, {
-		Size = UDim2.new(1, 0, 0, 46),
+	dial.BackgroundTransparency = 0.08
+	carLabel = Ui.label("", 11, {
 		Position = UDim2.fromOffset(0, 6),
-		Parent = dial,
-	})
-	Ui.label("MPH", 13, {
-		Position = UDim2.fromOffset(0, 50),
-		Size = UDim2.new(1, 0, 0, 16),
+		Size = UDim2.new(1, 0, 0, 14),
+		Font = Ui.FONT,
 		TextColor3 = C.muted,
 		Parent = dial,
 	})
+	speedLabel = Ui.label("0", 38, {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(0.5, 26, 0, 18),
+		Size = UDim2.fromOffset(110, 42),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = dial,
+	})
+	Ui.label("MPH", 13, {
+		Position = UDim2.new(0.5, 32, 0, 38),
+		Size = UDim2.fromOffset(40, 16),
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = C.muted,
+		Parent = dial,
+	})
+	local function bar(y: number, label: string): Frame
+		Ui.label(label, 10, {
+			Position = UDim2.fromOffset(12, y - 3),
+			Size = UDim2.fromOffset(30, 12),
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextColor3 = C.muted,
+			Font = Ui.FONT,
+			Parent = dial,
+		})
+		local track = Ui.new("Frame", {
+			Position = UDim2.fromOffset(44, y),
+			Size = UDim2.new(1, -56, 0, 6),
+			BackgroundColor3 = C.panelLight,
+			Parent = dial,
+		}, { Ui.corner(3) })
+		return Ui.new("Frame", {
+			Size = UDim2.fromScale(0, 1),
+			BackgroundColor3 = C.accent,
+			Parent = track,
+		}, { Ui.corner(3) })
+	end
+	speedArc = bar(66, "SPD")
+	nitroFill = bar(80, "NOS")
 	local hint = Ui.label(
-		if #stations > 0
-			then "W/S drive · A/D steer · R radio · Space exit"
-			else "W/S drive · A/D steer · Space exit",
+		`W/S drive · A/D steer · Shift nitro · H horn{if #stations > 0 then " · R radio" else ""} · Space exit`,
 		13,
 		{
 			AnchorPoint = Vector2.new(0.5, 1),
-			Position = UDim2.new(0.5, 0, 1, -98),
-			Size = UDim2.fromOffset(320, 16),
+			Position = UDim2.new(0.5, 0, 1, -122),
+			Size = UDim2.fromOffset(460, 16),
 			TextColor3 = C.cream,
 			TextStrokeTransparency = 0.5,
 			Parent = hud,
@@ -313,6 +446,14 @@ local function build()
 	pedal("REV", UDim2.new(1, -190, 1, -110), function(on)
 		touchThrottle = if on then -1 elseif touchThrottle < 0 then 0 else touchThrottle
 	end)
+	pedal("NOS", UDim2.new(1, -190, 1, -198), function(on)
+		nitroHeld = on
+	end)
+	pedal("HORN", UDim2.new(1, -102, 1, -286), function(on)
+		if on then
+			honk()
+		end
+	end)
 end
 
 local function onCharacter(character: Model)
@@ -333,8 +474,22 @@ end
 
 function CarDriver.start()
 	UserInputService.InputBegan:Connect(function(input, processed)
-		if not processed and input.KeyCode == Enum.KeyCode.R and driving then
+		if processed or not driving then
+			return
+		end
+		if input.KeyCode == Enum.KeyCode.R then
 			nextStation()
+		elseif input.KeyCode == Enum.KeyCode.H then
+			honk()
+		elseif
+			input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.ButtonL3
+		then
+			nitroHeld = true
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.ButtonL3 then
+			nitroHeld = false
 		end
 	end)
 	player.CharacterAdded:Connect(onCharacter)

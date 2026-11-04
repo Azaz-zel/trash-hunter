@@ -26,7 +26,7 @@ local ACCENT = {
 }
 local SUBTITLE = {
 	gear = "Tools and bigger backpacks",
-	cars = "Cars with bigger trunks",
+	cars = "Faster cars with bigger trunks",
 	house = "Homes on Sunset Ln",
 	robux = "Convenience only. Robux never buys loot or luck.",
 }
@@ -199,7 +199,7 @@ local function renderCars(state: any, city: string?, order: number): number
 			order + i,
 			{ color = car.color, text = tostring(car.trunk) },
 			car.name,
-			`Trunk holds {car.trunk} items`,
+			`Trunk {car.trunk} · {math.floor(car.top * 0.6)} mph · {car.nitro}s nitro`,
 			if driving then "Selected" elseif owned then "Use" else Ui.money(car.price),
 			not driving and (owned or state.cash >= car.price),
 			function()

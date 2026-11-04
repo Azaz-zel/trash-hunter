@@ -18,7 +18,7 @@ local markerText: TextLabel
 
 local STEPS: { { text: string, path: { string }, label: string } } = {
 	{
-		text = "Search the dumpster next to the Hideout.",
+		text = "Search the dumpster next to the Hideout. Tap DIG (F) in the gold zone!",
 		path = { "Dumpsters", "TutorialDumpster", "Body" },
 		label = "SEARCH",
 	},

@@ -57,7 +57,7 @@ local DISTRICT_TINT = {
 }
 
 -- Pin kinds: map colour, legend name, and the "Go to" button text.
-type Kind = { color: Color3, name: string, go: string?, order: number }
+type Kind = { color: Color3, name: string, go: string?, order: number, noFilter: boolean? }
 local KINDS: { [string]: Kind } = {
 	hideout = { color = C.accent, name = "Hideout", go = "Hideout", order = 1 },
 	dumpster = {
@@ -67,6 +67,14 @@ local KINDS: { [string]: Kind } = {
 		order = 2,
 	},
 	guarded = { color = Color3.fromRGB(255, 120, 110), name = "Guarded", order = 3 },
+	-- Fresh drops are dumpsters too; this entry is only their "Go to" button.
+	fresh = {
+		color = Color3.fromRGB(255, 205, 60),
+		name = "Fresh",
+		go = "Fresh drop",
+		order = 2.5,
+		noFilter = true,
+	},
 	store = { color = Color3.fromRGB(80, 170, 255), name = "Store", go = "Store", order = 4 },
 	quest = { color = Color3.fromRGB(190, 120, 255), name = "Quest", go = "Quest", order = 5 },
 	contact = { color = Color3.fromRGB(255, 170, 30), name = "Mission", go = "Mission", order = 6 },
@@ -220,6 +228,15 @@ end
 local function uiScale(): number
 	local s = gui and gui:FindFirstChildOfClass("UIScale")
 	return if s then s.Scale else 1
+end
+
+-- Dumpsters refilled by the server (Search.luau), as Config indices.
+local function freshSet(): { [number]: boolean }
+	local set = {}
+	for id in string.gmatch(tostring(workspace:GetAttribute("FreshDumpsters") or ""), "%d+") do
+		set[tonumber(id) :: number] = true
+	end
+	return set
 end
 
 local function dumpsterState(i: number): (boolean, boolean)
@@ -786,6 +803,9 @@ local function describe(place: Place): string
 	local i = place.index
 	if i then
 		local ready, locked = dumpsterState(i)
+		if freshSet()[i] and ready and not locked then
+			return `{area} · FRESH DROP, bonus loot!`
+		end
 		if locked then
 			local m = Quests.missionFor(dumpsterDistrict[i])
 			local who = if m then Config.Contacts[m.contact].name else "a contact"
@@ -847,8 +867,12 @@ end
 local function nearest(kind: string): Place?
 	local pos = myPos() or Config.World.SPAWN
 	local best, bestD = nil, math.huge
+	local fresh = if kind == "fresh" then freshSet() else nil
 	for _, p in places do
-		if p.kind == kind then
+		local match = if fresh
+			then p.index ~= nil and fresh[p.index :: number] == true
+			else p.kind == kind
+		if match then
 			local i = p.index
 			if i then
 				local ready, locked = dumpsterState(i)
@@ -1119,6 +1143,9 @@ local function buildFull()
 		}),
 	})
 	for kindId, kind in KINDS do
+		if kind.noFilter then
+			continue
+		end
 		local b: TextButton = Ui.new("TextButton", {
 			BackgroundColor3 = C.panelLight,
 			BackgroundTransparency = 0.4,
@@ -1443,13 +1470,17 @@ local function showCard(title: string, sub: string, stripe: Color3)
 end
 
 local function refreshDots()
+	local fresh = freshSet()
 	for i, f in mini.dots do
 		local ready, locked = dumpsterState(i)
+		local gold = fresh[i] == true and ready and not locked
 		f.BackgroundTransparency = if ready and not locked then 0 else 0.75
 		f.BackgroundColor3 = if locked
 			then LOCKED_COLOR
+			elseif gold then KINDS.fresh.color
 			elseif Config.World.Dumpsters[i].zone == "Red" then KINDS.guarded.color
 			else KINDS.dumpster.color
+		f.Size = UDim2.fromOffset(if gold then 9 else 5, if gold then 9 else 5)
 	end
 	if not fullFrame.Visible then
 		return
@@ -1462,6 +1493,8 @@ local function refreshDots()
 			if f then
 				p.frame.BackgroundTransparency = f.BackgroundTransparency
 				p.frame.BackgroundColor3 = f.BackgroundColor3
+				local gold = f.BackgroundColor3 == KINDS.fresh.color
+				p.frame.Size = UDim2.fromOffset(if gold then 12 else 7, if gold then 12 else 7)
 			end
 		end
 	end
@@ -1560,6 +1593,9 @@ function MapUi.start()
 		elseif input.KeyCode == Enum.KeyCode.Escape and fullFrame.Visible then
 			openMap(false)
 		end
+	end)
+	Store.on("openMap", function()
+		openMap(true)
 	end)
 	Players.PlayerRemoving:Connect(function(other)
 		local entry = friendDots[other]

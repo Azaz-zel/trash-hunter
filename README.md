@@ -61,7 +61,11 @@ The server decides every outcome. Clients send requests through one RemoteFuncti
 ## Controls
 
 - `E` / tap prompt: search, sell counter, upgrade shop
-- `F` / DIG button: Perfect Dig tap
+- `F` / DIG button: Perfect Dig. Tap while the marker crosses the gold zone
+  (+1 bag, better odds) or the green zone (better odds). Searches close
+  together build a combo; gold dumpsters on the map are fresh drops.
+- Driving: `W/S` gas and brake, `A/D` steer, `Shift` nitro, `H` horn
+  (people ahead step aside), `R` radio, `Space` exit
 - `B` bag, `C` collection book, `G` Drop & Run, `Esc` close panel
 - `M` / tap the radar: full map. Drag to move, scroll or pinch to zoom, tap a pin
   for details and **Set GPS**, or use **Go to** for the nearest Hideout, open
