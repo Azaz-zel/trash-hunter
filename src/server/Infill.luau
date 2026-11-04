@@ -920,7 +920,7 @@ end
 
 -- ─── lot search ───────────────────────────────────────────────────────────
 
-type Plan = { width: number, depth: number, build: (Kit, Instance, CFrame) -> () }
+type Plan = { width: number, depth: number, build: (Kit, Instance, CFrame) -> (), kind: any? }
 
 local function choose(k: Kit, options: { { any } }): any
 	local total = 0
@@ -939,6 +939,7 @@ end
 
 local function home(fn: any, width: number, toCurb: number, depth: number?): Plan
 	return {
+		kind = fn,
 		width = width,
 		depth = depth or (toCurb + 50),
 		build = function(kit, parent, cf)
@@ -950,6 +951,7 @@ end
 local function shopPlan(k: Kit): Plan
 	local w = k.rng:NextInteger(3, 5) * 10
 	return {
+		kind = "shop",
 		width = w + 2,
 		depth = 48,
 		build = function(kit, parent, cf)
@@ -962,6 +964,7 @@ local function midrisePlan(k: Kit, pastel: boolean): Plan
 	local w = k.rng:NextInteger(5, 8) * 8
 	local floors = k.rng:NextInteger(4, 8)
 	return {
+		kind = "midrise",
 		width = w + 2,
 		depth = 44,
 		build = function(kit, parent, cf)
@@ -1800,8 +1803,13 @@ local function theater(k: Kit, parent: Instance, cf: CFrame, w: number)
 	model.Parent = parent
 end
 
-local function sized(width: number, depth: number, build: (Kit, Instance, CFrame) -> ()): Plan
-	return { width = width, depth = depth, build = build }
+local function sized(
+	width: number,
+	depth: number,
+	build: (Kit, Instance, CFrame) -> (),
+	kind: any?
+): Plan
+	return { width = width, depth = depth, build = build, kind = kind or build }
 end
 
 local function towerPlan(k: Kit): Plan
@@ -1819,7 +1827,7 @@ local function towerPlan(k: Kit): Plan
 		else
 			kit.neonTower(parent, cf * CFrame.new(0, 0, d / 2 + 3), w, d, h)
 		end
-	end)
+	end, "tower-" .. kind)
 end
 
 local function walkupPlan(k: Kit): Plan
@@ -1827,7 +1835,7 @@ local function walkupPlan(k: Kit): Plan
 	local floors = k.rng:NextInteger(3, 6)
 	return sized(w + 2, 40, function(kit, parent, cf)
 		brickWalkup(kit, parent, cf * CFrame.new(0, 0, 2), w, floors)
-	end)
+	end, "walkup")
 end
 
 local function garagePlan(k: Kit): Plan
@@ -1835,14 +1843,14 @@ local function garagePlan(k: Kit): Plan
 	local levels = k.rng:NextInteger(3, 5)
 	return sized(w + 2, 54, function(kit, parent, cf)
 		parkingGarage(kit, parent, cf * CFrame.new(0, 0, 2), w, levels)
-	end)
+	end, "garage")
 end
 
 local function theaterPlan(k: Kit): Plan
 	local w = k.rng:NextInteger(5, 6) * 10
 	return sized(w + 2, 54, function(kit, parent, cf)
 		theater(kit, parent, cf * CFrame.new(0, 0, 2), w)
-	end)
+	end, "theater")
 end
 
 local DINER = sized(50, 40, diner)
@@ -1957,6 +1965,358 @@ local function planFor(k: Kit, districtId: string?): Plan?
 	return nil
 end
 
+-- ─── fillers ──────────────────────────────────────────────────────────────
+-- When the chosen building does not fit what is left of a block, smaller
+-- pieces take the gap so streets read as continuous: a two-storey corner
+-- shop or a tiny house, then a kiosk / food truck / mural wall / pocket park,
+-- and finally a planter or phone booth.
+
+local MURAL_COLORS = {
+	Color3.fromRGB(255, 70, 150),
+	Color3.fromRGB(0, 220, 255),
+	Color3.fromRGB(255, 200, 40),
+	Color3.fromRGB(120, 255, 120),
+	Color3.fromRGB(160, 90, 255),
+}
+local MURAL_TAGS =
+	{ "NEON DREAMS", "TRASH KING", "STAY WILD", "PORT HAVEN", "MAPLE 4EVER", "DIG DEEP" }
+
+-- Two-storey shop: coloured facade, awning, sign, rooftop AC box.
+local function smallShop(k: Kit, parent: Instance, cf: CFrame, w: number, d: number)
+	local C, M = k.C, k.M
+	local model = Instance.new("Model")
+	model.Name = "SmallShop"
+	local wall = pick(k, PALETTE):Lerp(pick(k, MURAL_COLORS), k.rng:NextNumber(0, 0.25))
+	local h = pick(k, { 12, 16, 20 })
+	k.box(
+		model,
+		"Walls",
+		cf * CFrame.new(0, 0, d / 2),
+		Vector3.new(w, h, d),
+		wall,
+		pick(k, { M.Brick, M.Plaster, M.Concrete })
+	)
+	local glass = k.box(
+		model,
+		"Front",
+		cf * CFrame.new(0, 0, -0.15),
+		Vector3.new(w - 6, 8, 0.3),
+		Color3.fromRGB(60, 70, 80),
+		M.Glass
+	)
+	glass.Transparency = 0.3
+	k.wedge(
+		model,
+		"Awning",
+		cf * CFrame.new(0, 8.4, -1.8) * CFrame.Angles(0, math.pi, 0),
+		Vector3.new(w - 2, 1.6, 3.4),
+		pick(k, MURAL_COLORS)
+	)
+	local sign = k.box(
+		model,
+		"Sign",
+		cf * CFrame.new(0, 10.6, -0.4),
+		Vector3.new(w - 6, 2, 0.3),
+		Color3.fromRGB(20, 20, 26),
+		M.SmoothPlastic
+	)
+	k.sign(
+		sign,
+		Enum.NormalId.Front,
+		pick(k, SHOP_NAMES),
+		Color3.fromRGB(20, 20, 26),
+		pick(k, MURAL_COLORS)
+	)
+	if h > 12 then
+		for x = -w / 2 + 4, w / 2 - 4, 6 do
+			k.box(
+				model,
+				"Window",
+				cf * CFrame.new(x, 12.5, -0.15),
+				Vector3.new(2.6, 3.4, 0.2),
+				Color3.fromRGB(40, 46, 56),
+				M.Glass
+			)
+		end
+	end
+	k.box(model, "AC", cf * CFrame.new(w / 4, h, d / 2), Vector3.new(4, 2.4, 3), C.metal, M.Metal)
+	model.Parent = parent
+end
+
+-- Tiny house for the residential districts.
+local function tinyHouse(k: Kit, parent: Instance, cf: CFrame, w: number, d: number)
+	local M = k.M
+	local model = Instance.new("Model")
+	model.Name = "TinyHouse"
+	local wall = pick(k, PALETTE)
+	local body = cf * CFrame.new(0, 0, 8 + (d - 8) / 2)
+	k.box(
+		model,
+		"Walls",
+		body,
+		Vector3.new(w - 6, 10, d - 10),
+		wall,
+		pick(k, { M.WoodPlanks, M.Brick, M.Plaster })
+	)
+	k.gableRoof(model, body * CFrame.new(0, 10, 0), w - 4, d - 8, 5, pick(k, ROOFS))
+	k.box(
+		model,
+		"Door",
+		body * CFrame.new(0, 0, -(d - 10) / 2 - 0.1),
+		Vector3.new(3, 7, 0.2),
+		Color3.fromRGB(110, 70, 40),
+		M.Wood
+	)
+	for _, x in { -w / 4, w / 4 } do
+		k.box(
+			model,
+			"Window",
+			body * CFrame.new(x, 3.5, -(d - 10) / 2 - 0.1),
+			Vector3.new(3, 3, 0.2),
+			Color3.fromRGB(255, 230, 170),
+			M.Neon
+		)
+	end
+	k.tree(model, (cf * CFrame.new(w / 2 - 3, 0, 3)).Position, 0.6)
+	model.Parent = parent
+end
+
+-- A 20-wide slot: kiosk, food truck, mural wall or pocket park.
+local function kiosk(k: Kit, parent: Instance, cf: CFrame, residential: boolean)
+	local C, M = k.C, k.M
+	local model = Instance.new("Model")
+	model.Name = "Filler"
+	local kind = if residential
+		then pick(k, { "park", "park", "garden" })
+		else pick(k, { "mural", "truck", "news", "park" })
+	if kind == "park" or kind == "garden" then
+		k.box(
+			model,
+			"Grass",
+			cf * CFrame.new(0, 0.05, 11),
+			Vector3.new(19, 0.2, 21),
+			Color3.fromRGB(80, 130, 60),
+			M.Grass
+		)
+		k.tree(model, (cf * CFrame.new(-4, 0, 12)).Position, 0.8)
+		if kind == "park" then
+			k.bench(model, cf * CFrame.new(4, 0, 6))
+			k.trashCan(model, (cf * CFrame.new(8, 0, 4)).Position, Color3.fromRGB(40, 60, 46))
+		else
+			for x = -6, 6, 4 do
+				k.box(
+					model,
+					"Flowers",
+					cf * CFrame.new(x, 0, 18),
+					Vector3.new(3, 1, 2),
+					pick(k, MURAL_COLORS),
+					M.Grass
+				)
+			end
+		end
+	elseif kind == "mural" then
+		local wall = k.box(
+			model,
+			"MuralWall",
+			cf * CFrame.new(0, 0, 18),
+			Vector3.new(19, 16, 1.2),
+			Color3.fromRGB(70, 70, 76),
+			M.Brick
+		)
+		for i = 0, 3 do
+			local band = k.box(
+				model,
+				"Paint",
+				cf * CFrame.new(-6 + i * 4, 2, 17.3),
+				Vector3.new(3.6, 10 - i, 0.1),
+				pick(k, MURAL_COLORS),
+				M.SmoothPlastic
+			)
+			band.CanCollide = false
+		end
+		local tag = k.box(
+			model,
+			"Tag",
+			cf * CFrame.new(0, 11, 17.3),
+			Vector3.new(16, 3, 0.1),
+			Color3.fromRGB(70, 70, 76),
+			M.SmoothPlastic
+		)
+		tag.CanCollide = false
+		k.sign(
+			tag,
+			Enum.NormalId.Front,
+			pick(k, MURAL_TAGS),
+			Color3.fromRGB(70, 70, 76),
+			pick(k, MURAL_COLORS),
+			true
+		)
+		local _ = wall
+	elseif kind == "truck" then
+		k.box(
+			model,
+			"Pad",
+			cf * CFrame.new(0, 0.05, 11),
+			Vector3.new(19, 0.1, 21),
+			C.asphalt,
+			M.Asphalt
+		)
+		local color = pick(k, MURAL_COLORS)
+		k.box(
+			model,
+			"Truck",
+			cf * CFrame.new(0, 1.2, 12) * CFrame.Angles(0, math.rad(90), 0),
+			Vector3.new(14, 7, 6.5),
+			color,
+			M.Metal
+		)
+		k.box(
+			model,
+			"Cab",
+			cf * CFrame.new(0, 1.2, 4) * CFrame.Angles(0, math.rad(90), 0),
+			Vector3.new(4.5, 5, 6.5),
+			C.white,
+			M.Metal
+		)
+		local hatch = k.box(
+			model,
+			"Hatch",
+			cf * CFrame.new(-3.3, 4.2, 12),
+			Vector3.new(0.2, 2.6, 9),
+			Color3.fromRGB(255, 240, 200),
+			M.Neon
+		)
+		hatch.CanCollide = false
+		for _, z in { 6, 16 } do
+			k.box(
+				model,
+				"Table",
+				cf * CFrame.new(-7, 2.6, z),
+				Vector3.new(2.4, 0.3, 2.4),
+				C.white,
+				M.Plastic
+			)
+			k.box(
+				model,
+				"TableLeg",
+				cf * CFrame.new(-7, 0, z),
+				Vector3.new(0.3, 2.6, 0.3),
+				C.metal,
+				M.Metal
+			)
+		end
+	else
+		local booth = k.box(
+			model,
+			"Kiosk",
+			cf * CFrame.new(0, 0, 10),
+			Vector3.new(8, 8, 6),
+			Color3.fromRGB(30, 90, 60),
+			M.Metal
+		)
+		k.box(
+			model,
+			"KioskRoof",
+			cf * CFrame.new(0, 8, 10),
+			Vector3.new(10, 0.6, 8),
+			Color3.fromRGB(240, 200, 60),
+			M.SmoothPlastic
+		)
+		local sign = k.box(
+			model,
+			"KioskSign",
+			cf * CFrame.new(0, 8.6, 6),
+			Vector3.new(8, 1.6, 0.3),
+			Color3.fromRGB(20, 20, 26),
+			M.SmoothPlastic
+		)
+		k.sign(
+			sign,
+			Enum.NormalId.Front,
+			pick(k, { "NEWS", "LOTTO", "PHONE FIX", "KEYS CUT" }),
+			Color3.fromRGB(20, 20, 26),
+			C.white
+		)
+		local _ = booth
+	end
+	model.Parent = parent
+end
+
+-- A 12-wide slot: a planter with a tree, or a lit phone booth.
+local function nook(k: Kit, parent: Instance, cf: CFrame)
+	local M = k.M
+	if k.rng:NextNumber() < 0.6 then
+		k.box(
+			parent,
+			"Planter",
+			cf * CFrame.new(0, 0, 6),
+			Vector3.new(8, 1.6, 8),
+			Color3.fromRGB(150, 140, 124),
+			M.Concrete
+		)
+		k.tree(parent, (cf * CFrame.new(0, 1.6, 6)).Position, 0.7)
+	else
+		local booth = k.box(
+			parent,
+			"PhoneBooth",
+			cf * CFrame.new(0, 0, 4),
+			Vector3.new(3.4, 8, 3.4),
+			Color3.fromRGB(30, 60, 140),
+			M.Metal
+		)
+		k.light(
+			booth,
+			"PointLight",
+			{ Range = 10, Brightness = 0.8, Color = Color3.fromRGB(200, 220, 255) }
+		)
+	end
+end
+
+local RESIDENTIAL = { southside = true, eastgate = true, hills = true, beach = true }
+
+-- Fallback plans for district `id`, tried in order after the chosen one.
+local function fallbacks(k: Kit, id: string): { Plan }
+	local res = RESIDENTIAL[id] == true
+	return {
+		{
+			width = 40,
+			depth = 40,
+			build = function(kit, parent, cf)
+				if res then
+					tinyHouse(kit, parent, cf, 40, 40)
+				else
+					smallShop(kit, parent, cf, 40, 40)
+				end
+			end,
+		},
+		{
+			width = 30,
+			depth = 32,
+			build = function(kit, parent, cf)
+				if res then
+					tinyHouse(kit, parent, cf, 30, 32)
+				else
+					smallShop(kit, parent, cf, 30, 32)
+				end
+			end,
+		},
+		{
+			width = 20,
+			depth = 22,
+			build = function(kit, parent, cf)
+				kiosk(kit, parent, cf, res)
+			end,
+		},
+		{
+			width = 12,
+			depth = 14,
+			build = function(kit, parent, cf)
+				nook(kit, parent, cf)
+			end,
+		},
+	}
+end
+
 local function blocked(box: CFrame, size: Vector3, params: OverlapParams): boolean
 	for _, hit in workspace:GetPartBoundsInBox(box, size, params) do
 		if hit.CanCollide and hit.Name ~= "Lawn" and hit.Name ~= "Seabed" then
@@ -1994,60 +2354,89 @@ local function fillLots(k: Kit, parent: Instance): number
 			-- Keep clear of junction corners and the cul-de-sac bulb.
 			local s = (if e.a.bulb then CityPlan.BULB_R + 12 else e.a.gap) + 14
 			local stop = e.length - (if e.b.bulb then CityPlan.BULB_R + 12 else e.b.gap) - 14
+			-- Places `plan` at distance s if the lot is clear; true when built.
+			local function place(plan: Plan, district: any): boolean
+				if s + plan.width > stop then
+					return false
+				end
+				local base = CityPlan.frameAt(e, s + plan.width / 2, side) * CFrame.new(0, 0, 1)
+				local far = base * CFrame.new(0, 0, plan.depth)
+				local inside = CityPlan.district(far.Position)
+				local center = base * CFrame.new(0, 12.3, plan.depth / 2)
+				local size = Vector3.new(plan.width, 23.9, plan.depth)
+				if
+					not inside
+					or inside.id ~= district.id
+					or not CityPlan.onLand(far.Position)
+					or CityPlan.clearance(far.Position) <= 6
+					or CityPlan.clearance(
+						(base * CFrame.new(plan.width / 2 - 2, 0, plan.depth)).Position
+					) <= 4
+					or CityPlan.clearance(
+						(base * CFrame.new(-plan.width / 2 + 2, 0, plan.depth)).Position
+					) <= 4
+					or CityPlan.reserved(center.Position, plan.width / 2)
+					or blocked(center, size, params)
+				then
+					return false
+				end
+				clearTrees(center, size, params)
+				-- On a slope, a plinth reaches down to the lowest ground under the lot.
+				local lowest = base.Position.Y
+				for _, corner in { { -1, 0 }, { 1, 0 }, { -1, 1 }, { 1, 1 } } do
+					local c = (base * CFrame.new(
+						corner[1] * plan.width / 2,
+						0,
+						corner[2] * plan.depth
+					)).Position
+					lowest = math.min(lowest, CityPlan.hillY(c.X, c.Z))
+				end
+				if base.Position.Y > 0.5 then
+					local h = base.Position.Y - lowest + 2
+					k.part(parent, {
+						Name = "Plinth",
+						Size = Vector3.new(plan.width, h, plan.depth),
+						CFrame = base * CFrame.new(0, -h / 2 + 0.2, plan.depth / 2),
+						Color = Color3.fromRGB(150, 140, 124),
+						Material = k.M.Cobblestone,
+					})
+				end
+				plan.build(k, parent, base)
+				built += 1
+				if built % 40 == 0 then
+					task.wait()
+				end
+				return true
+			end
+			local lastKind: any = nil
 			while s < stop do
-				local step = 8
+				local step = 4
 				local probe = CityPlan.frameAt(e, s, side) * CFrame.new(0, 0, 20)
 				local district = CityPlan.district(probe.Position)
 				if district and district.tier > 0 and CityPlan.onLand(probe.Position) then
-					local plan = planFor(k, district.id)
-					if plan and s + plan.width <= stop then
-						local base = CityPlan.frameAt(e, s + plan.width / 2, side)
-							* CFrame.new(0, 0, 1)
-						local far = base * CFrame.new(0, 0, plan.depth)
-						local inside = CityPlan.district(far.Position)
-						local center = base * CFrame.new(0, 12.3, plan.depth / 2)
-						local size = Vector3.new(plan.width, 23.9, plan.depth)
-						if
-							inside
-							and inside.id == district.id
-							and CityPlan.onLand(far.Position)
-							and CityPlan.clearance(far.Position) > 6
-							and CityPlan.clearance(
-								(base * CFrame.new(plan.width / 2 - 2, 0, plan.depth)).Position
-							) > 4
-							and CityPlan.clearance(
-								(base * CFrame.new(-plan.width / 2 + 2, 0, plan.depth)).Position
-							) > 4
-							and not CityPlan.reserved(center.Position, plan.width / 2)
-							and not blocked(center, size, params)
-						then
-							clearTrees(center, size, params)
-							-- On a slope, a plinth reaches down to the lowest ground under the lot.
-							local lowest = base.Position.Y
-							for _, corner in { { -1, 0 }, { 1, 0 }, { -1, 1 }, { 1, 1 } } do
-								local c = (base * CFrame.new(
-									corner[1] * plan.width / 2,
-									0,
-									corner[2] * plan.depth
-								)).Position
-								lowest = math.min(lowest, CityPlan.hillY(c.X, c.Z))
-							end
-							if base.Position.Y > 0.5 then
-								local h = base.Position.Y - lowest + 2
-								k.part(parent, {
-									Name = "Plinth",
-									Size = Vector3.new(plan.width, h, plan.depth),
-									CFrame = base * CFrame.new(0, -h / 2 + 0.2, plan.depth / 2),
-									Color = Color3.fromRGB(150, 140, 124),
-									Material = k.M.Cobblestone,
-								})
-							end
-							plan.build(k, parent, base)
-							built += 1
+					-- The district's pick (rerolled once if it repeats the last
+					-- building), a second pick, then ever smaller fillers so no
+					-- stretch of street is left bare.
+					local candidates: { Plan } = {}
+					local first = planFor(k, district.id)
+					if first and lastKind ~= nil and first.kind == lastKind then
+						first = planFor(k, district.id)
+					end
+					if first then
+						table.insert(candidates, first)
+					end
+					local second = planFor(k, district.id)
+					if second then
+						table.insert(candidates, second)
+					end
+					for _, f in fallbacks(k, district.id) do
+						table.insert(candidates, f)
+					end
+					for _, plan in candidates do
+						if place(plan, district) then
+							lastKind = plan.kind
 							step = plan.width + 1
-							if built % 40 == 0 then
-								task.wait()
-							end
+							break
 						end
 					end
 				end
