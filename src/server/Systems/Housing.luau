@@ -103,6 +103,156 @@ local function showItem(parent: Instance, spot: CFrame, entry: Types.BagItem)
 	tag.Parent = model.PrimaryPart
 end
 
+-- Furniture the owner bought (Config.Decor), each at its own spot. `base` is
+-- the house centre on the floor; local -Z faces the street.
+local function furnish(
+	model: Model,
+	base: CFrame,
+	w: number,
+	d: number,
+	h: number,
+	owned: { [string]: boolean }
+)
+	local k = World.kit
+	local C, M = k.C, k.M
+	local floor = base * CFrame.new(0, 1.2, 0)
+	if owned.rug then
+		k.box(
+			model,
+			"Rug",
+			floor,
+			Vector3.new(w * 0.45, 0.1, d * 0.4),
+			Color3.fromRGB(150, 60, 70),
+			M.Fabric
+		)
+	end
+	if owned.plant then
+		local spot = floor * CFrame.new(w / 2 - 3, 0, -d / 2 + 3)
+		k.box(model, "Pot", spot, Vector3.new(2, 2, 2), Color3.fromRGB(170, 90, 60), M.Slate)
+		local leaves = k.part(model, {
+			Name = "Fern",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(4.5, 4, 4.5),
+			CFrame = spot * CFrame.new(0, 3.6, 0),
+			Color = Color3.fromRGB(60, 130, 60),
+			Material = M.Grass,
+		})
+		leaves.CanCollide = false
+	end
+	if owned.sofa then
+		local spot = floor * CFrame.new(-w / 4, 0, d / 2 - 3)
+		k.box(
+			model,
+			"SofaBase",
+			spot,
+			Vector3.new(9, 1.6, 3.4),
+			Color3.fromRGB(90, 55, 40),
+			M.Leather
+		)
+		k.box(
+			model,
+			"SofaBack",
+			spot * CFrame.new(0, 1.6, 1.3),
+			Vector3.new(9, 2.2, 0.8),
+			Color3.fromRGB(90, 55, 40),
+			M.Leather
+		)
+		for _, sx in { -1, 1 } do
+			k.box(
+				model,
+				"SofaArm",
+				spot * CFrame.new(sx * 4.3, 1.6, 0),
+				Vector3.new(0.6, 1.2, 3.4),
+				Color3.fromRGB(80, 48, 36),
+				M.Leather
+			)
+		end
+	end
+	if owned.fridge then
+		local spot = floor * CFrame.new(w / 2 - 3, 0, d / 2 - 2.5)
+		k.box(
+			model,
+			"Fridge",
+			spot,
+			Vector3.new(3, 6.5, 2.6),
+			Color3.fromRGB(120, 200, 190),
+			M.SmoothPlastic
+		)
+		k.box(
+			model,
+			"FridgeHandle",
+			spot * CFrame.new(-1, 3.2, -1.4),
+			Vector3.new(0.2, 2, 0.2),
+			C.metal,
+			M.Metal
+		)
+	end
+	if owned.arcade then
+		local spot = floor * CFrame.new(-w / 2 + 2.5, 0, 0) * CFrame.Angles(0, math.rad(-90), 0)
+		k.box(
+			model,
+			"Arcade",
+			spot,
+			Vector3.new(3, 6.4, 2.6),
+			Color3.fromRGB(40, 30, 80),
+			M.SmoothPlastic
+		)
+		local screen = k.box(
+			model,
+			"ArcadeScreen",
+			spot * CFrame.new(0, 3.8, -1.35),
+			Vector3.new(2.2, 1.8, 0.1),
+			Color3.fromRGB(0, 230, 255),
+			M.Neon
+		)
+		screen.CanCollide = false
+	end
+	if owned.neon then
+		local sign = k.box(
+			model,
+			"NeonSign",
+			floor * CFrame.new(0, h * 0.62, d / 2 - 0.9),
+			Vector3.new(10, 2.2, 0.2),
+			Color3.fromRGB(20, 10, 30),
+			M.SmoothPlastic
+		)
+		sign.CanCollide = false
+		k.sign(
+			sign,
+			Enum.NormalId.Front,
+			"TRASH HUNTER",
+			Color3.fromRGB(20, 10, 30),
+			Color3.fromRGB(255, 60, 200)
+		)
+		local glow = Instance.new("PointLight")
+		glow.Color = Color3.fromRGB(255, 60, 200)
+		glow.Range = 14
+		glow.Brightness = 1.2
+		glow.Parent = sign
+	end
+	if owned.trophy then
+		local spot = floor * CFrame.new(w / 2 - 2, 0, 0)
+		k.box(model, "CaseBase", spot, Vector3.new(2.6, 2.4, 5), Color3.fromRGB(60, 40, 30), M.Wood)
+		local glass = k.box(
+			model,
+			"CaseGlass",
+			spot * CFrame.new(0, 2.4, 0),
+			Vector3.new(2.4, 3.6, 4.8),
+			C.glass,
+			M.Glass
+		)
+		glass.Transparency = 0.7
+		k.part(model, {
+			Name = "Trophy",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(2, 1.4, 1.4),
+			CFrame = spot * CFrame.new(0, 3.6, 0) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(255, 200, 60),
+			Material = M.Foil,
+		})
+	end
+end
+
 -- Rebuilds the whole lot. Cheap enough: only on buy, upgrade, display and likes.
 local function render(lot: Lot)
 	lot.folder:ClearAllChildren()
@@ -255,6 +405,8 @@ local function render(lot: Lot)
 	glow.Brightness = 1.2
 	glow.Color = Color3.fromRGB(255, 236, 200)
 	glow.Parent = lamp
+
+	furnish(model, base, w, d, h, profile.decor)
 
 	-- Pedestals with the owner's finds.
 	for i, spot in pedestalSpots(lot, level) do
@@ -453,6 +605,14 @@ local function like(player: Player, index: any): (boolean, string?)
 	Router.send(owner, "liked", { by = player.DisplayName, likes = ownerProfile.likes })
 	Data.push(player)
 	return true, nil
+end
+
+-- Re-renders a player's house (new furniture).
+function Housing.refresh(player: Player)
+	local lot = lotOf[player]
+	if lot then
+		render(lot)
+	end
 end
 
 function Housing.init()

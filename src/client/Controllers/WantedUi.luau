@@ -128,6 +128,11 @@ function WantedUi.start()
 			})
 		elseif payload.reason == "lost" then
 			Store.emit("toast", { text = "You lost the cops.", color = C.safe })
+		elseif payload.reason == "lawyer" then
+			Store.emit(
+				"toast",
+				{ text = "Your lawyer made it go away. Clean record.", color = C.safe }
+			)
 		elseif payload.reason == "safe" then
 			Store.emit("toast", { text = "Safe at the Hideout. The heat is off.", color = C.safe })
 		end

@@ -76,6 +76,44 @@ local function paint(model: Model, color: Color3)
 	end
 end
 
+-- Neon strips under the car (Neon Runner, or Custom Paint underglow).
+local function underglow(car: Model, color: Color3)
+	local bb, size = car:GetBoundingBox()
+	local root = car.PrimaryPart or car:FindFirstChildWhichIsA("VehicleSeat", true)
+	if not root then
+		return
+	end
+	local bottom = bb * CFrame.new(0, -size.Y / 2 + 0.6, 0)
+	for _, spec in
+		{
+			{ Vector3.new(0, 0, size.Z / 2 - 1), Vector3.new(size.X - 1.5, 0.2, 0.3) },
+			{ Vector3.new(0, 0, -size.Z / 2 + 1), Vector3.new(size.X - 1.5, 0.2, 0.3) },
+			{ Vector3.new(size.X / 2 - 0.8, 0, 0), Vector3.new(0.3, 0.2, size.Z - 2) },
+			{ Vector3.new(-size.X / 2 + 0.8, 0, 0), Vector3.new(0.3, 0.2, size.Z - 2) },
+		}
+	do
+		local strip = Instance.new("Part")
+		strip.Name = "Underglow"
+		strip.Size = spec[2]
+		strip.CFrame = bottom * CFrame.new(spec[1])
+		strip.Color = color
+		strip.Material = Enum.Material.Neon
+		strip.CanCollide = false
+		strip.CanQuery = false
+		strip.Massless = true
+		local w = Instance.new("WeldConstraint")
+		w.Part0 = root :: BasePart
+		w.Part1 = strip
+		w.Parent = strip
+		strip.Parent = car
+	end
+	local light = Instance.new("PointLight")
+	light.Color = color
+	light.Range = 12
+	light.Brightness = 2
+	light.Parent = car:FindFirstChild("Underglow") :: Instance
+end
+
 local function ownerOf(model: Model): Player?
 	return Players:GetPlayerByUserId(tonumber(model:GetAttribute("Owner")) or 0)
 end
@@ -235,6 +273,27 @@ local function spawnCar(player: Player): (boolean, string?)
 	if not profile or not root or not template then
 		return false, if template then nil else "Cars are not available right now."
 	end
+	-- No car yet: point the way to the dealer.
+	local spec = nil
+	for _, c in Config.Cars do
+		if c.id == profile.car then
+			spec = c
+		end
+	end
+	local ownsIt = spec ~= nil
+		and (
+			if spec.pass
+				then player:GetAttribute("Pass_" .. spec.pass) == true
+				else profile.ownedCars[spec.id] == true
+		)
+	if not ownsIt then
+		Router.send(
+			player,
+			"routeTo",
+			{ pos = Config.Stores.motors.counter, name = Config.Stores.motors.name }
+		)
+		return false, "You don't have a car yet. Buy one at Maple Motors (GPS set)."
+	end
 	if player:GetAttribute("Chased") then
 		return false, "No time, run!"
 	end
@@ -248,7 +307,13 @@ local function spawnCar(player: Player): (boolean, string?)
 
 	local car = template:Clone()
 	car.Name = player.Name .. "'s " .. carName(profile.car)
-	paint(car, carColor(profile.car))
+	local custom = profile.paint
+	paint(car, if custom then Color3.fromHex(custom) else carColor(profile.car))
+	if profile.car == "neon" then
+		underglow(car, Color3.fromRGB(0, 240, 255))
+	elseif profile.underglow then
+		underglow(car, if custom then Color3.fromHex(custom) else Color3.fromRGB(255, 60, 200))
+	end
 	car:SetAttribute("Owner", player.UserId)
 	car:SetAttribute("CarId", profile.car)
 
@@ -409,6 +474,7 @@ local function sellTrunk(player: Player): (boolean, string?)
 		earned += Items.value(entry.id, entry.mutation)
 	end
 	table.clear(profile.trunk)
+	earned = Data.sellValue(player, earned)
 	profile.cash += earned
 	Progress.track(player, "earn", { amount = earned })
 	Data.advanceTutorial(profile, 1, player)

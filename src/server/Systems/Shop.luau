@@ -1,8 +1,9 @@
 --!strict
--- Gear bench (tools for cash), car dealer (cars for cash) and Robux
--- convenience items. Robux never buys loot or odds: game passes give
--- comfort (pockets, a ride home), products give cash. Receipts are
--- idempotent and saved before they are granted.
+-- Gear bench (tools for cash), car dealer (cars for cash), the garage
+-- (switch owned cars anywhere, custom paint), house furniture, player
+-- settings, and Robux items. Robux never buys loot or odds: game passes give
+-- comfort, looks and sell bonuses; products give cash or skip a wait.
+-- Receipts are idempotent and saved before they are granted.
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
@@ -12,6 +13,10 @@ local Router = require(script.Parent.Parent.Router)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local Avatar = require(script.Parent.Avatar)
+local Search = require(script.Parent.Search)
+local Wanted = require(script.Parent.Wanted)
+local Ranks = require(script.Parent.Ranks)
+local Housing = require(script.Parent.Housing)
 
 local R = Config.Robux
 local HOME_COOLDOWN = 60
@@ -54,11 +59,35 @@ local function carSpec(id: any)
 	return nil
 end
 
+-- Pass cars belong to whoever owns the pass.
+local function owns(player: Player, profile: any, car: any): boolean
+	if car.pass then
+		return player:GetAttribute("Pass_" .. car.pass) == true
+	end
+	return profile.ownedCars[car.id] == true
+end
+
+local function useCar(player: Player, profile: any, car: any): (boolean, string?)
+	-- A smaller car may not fit what is already in the trunk.
+	if #profile.trunk > car.trunk then
+		return false, "Empty your trunk first; that car is smaller."
+	end
+	profile.car = car.id
+	Data.push(player)
+	return true, nil
+end
+
 local function buyCar(player: Player, id: any): (boolean, string?)
 	local profile = Data.get(player)
 	local car = carSpec(id)
 	if not profile or not car then
 		return false, nil
+	end
+	if car.pass then
+		if not owns(player, profile, car) then
+			return false, `The {car.name} comes with its game pass (Robux shop).`
+		end
+		return useCar(player, profile, car)
 	end
 	-- Buying needs that city's dealer; switching to an owned car works at any.
 	local ok, message = Guard.atStore(
@@ -77,13 +106,111 @@ local function buyCar(player: Player, id: any): (boolean, string?)
 		profile.ownedCars[car.id] = true
 		Router.send(player, "bought", { name = car.name })
 	end
-	-- A smaller car may not fit what is already in the trunk.
-	local capacity = car.trunk
-	if #profile.trunk > capacity then
-		return false, "Empty your trunk first; that car is smaller."
+	return useCar(player, profile, car)
+end
+
+-- Garage: switch to any car you own, wherever you are (not while driving).
+local function selectCar(player: Player, id: any): (boolean, string?)
+	local profile = Data.get(player)
+	local car = carSpec(id)
+	if not profile or not car then
+		return false, nil
 	end
-	profile.car = car.id
+	if not owns(player, profile, car) then
+		return false, "You don't own that car."
+	end
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid and humanoid.SeatPart then
+		return false, "Get out of the car first."
+	end
+	return useCar(player, profile, car)
+end
+
+-- Custom Paint pass: any colour ("rrggbb") and underglow. Neon Runner
+-- owners get underglow too.
+local function setPaint(player: Player, payload: any): (boolean, string?)
+	local profile = Data.get(player)
+	if not profile or typeof(payload) ~= "table" then
+		return false, nil
+	end
+	local paintPass = player:GetAttribute("Pass_paint") == true
+	if payload.paint ~= nil then
+		if not paintPass then
+			return false, "Custom paint needs the Custom Paint pass."
+		end
+		if payload.paint == false then
+			profile.paint = nil
+		elseif
+			typeof(payload.paint) == "string" and string.match(payload.paint, "^%x%x%x%x%x%x$")
+		then
+			profile.paint = string.lower(payload.paint)
+		else
+			return false, nil
+		end
+	end
+	if payload.underglow ~= nil then
+		if not paintPass and not player:GetAttribute("Pass_neon") then
+			return false, "Underglow needs the Custom Paint or Neon Runner pass."
+		end
+		profile.underglow = payload.underglow == true
+	end
 	Data.push(player)
+	return true, "Respawn your car to see the new look."
+end
+
+-- House furniture, bought at Maple Realty.
+local function buyDecor(player: Player, id: any): (boolean, string?)
+	local profile = Data.get(player)
+	local decor = nil
+	for _, d in Config.Decor do
+		if d.id == id then
+			decor = d
+		end
+	end
+	if not profile or not decor then
+		return false, nil
+	end
+	local ok, message = Guard.atStore(player, "house", "maple")
+	if not ok then
+		return false, message
+	end
+	if profile.houseLevel < 1 then
+		return false, "Buy a house first."
+	end
+	if profile.decor[decor.id] then
+		return false, "You already have that."
+	end
+	if profile.cash < decor.price then
+		return false, `You need ${decor.price - profile.cash} more.`
+	end
+	profile.cash -= decor.price
+	profile.decor[decor.id] = true
+	Data.push(player)
+	Router.send(player, "bought", { name = decor.name })
+	Housing.refresh(player)
+	return true, nil
+end
+
+-- Player settings (volumes, minimap, graphics), kept with the save.
+local function saveSettings(player: Player, payload: any): (boolean, string?)
+	local profile = Data.get(player)
+	if not profile or typeof(payload) ~= "table" then
+		return false, nil
+	end
+	local s = profile.settings
+	for _, key in { "music", "effects", "ambient" } do
+		local v = payload[key]
+		if typeof(v) == "number" and v == v then
+			(s :: any)[key] = math.clamp(v, 0, 1)
+		end
+	end
+	if typeof(payload.rotateMap) == "boolean" then
+		s.rotateMap = payload.rotateMap
+	end
+	if typeof(payload.low) == "boolean" then
+		s.low = payload.low
+	end
 	return true, nil
 end
 
@@ -172,16 +299,25 @@ local function processReceipt(receipt: any): Enum.ProductPurchaseDecision
 	if not product then
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
-	profile.cash += product.cash
+	local cash = product.cash or 0
+	profile.cash += cash
 	table.insert(profile.receipts, id)
 	while #profile.receipts > RECEIPT_MEMORY do
 		table.remove(profile.receipts, 1)
 	end
 	-- Only confirm once the grant is on disk; otherwise Roblox retries later.
 	if not Data.saveNow(player) then
-		profile.cash -= product.cash
+		profile.cash -= cash
 		table.remove(profile.receipts, table.find(profile.receipts, id) :: number)
 		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	-- One-off effects (the receipt is saved, so they never run twice).
+	if product == R.Products.lawyer then
+		Wanted.pardon(player)
+	elseif product == R.Products.refill then
+		Search.refill(player)
+	elseif product == R.Products.truckday then
+		Search.freshDrop(player.DisplayName, false)
 	end
 	Data.push(player)
 	Router.send(player, "bought", { name = product.name })
@@ -191,6 +327,10 @@ end
 function Shop.init()
 	Router.on("buyTool", 0.5, buyTool)
 	Router.on("buyCar", 0.5, buyCar)
+	Router.on("selectCar", 0.5, selectCar)
+	Router.on("setPaint", 0.3, setPaint)
+	Router.on("buyDecor", 0.5, buyDecor)
+	Router.on("saveSettings", 1, saveSettings)
 	Router.on("robux", 1, promptRobux)
 	Router.on("homeRun", 1, homeRun)
 	MarketplaceService.ProcessReceipt = processReceipt
@@ -202,6 +342,7 @@ function Shop.start()
 		if purchased and key then
 			player:SetAttribute("Pass_" .. key, true)
 			Avatar.refresh(player)
+			Ranks.refreshTag(player)
 			Data.push(player)
 		end
 	end)

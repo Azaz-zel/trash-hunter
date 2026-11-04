@@ -14,6 +14,7 @@ local Router = require(script.Parent.Parent.Router)
 local Npc = require(script.Parent.Parent.Npc)
 local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
+local Ranks = require(script.Parent.Ranks)
 
 local Q = Config.Quests
 
@@ -68,8 +69,10 @@ function Progress.track(player: Player, kind: string, e: Event)
 		if (e.rarity or 0) >= 3 then
 			stats.rares += 1
 		end
+		Ranks.add(player, Ranks.searchXp(e.rarity or 1))
 	elseif kind == "earn" then
 		stats.earned += math.max(e.amount or 0, 0)
+		Ranks.add(player, math.max(e.amount or 0, 0) / Config.Levels.SELL_PER_XP)
 	end
 
 	local day = Quests.today()
@@ -202,6 +205,7 @@ local function missionTurnIn(player: Player, id: any): (boolean, string?)
 	profile.permits[m.district] = true
 	profile.mission = nil
 	profile.cash += m.reward
+	Ranks.add(player, Config.Levels.MISSION_XP)
 	Data.push(player)
 	Router.send(player, "permit", { district = districtName(m.district), cash = m.reward })
 	return true, nil
@@ -254,6 +258,7 @@ local function claim(player: Player, index: any): (boolean, string?)
 	end
 	quest.claimed = true
 	profile.cash += def.reward
+	Ranks.add(player, Config.Levels.QUEST_XP)
 	Data.push(player)
 	Router.send(player, "questDone", { giver = giver.name, cash = def.reward })
 	return true, nil

@@ -18,9 +18,15 @@ export type PlayerProfile = {
 	tutorial: number, -- 0 search, 1 sell, 2 upgrade, 3 visit red zone, 4 done
 	nextUid: number,
 	tools: { [string]: boolean },
-	car: string, -- id from Config.Cars
+	car: string, -- id from Config.Cars, "" = no car yet
 	ownedCars: { [string]: boolean },
 	trunk: { BagItem },
+	paint: string?, -- custom car colour "rrggbb" (Custom Paint pass)
+	underglow: boolean,
+	xp: number,
+	bestCombo: number,
+	decor: { [string]: boolean }, -- owned house furniture, by Config.Decor id
+	settings: Settings,
 	milestones: number, -- collection milestones already paid out
 	sinceEpic: number, -- searches since the last Epic+ pick (pity)
 	sinceLegendary: number, -- searches since the last Legendary+ pick (pity)
@@ -34,6 +40,14 @@ export type PlayerProfile = {
 	quests: { [string]: Quest }, -- by giver id; only today's entries matter
 	permits: { [string]: boolean }, -- districts opened by finishing their mission
 	mission: Mission?, -- the permit mission in progress
+}
+
+export type Settings = {
+	music: number, -- 0..1
+	effects: number,
+	ambient: number,
+	rotateMap: boolean,
+	low: boolean, -- low graphics
 }
 
 export type Mission = {
@@ -73,6 +87,12 @@ export type State = {
 	quests: { [string]: Quest },
 	permits: { [string]: boolean },
 	mission: Mission?,
+	xp: number,
+	paint: string?,
+	underglow: boolean,
+	decor: { [string]: boolean },
+	settings: Settings,
+	bestCombo: number,
 }
 
 return nil

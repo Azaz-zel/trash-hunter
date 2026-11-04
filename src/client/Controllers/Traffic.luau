@@ -29,6 +29,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local CityPlan = require(Shared:WaitForChild("CityPlan"))
 local Config = require(Shared:WaitForChild("Config"))
+local Settings = require(script.Parent.Parent.Settings)
 
 local player = Players.LocalPlayer
 local rng = Random.new()
@@ -45,6 +46,7 @@ local LOCK_TIMEOUT = 8 -- a junction claim older than this is stale
 local STOP_WAIT = 0.9 -- seconds stopped at a stop sign before going
 local PEOPLE_REFRESH = 0.2
 local NIGHT_CARS = 30 -- cars still out at night
+local LOW_CARS = 22 -- cars on low graphics
 local BEAMS = 14 -- cars whose headlights cast real light (the rest only glow)
 local HONK_AFTER = 1.4 -- seconds blocked by someone before honking
 local HONK_GAP = 6
@@ -447,6 +449,7 @@ local function addLights(model: Model, root: BasePart, police: boolean, beam: bo
 		if Config.Sounds.SIREN ~= "" then
 			local siren = Instance.new("Sound")
 			siren.SoundId = Config.Sounds.SIREN
+			siren.SoundGroup = Settings.group("Effects")
 			siren.Looped = true
 			siren.Volume = 0.6
 			siren.RollOffMaxDistance = 300
@@ -457,6 +460,7 @@ local function addLights(model: Model, root: BasePart, police: boolean, beam: bo
 	if Config.Sounds.HORN ~= "" then
 		local horn = Instance.new("Sound")
 		horn.SoundId = Config.Sounds.HORN
+		horn.SoundGroup = Settings.group("Effects")
 		horn.Volume = 0.7
 		horn.RollOffMaxDistance = 200
 		horn.Parent = root
@@ -494,7 +498,7 @@ local function updateLights(car: Car, now: number, night: boolean, wanted: boole
 	local L = car.lights
 	paint(car, "head", L.head, night)
 	if L.beam then
-		L.beam.Enabled = night
+		L.beam.Enabled = night and not Settings.get().low
 	end
 	paint(
 		car,
@@ -794,6 +798,7 @@ local function crunch(at: BasePart)
 	if not s then
 		local made = Instance.new("Sound")
 		made.SoundId = Config.Sounds.CRASH
+		made.SoundGroup = Settings.group("Effects")
 		made.Volume = 0.9
 		crashSound = made
 		s = made
@@ -951,8 +956,9 @@ function Traffic.start()
 			local wanted = (tonumber(player:GetAttribute("Wanted")) or 0) > 0
 				or player:GetAttribute("Chased") == true
 			for _, car in cars do
-				-- Fewer cars at night.
-				local away = night and car.index > NIGHT_CARS
+				-- Fewer cars at night and on low graphics.
+				local low = Settings.get().low
+				local away = (night and car.index > NIGHT_CARS) or (low and car.index > LOW_CARS)
 				if away ~= car.hidden then
 					car.hidden = away
 					release(car)
@@ -986,5 +992,8 @@ function Traffic.start()
 		end)
 	end)
 end
+
+-- For tests/traffic.test.luau, which drives the cars without Roblox.
+Traffic._test = { cars = cars, inside = inside, step = step, spawn = spawnCars }
 
 return Traffic

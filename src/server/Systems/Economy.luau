@@ -123,6 +123,7 @@ local function sell(player: Player, payload: any): (boolean, string?)
 	if count == 0 then
 		return false, "Nothing to sell."
 	end
+	earned = Data.sellValue(player, earned)
 	profile.cash += earned
 	Progress.track(player, "earn", { amount = earned })
 	Data.advanceTutorial(profile, 1, player)

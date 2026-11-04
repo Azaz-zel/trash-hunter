@@ -7,6 +7,7 @@ local SoundService = game:GetService("SoundService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Net = require(Shared:WaitForChild("Net"))
 local Types = require(Shared:WaitForChild("Types"))
+local Settings = require(script.Parent.Settings)
 
 local handlers: { [string]: { (any) -> () } } = {}
 local state: Types.State? = nil
@@ -47,6 +48,7 @@ function Store.play(id: string, volume: number?)
 	if not sound then
 		sound = Instance.new("Sound")
 		sound.SoundId = id
+		sound.SoundGroup = Settings.group("Effects")
 		sound.Parent = SoundService
 		sounds[id] = sound
 	end

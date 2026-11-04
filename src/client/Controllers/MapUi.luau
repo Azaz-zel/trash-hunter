@@ -28,6 +28,7 @@ local CityPlan = require(Shared:WaitForChild("CityPlan"))
 local Quests = require(Shared:WaitForChild("Quests"))
 local Ui = require(script.Parent.Parent.Ui)
 local Store = require(script.Parent.Parent.Store)
+local Settings = require(script.Parent.Parent.Settings)
 
 local C = Ui.COLORS
 local player = Players.LocalPlayer
@@ -1594,8 +1595,18 @@ function MapUi.start()
 			openMap(false)
 		end
 	end)
+	Store.on("cooldownClear", function()
+		table.clear(cooling)
+	end)
 	Store.on("openMap", function()
 		openMap(true)
+	end)
+	-- The server points the way somewhere (e.g. the car dealer).
+	Store.on("routeTo", function(payload)
+		if typeof(payload) == "table" and typeof(payload.pos) == "Vector3" then
+			selected = { kind = "store", name = payload.name or "Destination", pos = payload.pos }
+			setWaypoint(payload.pos)
+		end
 	end)
 	Players.PlayerRemoving:Connect(function(other)
 		local entry = friendDots[other]
@@ -1627,6 +1638,8 @@ function MapUi.start()
 		-- Radar: turn with the camera, zoom out while driving.
 		local look = camera.CFrame.LookVector
 		local heading = math.deg(math.atan2(look.X, look.Z)) -- 0 = north, 90 = east
+		-- Settings can keep the radar north-up; the arrow still turns.
+		local turnBy = if Settings.get().rotateMap then heading else 0
 		local humanoid = (character :: Model):FindFirstChildOfClass("Humanoid")
 		local driving = humanoid ~= nil and humanoid.SeatPart ~= nil
 		miniZoom += ((if driving then MINI_DRIVE else 1) - miniZoom) * math.min(1, dt * 3)
@@ -1635,10 +1648,10 @@ function MapUi.start()
 		mini.world.Position = UDim2.fromOffset(-px * miniZoom, -py * miniZoom)
 		mini.arrow.Position = UDim2.fromOffset(px, py)
 		mini.arrow.Rotation = heading
-		miniRotor.Rotation = -heading
+		miniRotor.Rotation = -turnBy
 		local ring = MINI_SIZE / 2
 		for name, dir in COMPASS do
-			local v = turn(dir, -heading) * ring
+			local v = turn(dir, -turnBy) * ring
 			compass[name].Position = UDim2.new(0.5, v.X, 0.5, v.Y)
 		end
 		local me = mePin
@@ -1681,7 +1694,7 @@ function MapUi.start()
 				-- Ring pointer: the waypoint's direction on the turned radar.
 				local offset = turn(
 					Vector2.new(offsetWorld.X, -offsetWorld.Z) * MINI_SCALE * miniZoom,
-					-heading
+					-turnBy
 				)
 				local radius = MINI_SIZE / 2 - 10
 				edgeDot.Visible = offset.Magnitude > radius

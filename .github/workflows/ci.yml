@@ -21,3 +21,11 @@ jobs:
 
       - name: Lint
         run: selene src
+
+      - name: Install Luau
+        run: |
+          curl -sSL -o luau.zip https://github.com/luau-lang/luau/releases/download/0.650/luau-ubuntu.zip
+          unzip -q luau.zip -d luau-bin
+
+      - name: Tests
+        run: python3 tests/run.py ./luau-bin/luau

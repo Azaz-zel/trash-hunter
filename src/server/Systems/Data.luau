@@ -76,7 +76,9 @@ local function reconcile(raw: any): Profile
 			end
 		end
 	end
-	local ownedCars: { [string]: boolean } = { [Config.Cars[1].id] = true }
+	-- New players own no car: buying the first one at a dealer is a goal.
+	-- Pass cars are checked against the pass when used (Vehicles / Shop).
+	local ownedCars: { [string]: boolean } = {}
 	if typeof(data.ownedCars) == "table" then
 		for _, car in Config.Cars do
 			if data.ownedCars[car.id] == true then
@@ -84,9 +86,30 @@ local function reconcile(raw: any): Profile
 			end
 		end
 	end
-	local car = if typeof(data.car) == "string" and ownedCars[data.car]
-		then data.car
-		else Config.Cars[1].id
+	local car = if typeof(data.car) == "string" and ownedCars[data.car] then data.car else ""
+	local decor: { [string]: boolean } = {}
+	if typeof(data.decor) == "table" then
+		for _, d in Config.Decor do
+			if data.decor[d.id] == true then
+				decor[d.id] = true
+			end
+		end
+	end
+	local rawSettings = if typeof(data.settings) == "table" then data.settings else {}
+	local function volume(v: any, default: number): number
+		return math.clamp(tonumber(v) or default, 0, 1)
+	end
+	local settings: Types.Settings = {
+		music = volume(rawSettings.music, 0.7),
+		effects = volume(rawSettings.effects, 0.8),
+		ambient = volume(rawSettings.ambient, 0.7),
+		rotateMap = rawSettings.rotateMap ~= false,
+		low = rawSettings.low == true,
+	}
+	local paint = if typeof(data.paint) == "string"
+			and string.match(data.paint, "^%x%x%x%x%x%x$")
+		then data.paint
+		else nil
 	local receipts: { string } = {}
 	if typeof(data.receipts) == "table" then
 		for _, r in data.receipts do
@@ -153,6 +176,12 @@ local function reconcile(raw: any): Profile
 		car = car,
 		ownedCars = ownedCars,
 		trunk = sanitizeBag(data.trunk, 50), -- largest trunk is 44
+		paint = paint,
+		underglow = data.underglow == true,
+		xp = math.max(math.floor(tonumber(data.xp) or 0), 0),
+		bestCombo = math.max(math.floor(tonumber(data.bestCombo) or 0), 0),
+		decor = decor,
+		settings = settings,
 		milestones = math.clamp(math.floor(tonumber(data.milestones) or 0), 0, #Config.Milestones),
 		receipts = receipts,
 		sinceEpic = math.max(math.floor(tonumber(data.sinceEpic) or 0), 0),
@@ -254,6 +283,10 @@ local function setupLeaderstats(player: Player)
 	local cash = Instance.new("IntValue")
 	cash.Name = "Cash"
 	cash.Parent = stats
+	local level = Instance.new("IntValue")
+	level.Name = "Level"
+	level.Value = 1
+	level.Parent = stats
 	stats.Parent = player
 end
 
@@ -389,7 +422,25 @@ function Data.snapshot(profile: Profile, player: Player?): Types.State
 		quests = profile.quests,
 		permits = profile.permits,
 		mission = profile.mission,
+		xp = profile.xp,
+		paint = profile.paint,
+		underglow = profile.underglow,
+		decor = profile.decor,
+		settings = profile.settings,
+		bestCombo = profile.bestCombo,
 	}
+end
+
+-- What `base` worth of loot sells for: VIP pass and happy hour pay more.
+function Data.sellValue(player: Player, base: number): number
+	local mult = 1
+	if player:GetAttribute("Pass_vip") then
+		mult *= Config.Events.VIP_SELL
+	end
+	if workspace:GetAttribute("Event") == "happyhour" then
+		mult *= Config.Events.HAPPY_HOUR_SELL
+	end
+	return math.floor(base * mult + 0.5)
 end
 
 function Data.push(player: Player)

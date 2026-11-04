@@ -96,7 +96,8 @@ return table.freeze({
 		DETECTOR_BOOST = 0.3,
 	}),
 
-	-- Index 1 is the free starter car. Trunk items are safe from guards.
+	-- Bought at the car dealers (Maple Motors, Bayside Autos). New players own
+	-- none. Trunk items are safe from guards. `pass` cars come with a game pass.
 	Cars = table.freeze({
 		table.freeze({
 			id = "sedan",
@@ -104,7 +105,7 @@ return table.freeze({
 			accel = 6, -- extra pull, studs/s²
 			nitro = 2.5, -- seconds of nitro per charge
 			name = "Old Sedan",
-			price = 0,
+			price = 450, -- nobody starts with a car: this is the first goal
 			trunk = 8,
 			color = Color3.fromRGB(122, 116, 104),
 		}),
@@ -151,6 +152,18 @@ return table.freeze({
 			color = Color3.fromRGB(214, 120, 30),
 			city = "port",
 		}),
+		-- Game pass car (Config.Robux.Passes.neon), shown at Maple Motors.
+		table.freeze({
+			id = "neon",
+			top = 92,
+			accel = 15,
+			nitro = 4,
+			name = "Neon Runner",
+			price = 0,
+			trunk = 20,
+			color = Color3.fromRGB(70, 20, 110),
+			pass = "neon",
+		}),
 	}),
 	CAR = table.freeze({
 		NITRO_PUSH = 34, -- studs/s² while nitro burns
@@ -167,6 +180,36 @@ return table.freeze({
 	Robux = table.freeze({
 		POCKETS_BONUS = 6,
 		Passes = table.freeze({
+			vip = table.freeze({
+				id = 0,
+				name = "Scrapper VIP",
+				price = 299,
+				desc = "+20% sell price, gold VIP tag over your head.",
+			}),
+			neon = table.freeze({
+				id = 0,
+				name = "Neon Runner",
+				price = 399,
+				desc = "Exclusive car: fastest in town, neon underglow, trunk 20.",
+			}),
+			turbo = table.freeze({
+				id = 0,
+				name = "Turbo Kit",
+				price = 149,
+				desc = "Double nitro tank in every car, blue flame.",
+			}),
+			paint = table.freeze({
+				id = 0,
+				name = "Custom Paint",
+				price = 99,
+				desc = "Paint any car any colour and add underglow (Garage).",
+			}),
+			season = table.freeze({
+				id = 0,
+				name = "Season Pass",
+				price = 349,
+				desc = "Double cash from every level-up reward.",
+			}),
 			pockets = table.freeze({
 				id = 0,
 				name = "Bigger Pockets",
@@ -189,6 +232,24 @@ return table.freeze({
 		Products = table.freeze({
 			cash_small = table.freeze({ id = 0, name = "Cash Stack", price = 49, cash = 600 }),
 			cash_large = table.freeze({ id = 0, name = "Cash Briefcase", price = 199, cash = 3000 }),
+			lawyer = table.freeze({
+				id = 0,
+				name = "Call a Lawyer",
+				price = 29,
+				desc = "Clears your wanted stars right now.",
+			}),
+			refill = table.freeze({
+				id = 0,
+				name = "Instant Refill",
+				price = 25,
+				desc = "Every dumpster you emptied is ready again.",
+			}),
+			truckday = table.freeze({
+				id = 0,
+				name = "Garbage Truck Day",
+				price = 99,
+				desc = "Fresh drops for the whole server, with your name on it.",
+			}),
 		}),
 	}),
 
@@ -215,7 +276,7 @@ return table.freeze({
 			name = "Maple Motors",
 			counter = CityPlan.storeCounter("motors"),
 			sells = "cars",
-			range = 14,
+			range = 30, -- the whole showroom counts
 		}),
 		harbor = table.freeze({
 			name = "Harbor Supply",
@@ -228,7 +289,7 @@ return table.freeze({
 			name = "Bayside Autos",
 			counter = CityPlan.storeCounter("bayside"),
 			sells = "cars",
-			range = 14,
+			range = 30, -- the whole showroom counts
 			city = "port",
 		}),
 		realty = table.freeze({
@@ -478,6 +539,56 @@ return table.freeze({
 		}),
 	}),
 
+	-- Levels: XP from searching (by rarity), selling and missions. Every level
+	-- pays cash (doubled with the Season Pass); titles every few levels.
+	Levels = table.freeze({
+		MAX = 60,
+		BASE_XP = 120, -- XP from level 1 to 2
+		STEP_XP = 45, -- each next level needs this much more
+		SEARCH_XP = table.freeze({ 6, 9, 16, 30, 60, 120, 240, 400 }), -- by rarity
+		SELL_PER_XP = 25, -- $ sold per XP point
+		PERFECT_XP = 4,
+		QUEST_XP = 60,
+		MISSION_XP = 150,
+		REWARD_PER_LEVEL = 60, -- cash at level-up = level * this
+		TITLES = table.freeze({
+			{ level = 1, name = "Rookie Scavenger" },
+			{ level = 5, name = "Alley Rat" },
+			{ level = 10, name = "Bin Diver" },
+			{ level = 15, name = "Curb Collector" },
+			{ level = 20, name = "Scrap Hustler" },
+			{ level = 30, name = "Junk Baron" },
+			{ level = 40, name = "Treasure Hound" },
+			{ level = 50, name = "Trash Legend" },
+		}),
+	}),
+
+	-- Live events (UTC). Weekend: twice the fresh drops. Happy hour: better sell prices.
+	Events = table.freeze({
+		WEEKEND_FRESH_MULT = 2,
+		HAPPY_HOUR_UTC = table.freeze({ 18, 20, 2 }), -- hours that start one, each lasts 1 h
+		HAPPY_HOUR_SELL = 1.25,
+		VIP_SELL = 1.2,
+	}),
+
+	-- Player-to-player trading.
+	Trade = table.freeze({
+		RANGE = 30, -- studs between the two players
+		MAX_ITEMS = 6, -- per side
+		REQUEST_SECONDS = 20,
+	}),
+
+	-- Hideout furniture for your house (bought at Maple Realty). One per slot.
+	Decor = table.freeze({
+		table.freeze({ id = "rug", name = "Shag Rug", price = 400 }),
+		table.freeze({ id = "plant", name = "Big Fern", price = 300 }),
+		table.freeze({ id = "sofa", name = "Leather Sofa", price = 1500 }),
+		table.freeze({ id = "fridge", name = "Retro Fridge", price = 1800 }),
+		table.freeze({ id = "arcade", name = "Arcade Cabinet", price = 4500 }),
+		table.freeze({ id = "neon", name = "Neon Sign", price = 3000 }),
+		table.freeze({ id = "trophy", name = "Trophy Case", price = 9000 }),
+	}),
+
 	-- One district a day gets extra loot ("Hot District"), the same for every server.
 	HOT_DISTRICT_BOOST = 0.5,
 
@@ -616,6 +727,10 @@ return table.freeze({
 		MAX_STARS = 3,
 		COPS_PER_STAR = 2,
 		MAX_COPS = 6, -- in the whole server
+		CRUISER_FROM = 2, -- stars that bring police cars
+		MAX_CRUISERS = 3, -- in the whole server
+		CRUISER_SPEED = 70, -- studs/s on the road
+		CRUISER_CATCH = 14, -- studs from a stopped car to arrest the driver
 		COP_SPEED = 19, -- players run at 20, so a straight sprint barely escapes
 		CATCH_RANGE = 4.5,
 		CATCH_TIME = 0.6,

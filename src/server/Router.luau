@@ -55,17 +55,48 @@ local function allow(player: Player, action: string, rate: number): boolean
 	return true
 end
 
--- Every payload in this game is nil, a short string (an item uid, "all", a
--- choice or an id) or a small finite integer (a bag index). Anything else is
--- rejected before a handler sees it; handlers still range-check the value.
+-- Payloads are small and flat: nil, a boolean, a short string (an item uid,
+-- "all", a choice or an id), a finite number (a bag index, a timing, a user
+-- id), or a small table of those (trade offers, settings, paint) holding at
+-- most one level of nested list. Anything else is rejected before a handler
+-- sees it; handlers still check every value.
+local MAX_TABLE = 16
+
+local function validScalar(v: any): boolean
+	local t = typeof(v)
+	if t == "boolean" then
+		return true
+	elseif t == "string" then
+		return #v <= MAX_PAYLOAD_STRING
+	elseif t == "number" then
+		return v == v and math.abs(v) <= 1e12
+	end
+	return false
+end
+
+local function validTable(t: any, depth: number): boolean
+	local n = 0
+	for k, v in t do
+		n += 1
+		if n > MAX_TABLE or not validScalar(k) or typeof(k) == "boolean" then
+			return false
+		end
+		if typeof(v) == "table" then
+			if depth >= 1 or not validTable(v, depth + 1) then
+				return false
+			end
+		elseif not validScalar(v) then
+			return false
+		end
+	end
+	return true
+end
+
 local function validPayload(payload: any): boolean
-	if payload == nil then
+	if payload == nil or validScalar(payload) then
 		return true
 	end
-	if typeof(payload) == "string" then
-		return #payload <= MAX_PAYLOAD_STRING
-	end
-	return typeof(payload) == "number" and payload == payload and math.abs(payload) <= 1000
+	return typeof(payload) == "table" and validTable(payload, 0)
 end
 
 Net.Action.OnServerInvoke = function(player: Player, action: any, payload: any)

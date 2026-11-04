@@ -11,6 +11,7 @@ local SoundService = game:GetService("SoundService")
 local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local Settings = require(script.Parent.Parent.Settings)
 
 local WeatherFx = {}
 
@@ -69,6 +70,7 @@ end
 
 local function setRain(on: boolean)
 	emitter.Enabled = on
+	emitter.Rate = if Settings.get().low then 220 else 700
 	local s = rainSound
 	if s then
 		if on and not s.IsPlaying then
@@ -109,6 +111,7 @@ function WeatherFx.init()
 	if Config.Sounds.RAIN ~= "" then
 		local s = Instance.new("Sound")
 		s.Name = "Rain"
+		s.SoundGroup = Settings.group("Ambient")
 		s.SoundId = Config.Sounds.RAIN
 		s.Looped = true
 		s.Volume = 0
@@ -131,10 +134,11 @@ function WeatherFx.start()
 	end)
 	local function update()
 		setRain(workspace:GetAttribute("Weather") == "Rain")
-		setWet(workspace:GetAttribute("Wet") == true)
+		setWet(workspace:GetAttribute("Wet") == true and not Settings.get().low)
 	end
 	workspace:GetAttributeChangedSignal("Weather"):Connect(update)
 	workspace:GetAttributeChangedSignal("Wet"):Connect(update)
+	Settings.changed(update)
 	task.defer(update)
 end
 

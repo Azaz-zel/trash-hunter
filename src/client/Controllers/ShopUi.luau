@@ -195,15 +195,27 @@ local function renderCars(state: any, city: string?, order: number): number
 		end
 		i += 1
 		local driving = state.car == car.id
+		local passKey = car.pass
+		if passKey then
+			owned = state.passes[passKey] == true
+		end
 		product(
 			order + i,
 			{ color = car.color, text = tostring(car.trunk) },
 			car.name,
 			`Trunk {car.trunk} · {math.floor(car.top * 0.6)} mph · {car.nitro}s nitro`,
-			if driving then "Selected" elseif owned then "Use" else Ui.money(car.price),
-			not driving and (owned or state.cash >= car.price),
+			if driving
+				then "Selected"
+				elseif owned then "Use"
+				elseif passKey then `R$ {Config.Robux.Passes[passKey].price}`
+				else Ui.money(car.price),
+			not driving and (owned or passKey ~= nil or state.cash >= car.price),
 			function()
-				Store.action("buyCar", car.id)
+				if passKey and not owned then
+					Store.action("robux", passKey)
+				else
+					Store.action("buyCar", car.id)
+				end
 			end
 		)
 	end
@@ -227,7 +239,24 @@ local function renderHouses(state: any, order: number): number
 			end
 		)
 	end
-	return order + #Config.Houses + 2
+	order += #Config.Houses + 2
+	-- Furniture for the house (needs a house).
+	section("Furniture", order)
+	for i, d in Config.Decor do
+		local owned = state.decor[d.id] == true
+		product(
+			order + i,
+			{ color = Color3.fromRGB(150, 110, 200), text = "🛋" },
+			d.name,
+			if state.houseLevel < 1 then "Buy a house first" else "Shows up in your house",
+			if owned then "Owned" else Ui.money(d.price),
+			not owned and state.houseLevel >= 1 and state.cash >= d.price,
+			function()
+				Store.action("buyDecor", d.id)
+			end
+		)
+	end
+	return order + #Config.Decor + 2
 end
 
 local function renderRobux(state: any, order: number): number
@@ -249,15 +278,15 @@ local function renderRobux(state: any, order: number): number
 		)
 	end
 	order += i + 2
-	section("Cash packs", order)
+	section("Cash and boosts", order)
 	local k = 0
 	for key, p in Config.Robux.Products do
 		k += 1
 		product(
 			order + k,
-			{ color = Color3.fromRGB(240, 190, 70), text = "$" },
+			{ color = Color3.fromRGB(240, 190, 70), text = if p.cash then "$" else "★" },
 			p.name,
-			`Adds {Ui.money(p.cash)} cash`,
+			if p.cash then `Adds {Ui.money(p.cash)} cash` else p.desc or "",
 			if p.id == 0 then "Coming soon" else `R$ {p.price}`,
 			p.id ~= 0,
 			function()

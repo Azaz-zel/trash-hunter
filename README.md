@@ -24,6 +24,22 @@ cannot change it) and save the place.
 
 Set Max Players to 8 (the Hideout has 8 display shelves, one per player).
 
+Turn on Workspace > StreamingEnabled (scripts cannot) so phones only load the
+part of the city around them; players can also pick Low graphics in Settings.
+
+### Robux passes and products
+
+Every pass and product in `Config.Robux` has `id = 0` until you create it in
+the Creator Dashboard (Monetization) and paste its id. Until then the shop
+shows "Coming soon". Robux never buys loot or odds: passes give comfort,
+looks and a sell bonus (VIP), products give cash or skip a wait.
+
+### Tests
+
+`python3 tests/run.py path/to/luau` runs the shared-module self-checks, the
+city layout rules and a five-minute traffic simulation in the plain Luau CLI
+(CI downloads it).
+
 ## Structure
 
 - `src/shared` → ReplicatedStorage/Shared: `Config` (all tunables), `Items`, `Loot`, `Net`, `Types`
@@ -38,7 +54,9 @@ Set Max Players to 8 (the Hideout has 8 display shelves, one per player).
     `Guard` checks movement, `Social` handles the friend bonus and announcements,
     `Wanted` runs city crimes (red lights, running people over), wanted stars and
     the city cops, `StreetEvents` stages street scenes (dancer, fender bender,
-    traffic stop), `Weather` brings rain
+    traffic stop), `Weather` brings rain, `Ranks` runs XP / levels / titles,
+    `Leaderboards` the global boards, `Trade` player trades, `Events` the
+    weekend and happy-hour events
   - `Npc` (shared helper) builds outfitted R15 NPCs with animations and pathing
 - `src/client` → StarterPlayerScripts/Client: `Ui` kit, `Store` (state mirror) and `Controllers/`
   (`Hud`, `SearchUi`, `Panels`, `Guide`, `Ambience` for patrol car and audio, `Traffic`
@@ -61,6 +79,9 @@ The server decides every outcome. Clients send requests through one RemoteFuncti
 ## Controls
 
 - `E` / tap prompt: search, sell counter, upgrade shop
+- New players own no car: buy the Old Sedan ($450) at Maple Motors. `V` /
+  Garage: your cars, Spawn, switch, paint (pass)
+- Top (leaderboards), Trade (with a player next to you), Settings
 - `F` / DIG button: Perfect Dig. Tap while the marker crosses the gold zone
   (+1 bag, better odds) or the green zone (better odds). Searches close
   together build a combo; gold dumpsters on the map are fresh drops.

@@ -12,6 +12,7 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
+local Settings = require(script.Parent.Parent.Settings)
 
 local player = Players.LocalPlayer
 
@@ -72,9 +73,10 @@ local function lightBar(model: Model, attachToRoot: boolean)
 	end)
 end
 
-local function loopSound(id: string): Sound
+local function loopSound(id: string, group: string?): Sound
 	local s = Instance.new("Sound")
 	s.SoundId = id
+	s.SoundGroup = Settings.group(group or "Ambient")
 	s.Looped = true
 	s.Volume = 0
 	s.Parent = SoundService
@@ -85,7 +87,7 @@ end
 local function setupAudio()
 	local day = loopSound(Config.Sounds.DAY_AMBIENCE)
 	local night = loopSound(Config.Sounds.NIGHT_AMBIENCE)
-	local chase = loopSound(Config.Sounds.CHASE_MUSIC)
+	local chase = loopSound(Config.Sounds.CHASE_MUSIC, "Music")
 	local FADE = TweenInfo.new(1.2)
 
 	local function mix()

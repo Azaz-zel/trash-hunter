@@ -21,6 +21,7 @@ local Config =
 	require(game:GetService("ReplicatedStorage"):WaitForChild("Shared"):WaitForChild("Config"))
 local Ui = require(script.Parent.Parent.Ui)
 local Store = require(script.Parent.Parent.Store)
+local Settings = require(script.Parent.Parent.Settings)
 
 local C = Ui.COLORS
 local player = Players.LocalPlayer
@@ -210,7 +211,8 @@ local function drive(seat: VehicleSeat)
 		end
 		local burning = nitroHeld and nitroTank > 0 and grounded and throttle >= 0
 		if burning then
-			nitroTank = math.max(0, nitroTank - dt / spec.nitro)
+			local tank = spec.nitro * (if player:GetAttribute("Pass_turbo") then 2 else 1)
+			nitroTank = math.max(0, nitroTank - dt / tank)
 			if forward < spec.top * CAR.NITRO_OVER then
 				push += CAR.NITRO_PUSH
 			end
@@ -242,7 +244,10 @@ local function drive(seat: VehicleSeat)
 		camera.FieldOfView += (fov - camera.FieldOfView) * math.min(1, dt * 4)
 		speedLabel.Text = tostring(math.floor(speed * STUDS_TO_MPH))
 		speedArc.Size = UDim2.fromScale(math.clamp(speed / (spec.top * CAR.NITRO_OVER), 0, 1), 1)
-		speedArc.BackgroundColor3 = if burning then Color3.fromRGB(80, 200, 255) else C.accent
+		local flame = if player:GetAttribute("Pass_turbo")
+			then Color3.fromRGB(60, 120, 255)
+			else Color3.fromRGB(80, 200, 255)
+		speedArc.BackgroundColor3 = if burning then flame else C.accent
 		nitroFill.Size = UDim2.fromScale(nitroTank, 1)
 		nitroFill.BackgroundColor3 = if nitroTank < 0.15
 			then C.danger
@@ -262,6 +267,7 @@ local function honk()
 	if seat and Config.Sounds.HORN ~= "" then
 		local horn = Instance.new("Sound")
 		horn.SoundId = Config.Sounds.HORN
+		horn.SoundGroup = Settings.group("Effects")
 		horn.Volume = 0.8
 		horn.RollOffMaxDistance = 200
 		horn.Parent = seat
@@ -399,6 +405,7 @@ local function build()
 	radioSound = Instance.new("Sound")
 	radioSound.Name = "CarRadio"
 	radioSound.Volume = 0.45
+	radioSound.SoundGroup = Settings.group("Music")
 	radioSound.Parent = SoundService
 	radioSound.Ended:Connect(playTrack)
 	radioLabel = Ui.label("", 14, {

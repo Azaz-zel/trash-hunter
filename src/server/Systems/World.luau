@@ -2074,6 +2074,92 @@ local function loadVehicles(town: Instance, stalls: { CFrame })
 		return m:GetPivot().Y - (cf.Y - size.Y / 2)
 	end
 
+	-- Showrooms: every car a dealer sells stands inside with its price and
+	-- stats; "View" opens the dealer's window (ShopUi, via StorePrompt).
+	local showroom = Instance.new("Folder")
+	showroom.Name = "Showrooms"
+	showroom.Parent = town
+	for storeId, store in Config.Stores do
+		if store.sells ~= "cars" then
+			continue
+		end
+		local lot = CityPlan.STORE_LOTS[storeId]
+		local list = {}
+		for _, car in Config.Cars do
+			if (car.city or "maple") == (store.city or "maple") then
+				table.insert(list, car)
+			end
+		end
+		for k, car in list do
+			-- Up to three side by side in the front row, the rest behind.
+			local row = if k <= 3 then 0 else 1
+			local col = if row == 0 then k - 2 else 0
+			local spot = lot * CFrame.new(col * 19, 0.4, 16 + row * 9)
+			local m = civilian(car.color)
+			m.Name = "Display_" .. car.id
+			for _, d in m:GetDescendants() do
+				if d:IsA("BasePart") then
+					d.Anchored = true
+				end
+			end
+			local facing = spot.Position + spot.RightVector
+			m:PivotTo(
+				CFrame.lookAt(spot.Position, Vector3.new(facing.X, spot.Y, facing.Z))
+					+ Vector3.new(0, lift(m), 0)
+			)
+			local cf, size = m:GetBoundingBox()
+			if car.pass then
+				local glow = part(m, {
+					Name = "Underglow",
+					Size = Vector3.new(size.X - 1, 0.2, size.Z - 1),
+					CFrame = cf * CFrame.new(0, -size.Y / 2 + 0.3, 0),
+					Color = Color3.fromRGB(0, 240, 255),
+					Material = M.Neon,
+					CanCollide = false,
+				})
+				local l = Instance.new("PointLight")
+				l.Color = glow.Color
+				l.Range = 14
+				l.Parent = glow
+			end
+			local holder = part(m, {
+				Name = "DisplayInfo",
+				Size = Vector3.new(1, 1, 1),
+				CFrame = cf * CFrame.new(0, size.Y / 2 + 0.5, 0),
+				Transparency = 1,
+				CanCollide = false,
+			})
+			holder:SetAttribute("Store", storeId)
+			local tag = Instance.new("BillboardGui")
+			tag.Size = UDim2.fromOffset(220, 64)
+			tag.StudsOffset = Vector3.new(0, 3, 0)
+			tag.MaxDistance = 60
+			local label = Instance.new("TextLabel")
+			label.Size = UDim2.fromScale(1, 1)
+			label.BackgroundTransparency = 1
+			label.Font = FONT
+			label.TextScaled = true
+			label.TextColor3 = C.white
+			label.TextStrokeTransparency = 0.3
+			label.RichText = true
+			local price = if car.pass then "GAME PASS" else `${car.price}`
+			label.Text = `<b>{car.name}</b>\n<font color="#FFC846">{price}</font> · {math.floor(
+				car.top * 0.6
+			)} mph · trunk {car.trunk}`
+			label.Parent = tag
+			tag.Parent = holder
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.Name = "StorePrompt"
+			prompt.ActionText = if car.pass then "View pass" else "Buy / View"
+			prompt.ObjectText = car.name
+			prompt.HoldDuration = 0
+			prompt.MaxActivationDistance = 14
+			prompt.RequiresLineOfSight = false
+			prompt.Parent = holder
+			m.Parent = showroom
+		end
+	end
+
 	local parked = Instance.new("Folder")
 	parked.Name = "ParkedCars"
 	parked.Parent = town

@@ -9,6 +9,7 @@ local UserInputService = game:GetService("UserInputService")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Items = require(Shared:WaitForChild("Items"))
+local Levels = require(Shared:WaitForChild("Levels"))
 local Ui = require(script.Parent.Parent.Ui)
 local Store = require(script.Parent.Parent.Store)
 
@@ -34,6 +35,13 @@ local homeButton: TextButton
 local bagFill: Frame
 local streakLabel: TextLabel
 local shopButton: TextButton
+local nameLabel: TextLabel
+local levelBadge: TextLabel
+local xpFill: Frame
+local eventChip: TextLabel
+local levelUp: Frame
+local levelUpTitle: TextLabel
+local levelUpSub: TextLabel
 local comboChip: Frame
 local comboText: TextLabel
 local comboFill: Frame
@@ -132,6 +140,10 @@ local function renderState()
 		elseif fill >= 0.75 then C.accent
 		else C.safe
 	streakLabel.Text = if state.streak > 1 then `Day {state.streak} streak` else ""
+	local level, into, need = Levels.fromXp(state.xp or 0)
+	levelBadge.Text = tostring(level)
+	nameLabel.Text = `{player.DisplayName} · {Levels.title(level)}`
+	Ui.tween(xpFill, 0.3, { Size = UDim2.fromScale(math.clamp(into / need, 0, 1), 1) })
 end
 
 local function renderSuspicion()
@@ -200,7 +212,33 @@ local function build()
 			avatar.Image = image
 		end
 	end)
-	Ui.label(player.DisplayName, 14, {
+	-- Level badge on the avatar, XP bar along the bottom of the card.
+	levelBadge = Ui.label("1", 13, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromOffset(68, 70),
+		Size = UDim2.fromOffset(26, 26),
+		Font = Ui.FONT,
+		BackgroundColor3 = Color3.fromRGB(150, 90, 255),
+		BackgroundTransparency = 0,
+		TextColor3 = C.cream,
+		ZIndex = 3,
+		Parent = cardFrame,
+	})
+	Ui.corner(13).Parent = levelBadge
+	Ui.stroke(2, C.panel).Parent = levelBadge
+	local xpTrack = Ui.new("Frame", {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 14, 1, -3),
+		Size = UDim2.new(1, -28, 0, 3),
+		BackgroundColor3 = C.panelLight,
+		Parent = cardFrame,
+	}, { Ui.corner(2) })
+	xpFill = Ui.new("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = Color3.fromRGB(150, 90, 255),
+		Parent = xpTrack,
+	}, { Ui.corner(2) })
+	nameLabel = Ui.label(player.DisplayName, 14, {
 		Position = UDim2.fromOffset(88, 8),
 		Size = UDim2.new(1, -150, 0, 18),
 		TextColor3 = C.muted,
@@ -247,12 +285,29 @@ local function build()
 
 	-- Chips under the card: search combo (with its time running out) and
 	-- fresh drops (tap to open the map).
+	local chipList = Ui.list(Enum.FillDirection.Horizontal, 6)
+	chipList.Wraps = true
 	local chips = Ui.new("Frame", {
 		Position = UDim2.fromOffset(16, 108),
-		Size = UDim2.fromOffset(292, 30),
+		Size = UDim2.fromOffset(300, 30),
 		BackgroundTransparency = 1,
 		Parent = gui,
-	}, { Ui.list(Enum.FillDirection.Horizontal, 6) })
+	}, { chipList })
+	eventChip = Ui.label("", 13, {
+		AutomaticSize = Enum.AutomaticSize.X,
+		Size = UDim2.fromOffset(0, 28),
+		BackgroundColor3 = Color3.fromRGB(20, 40, 70),
+		BackgroundTransparency = 0.1,
+		Font = Ui.FONT,
+		TextColor3 = Color3.fromRGB(120, 200, 255),
+		Visible = false,
+		LayoutOrder = 3,
+		Parent = chips,
+	})
+	Ui.corner(8).Parent = eventChip
+	Ui.stroke(1, Color3.fromRGB(80, 160, 255)).Parent = eventChip
+	Ui.new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }).Parent =
+		eventChip
 	comboChip = Ui.new("Frame", {
 		Size = UDim2.fromOffset(120, 28),
 		BackgroundColor3 = Color3.fromRGB(60, 30, 16),
@@ -389,14 +444,26 @@ local function build()
 		-- Below the minimap (MapUi, 168px at top right).
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -16, 0, 230),
-		Size = UDim2.fromOffset(72, 420),
+		Size = UDim2.fromOffset(150, 340),
 		Parent = gui,
-	}, { Ui.list(Enum.FillDirection.Vertical, 8, Enum.HorizontalAlignment.Right) })
+	}, {
+		-- Two columns so every button fits under the minimap on a phone.
+		Ui.new("UIGridLayout", {
+			CellSize = UDim2.fromOffset(72, 56),
+			CellPadding = UDim2.fromOffset(6, 6),
+			HorizontalAlignment = Enum.HorizontalAlignment.Right,
+			SortOrder = Enum.SortOrder.LayoutOrder,
+		}),
+	})
 	local ICONS = {
 		Bag = "🎒",
 		Shop = "🛒",
 		Book = "📖",
 		Car = "🚗",
+		Garage = "🚗",
+		Top = "🏆",
+		Trade = "🤝",
+		Settings = "⚙",
 		Home = "🏠",
 		Store = "💎",
 		Invite = "👥",
@@ -445,8 +512,17 @@ local function build()
 	sideButton("Book", 3, function()
 		Store.emit("openPanel", "book")
 	end, "C")
-	sideButton("Car", 4, function()
-		Store.action("spawnCar")
+	sideButton("Garage", 4, function()
+		Store.emit("openGarage", nil)
+	end, "V")
+	sideButton("Top", 8, function()
+		Store.emit("openTop", nil)
+	end)
+	sideButton("Trade", 9, function()
+		Store.emit("openTrade", nil)
+	end)
+	sideButton("Settings", 10, function()
+		Store.emit("openSettings", nil)
 	end)
 	homeButton = sideButton("Home", 5, function()
 		Store.action("homeRun")
@@ -464,6 +540,32 @@ local function build()
 			toast("Invites aren't available right now.")
 		end
 	end)
+
+	levelUp = Ui.new("Frame", {
+		Name = "LevelUp",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.32),
+		Size = UDim2.fromOffset(420, 110),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = gui,
+	})
+	levelUpTitle = Ui.label("", 44, {
+		Size = UDim2.new(1, 0, 0, 52),
+		Font = Ui.FONT,
+		TextColor3 = Color3.fromRGB(190, 140, 255),
+		TextStrokeTransparency = 0,
+		TextStrokeColor3 = C.ink,
+		Parent = levelUp,
+	})
+	levelUpSub = Ui.label("", 20, {
+		Position = UDim2.fromOffset(0, 56),
+		Size = UDim2.new(1, 0, 0, 44),
+		TextColor3 = C.cream,
+		TextStrokeTransparency = 0.2,
+		TextStrokeColor3 = C.ink,
+		Parent = levelUp,
+	})
 
 	busted = Ui.new("Frame", {
 		Name = "Busted",
@@ -539,8 +641,11 @@ function Hud.init()
 	Ui.autoScale(gui)
 end
 
--- Combo chip (time left to keep it going) and fresh-drop count.
+-- Combo chip (time left to keep it going), fresh-drop count, live event.
 local function renderChips()
+	local eventName = tostring(workspace:GetAttribute("EventName") or "")
+	eventChip.Visible = eventName ~= ""
+	eventChip.Text = `🎉 {eventName}`
 	local n = tonumber(player:GetAttribute("Combo")) or 0
 	local left = (tonumber(player:GetAttribute("ComboUntil")) or 0) - workspace:GetServerTimeNow()
 	local live = n > 1 and left > 0
@@ -557,8 +662,26 @@ local function renderChips()
 	freshChip.Text = `✨ {count} fresh drop{if count == 1 then "" else "s"}`
 end
 
+local levelToken = 0
+local function onLevelUp(payload: { level: number, title: string, cash: number, newTitle: boolean })
+	levelToken += 1
+	local mine = levelToken
+	levelUpTitle.Text = `LEVEL {payload.level}!`
+	levelUpSub.Text = (if payload.newTitle then `New title: {payload.title}\n` else "")
+		.. `+{Ui.money(payload.cash)}`
+	levelUp.Visible = true
+	Ui.pop(levelUp, 0.5)
+	Store.play(Config.Sounds.EPIC, 0.6)
+	task.delay(3.2, function()
+		if levelToken == mine then
+			levelUp.Visible = false
+		end
+	end)
+end
+
 function Hud.start()
 	Store.on("state", renderState)
+	Store.on("levelUp", onLevelUp)
 	task.spawn(function()
 		while true do
 			renderChips()

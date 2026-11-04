@@ -767,6 +767,14 @@ function SearchUi.start()
 		closeDumpster(payload.dumpster)
 	end)
 	Store.on("cooldown", onCooldown)
+	-- Instant Refill: every timer goes (each loop then re-enables its prompt).
+	Store.on("cooldownClear", function()
+		for _, tag in workspace:GetDescendants() do
+			if tag.Name == "CooldownTag" and tag:IsA("BillboardGui") then
+				tag:Destroy()
+			end
+		end
+	end)
 	-- Number keys pick bags on keyboard.
 	UserInputService.InputBegan:Connect(function(input, processed)
 		if not processed and input.KeyCode == Enum.KeyCode.F and digFrame.Visible then

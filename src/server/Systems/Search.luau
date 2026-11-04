@@ -28,6 +28,7 @@ local Data = require(script.Parent.Data)
 local Guard = require(script.Parent.Guard)
 local Social = require(script.Parent.Social)
 local Progress = require(script.Parent.Progress)
+local Ranks = require(script.Parent.Ranks)
 
 local S = Config.Search
 local T = Config.TOOL_EFFECT
@@ -275,6 +276,9 @@ local function digTap(player: Player, at: any): (boolean, any)
 		then "perfect"
 		elseif off <= S.GOOD_WIDTH / 2 then "good"
 		else "miss"
+	if session.grade == "perfect" then
+		Ranks.add(player, Config.Levels.PERFECT_XP)
+	end
 	return true, session.grade
 end
 
@@ -306,6 +310,10 @@ pick = function(player: Player, index: any): (boolean, string?)
 		local c = combos[player]
 		local n = if c and now - c.last < S.COMBO_WINDOW then math.min(S.COMBO_MAX, c.n + 1) else 1
 		combos[player] = { n = n, last = now }
+		local profile2 = Data.get(player)
+		if profile2 and n > profile2.bestCombo then
+			profile2.bestCombo = n
+		end
 		player:SetAttribute("Combo", n)
 		player:SetAttribute("ComboUntil", workspace:GetServerTimeNow() + S.COMBO_WINDOW)
 	end
@@ -471,6 +479,49 @@ local function bindDumpster(instance: Instance)
 	end)
 end
 
+-- Refills dumpsters with fresh trash. `by` names a player who paid for it
+-- (Garbage Truck Day, twice the usual count); `replace` clears the previous
+-- fresh set first. The weekend event doubles the count.
+function Search.freshDrop(by: string?, replace: boolean)
+	local pool = {}
+	for _, model in CollectionService:GetTagged("Dumpster") do
+		if replace then
+			model:SetAttribute("Fresh", false)
+		end
+		if
+			model:GetAttribute("Zone") ~= "Red"
+			and not model:GetAttribute("Tutorial")
+			and not model:GetAttribute("Heavy")
+			and not model:GetAttribute("Fresh")
+		then
+			table.insert(pool, model)
+		end
+	end
+	local weekend = workspace:GetAttribute("Event") == "weekend"
+	local count = S.FRESH_COUNT
+		* (if weekend then Config.Events.WEEKEND_FRESH_MULT else 1)
+		* (if by then 2 else 1)
+	for _ = 1, math.min(count, #pool) do
+		local model = table.remove(pool, rng:NextInteger(1, #pool)) :: Model
+		model:SetAttribute("Fresh", true)
+	end
+	Router.broadcast("toast", {
+		text = if by
+			then `{by} called the Garbage Truck! Fresh drops everywhere (gold on the map).`
+			else "Fresh trash just got dumped! Look for gold on the map.",
+		color = Color3.fromRGB(255, 205, 60),
+	})
+end
+
+-- Instant Refill: every dumpster this player emptied is ready again.
+function Search.refill(player: Player)
+	local list = cooldowns[player]
+	if list then
+		table.clear(list)
+	end
+	Router.send(player, "cooldownClear", nil)
+end
+
 function Search.isSearching(player: Player): boolean
 	return sessions[player] ~= nil
 end
@@ -481,6 +532,7 @@ function Search.init()
 		require(Shared.ItemModels).selfCheck()
 		require(Shared.Quests).selfCheck()
 		require(Shared.CityPlan).selfCheck()
+		require(Shared.Levels).selfCheck()
 	end
 	Router.on("pickBag", 0.2, pick)
 	Router.on("digTap", 0.3, digTap)
@@ -555,25 +607,7 @@ function Search.start()
 	end
 	task.spawn(function()
 		while true do
-			local pool = {}
-			for _, model in CollectionService:GetTagged("Dumpster") do
-				model:SetAttribute("Fresh", false)
-				if
-					model:GetAttribute("Zone") ~= "Red"
-					and not model:GetAttribute("Tutorial")
-					and not model:GetAttribute("Heavy")
-				then
-					table.insert(pool, model)
-				end
-			end
-			for _ = 1, math.min(S.FRESH_COUNT, #pool) do
-				local model = table.remove(pool, rng:NextInteger(1, #pool)) :: Model
-				model:SetAttribute("Fresh", true)
-			end
-			Router.broadcast(
-				"toast",
-				{ text = "Fresh trash just got dumped! Look for gold on the map." }
-			)
+			Search.freshDrop(nil, true)
 			task.wait(S.FRESH_EVERY)
 		end
 	end)
