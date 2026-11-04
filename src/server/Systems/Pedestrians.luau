@@ -6,10 +6,10 @@
 
 local CollectionService = game:GetService("CollectionService")
 
-local MapData = require(game:GetService("ReplicatedStorage").Shared.MapData)
+local CityPlan = require(game:GetService("ReplicatedStorage").Shared.CityPlan)
 local Npc = require(script.Parent.Parent.Npc)
 
-local COUNT = 40
+local COUNT = 56
 local NAMES = {
 	"Dave",
 	"Linda",
@@ -35,36 +35,23 @@ local NAMES = {
 local WALK_Y = 0.7
 
 -- Sidewalk lines: fixed axis value plus the range walkers may use.
-local LINES: { { axis: string, at: number, from: number, to: number } } = {
-	{ axis = "X", at = 22, from = -380, to = 400 }, -- Main St, north side
-	{ axis = "X", at = -22, from = -400, to = 400 }, -- Main St, south side
-	{ axis = "X", at = -218, from = -600, to = 600 }, -- Maple Ave, north side
-	{ axis = "X", at = -262, from = -600, to = 600 }, -- Maple Ave, south side
-	{ axis = "Z", at = 285, from = -185, to = -65 }, -- park path
-	{ axis = "X", at = -125, from = 185, to = 385 }, -- park path
-	{ axis = "X", at = 22, from = 680, to = 1220 }, -- Business District, Main St
-	{ axis = "X", at = -98, from = 680, to = 1220 }, -- Commerce Ave
-	{ axis = "X", at = -98, from = -1220, to = -660 }, -- Elm St (Eastside)
-	{ axis = "X", at = -618, from = -600, to = 600 }, -- Hillcrest Dr
-	{ axis = "X", at = 22, from = 1940, to = 2260 }, -- Port Haven, Main St
-	{ axis = "X", at = -22, from = 1940, to = 2260 }, -- Port Haven, Main St
-	{ axis = "X", at = 160, from = 1980, to = 2220 }, -- Harbor Park path
-}
-
--- Every road's two sidewalks too, except along the Route 9 highway (x 1300-1880).
-local SIDEWALK = MapData.ROAD_WIDTH / 2 + 5
-for _, road in MapData.ROADS do
-	local ranges = { { road.from, road.to } }
-	if road.axis == "X" and road.from < 1300 and road.to > 1880 then
-		ranges = { { road.from, 1240 }, { 1920, road.to } }
+-- Walk lines down the middle of every flat street's sidewalks, with height.
+local LINES: { { axis: string, at: number, from: number, to: number, y: number } } = {}
+for _, road in CityPlan.ROADS do
+	if road.kind ~= "street" or road.y0 ~= road.y1 then
+		continue
 	end
-	for _, r in ranges do
-		for _, side in { -1, 1 } do
+	for _, side in { -1, 1 } do
+		local probe = if road.axis == "X"
+			then Vector3.new((road.from + road.to) / 2, 0, road.at + side * (road.w / 2 + 5))
+			else Vector3.new(road.at + side * (road.w / 2 + 5), 0, (road.from + road.to) / 2)
+		if CityPlan.onLand(probe) then
 			table.insert(LINES, {
 				axis = road.axis,
-				at = road.at + side * SIDEWALK,
-				from = r[1] + 20,
-				to = r[2] - 20,
+				at = road.at + side * (road.w / 2 + 5),
+				from = road.from + 20,
+				to = road.to - 20,
+				y = road.y0,
 			})
 		end
 	end
@@ -75,19 +62,19 @@ local Pedestrians = {}
 local rng = Random.new()
 
 local function pointOn(
-	line: { axis: string, at: number, from: number, to: number },
+	line: { axis: string, at: number, from: number, to: number, y: number },
 	t: number
 ): Vector3
 	local along = line.from + (line.to - line.from) * t
 	if line.axis == "X" then
-		return Vector3.new(along, WALK_Y, line.at)
+		return Vector3.new(along, line.y + WALK_Y, line.at)
 	end
-	return Vector3.new(line.at, WALK_Y, along)
+	return Vector3.new(line.at, line.y + WALK_Y, along)
 end
 
 local function walker(index: number, folder: Instance)
 	-- The first lines are the busy hand-picked ones; the rest are random sidewalks.
-	local line = if index <= 13 then LINES[index] else LINES[rng:NextInteger(14, #LINES)]
+	local line = LINES[rng:NextInteger(1, #LINES)]
 	local start = pointOn(line, rng:NextNumber())
 	local npc = Npc.new(
 		"civilian",

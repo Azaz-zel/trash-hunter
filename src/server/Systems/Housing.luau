@@ -33,10 +33,9 @@ local likedBy: { [Player]: { [Player]: boolean } } = {} -- owner -> likers this 
 local Housing = {}
 
 -- Lot front at the sidewalk edge; local -Z faces the street.
-local function lotFrame(spec: any): CFrame
-	return CFrame.new(spec.x, 0, Config.LOT_ROAD_Z)
-		* CFrame.Angles(0, math.rad(spec.yaw), 0)
-		* CFrame.new(0, 0, 31)
+-- Config.Lots holds the lot frames (front of the lot, +Z away from the street).
+local function lotFrame(spec: CFrame): CFrame
+	return spec
 end
 
 local function forSaleSign(lot: Lot)

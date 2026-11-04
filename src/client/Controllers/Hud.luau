@@ -337,6 +337,7 @@ local function build()
 	}, { Ui.list(Enum.FillDirection.Vertical, 8, Enum.HorizontalAlignment.Right) })
 	local function sideButton(text: string, order: number, fn: () -> (), key: string?): TextButton
 		local b = Ui.button(text, "secondary", UDim2.fromOffset(72, 52), fn)
+		b.Name = text .. "Button"
 		b.TextSize = 16
 		b.LayoutOrder = order
 		b.Parent = side
@@ -361,7 +362,7 @@ local function build()
 	end, "B")
 	-- Without the Shop Anywhere pass, buying happens at the store counters.
 	shopButton = sideButton("Shop", 2, function()
-		Store.emit("openPanel", "shop")
+		Store.emit("openShop", { kind = "anywhere" })
 	end)
 	shopButton.Visible = false
 	sideButton("Book", 3, function()
@@ -375,7 +376,7 @@ local function build()
 	end)
 	homeButton.Visible = false
 	sideButton("R$", 6, function()
-		Store.emit("openPanel", "robux")
+		Store.emit("openShop", { kind = "robux" })
 	end)
 	-- Heavy bins and the friend loot boost need a second player.
 	sideButton("Invite", 7, function()

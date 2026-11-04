@@ -11,6 +11,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Districts = require(Shared:WaitForChild("Districts"))
 local MapData = require(Shared:WaitForChild("MapData"))
+local CityPlan = require(Shared:WaitForChild("CityPlan"))
 local Quests = require(Shared:WaitForChild("Quests"))
 local Ui = require(script.Parent.Parent.Ui)
 local Store = require(script.Parent.Parent.Store)
@@ -23,14 +24,13 @@ local MINI_SIZE = 168
 local MINI_SCALE = 0.22 -- pixels per stud on the minimap
 
 local DISTRICT_TINT = {
-	town = Color3.fromRGB(120, 130, 150),
-	eastside = Color3.fromRGB(150, 120, 100),
-	maple = Color3.fromRGB(110, 150, 110),
-	hillcrest = Color3.fromRGB(110, 160, 140),
-	business = Color3.fromRGB(110, 130, 180),
+	downtown = Color3.fromRGB(110, 90, 150),
+	midtown = Color3.fromRGB(120, 130, 150),
+	southside = Color3.fromRGB(150, 120, 100),
+	eastgate = Color3.fromRGB(110, 150, 110),
+	beach = Color3.fromRGB(200, 180, 130),
+	hills = Color3.fromRGB(90, 140, 100),
 	industrial = Color3.fromRGB(160, 140, 100),
-	sunset = Color3.fromRGB(170, 140, 110),
-	route9 = Color3.fromRGB(70, 110, 70),
 	oldport = Color3.fromRGB(120, 110, 140),
 	docks = Color3.fromRGB(110, 130, 150),
 }
@@ -121,17 +121,18 @@ end
 local function drawWorld(parent: Instance, scale: number, labels: boolean): Canvas
 	local world = Ui.new("Frame", {
 		Name = "World",
-		BackgroundColor3 = Color3.fromRGB(58, 70, 54),
+		BackgroundColor3 = Color3.fromRGB(34, 74, 100), -- open water
 		BorderSizePixel = 0,
 		Size = UDim2.fromOffset((B.x1 - B.x0) * scale, (B.z1 - B.z0) * scale),
 		Parent = parent,
 	})
+	for _, r in CityPlan.LAND do
+		rect(world, scale, r.x0, r.x1, r.z0, r.z1, Color3.fromRGB(58, 70, 54), 0, 1)
+	end
+	local sand = CityPlan.BEACH
+	rect(world, scale, sand.x0, sand.x1, sand.z0, sand.z1, Color3.fromRGB(214, 196, 150), 0, 1)
 	for _, d in Config.Districts do
 		rect(world, scale, d.x0, d.x1, d.z0, d.z1, DISTRICT_TINT[d.id] or C.panelLight, 0.55, 1)
-		if d.id == "docks" then
-			-- The bay east of the quay.
-			rect(world, scale, 2672, B.x1, B.z0, B.z1, Color3.fromRGB(40, 92, 130), 0.1, 2)
-		end
 		if labels then
 			-- Top-left corner, so it never sits on the Hideout or store pins.
 			local px, py = toPixel(scale, d.x0, d.z1)
@@ -159,30 +160,35 @@ local function drawWorld(parent: Instance, scale: number, labels: boolean): Canv
 		0.35,
 		2
 	)
-	for _, r in MapData.ROADS do
+	-- Freeways in amber, streets in light grey, drawn at their real widths.
+	for _, r in CityPlan.ROADS do
+		local color = if r.kind == "freeway"
+			then Color3.fromRGB(240, 180, 60)
+			else Color3.fromRGB(200, 202, 206)
+		local half = r.w / 2
 		if r.axis == "X" then
 			rect(
 				world,
 				scale,
 				r.from,
 				r.to,
-				r.at - MapData.ROAD_WIDTH / 2,
-				r.at + MapData.ROAD_WIDTH / 2,
-				Color3.fromRGB(200, 202, 206),
+				r.at - half,
+				r.at + half,
+				color,
 				0.1,
-				3
+				if r.kind == "freeway" then 4 else 3
 			)
 		else
 			rect(
 				world,
 				scale,
-				r.at - MapData.ROAD_WIDTH / 2,
-				r.at + MapData.ROAD_WIDTH / 2,
+				r.at - half,
+				r.at + half,
 				r.from,
 				r.to,
-				Color3.fromRGB(200, 202, 206),
+				color,
 				0.1,
-				3
+				if r.kind == "freeway" then 4 else 3
 			)
 		end
 	end
@@ -324,8 +330,8 @@ end
 local setWaypoint: (Vector3?) -> ()
 
 local function nearestStreet(pos: Vector3): string?
-	local best, bestDist = nil, MapData.ROAD_WIDTH / 2 + 14
-	for _, r in MapData.ROADS do
+	local best, bestDist = nil, 30
+	for _, r in CityPlan.ROADS do
 		local along = if r.axis == "X" then pos.X else pos.Z
 		local across = if r.axis == "X" then pos.Z else pos.X
 		local dist = math.abs(across - r.at)

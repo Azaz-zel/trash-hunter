@@ -3,7 +3,19 @@
 -- and the server never trusts a client-reported value from this file.
 -- Every number is a starting point for playtest tuning (GDD section 7).
 
+local CityPlan = require(script.Parent.CityPlan)
+
 local v3 = Vector3.new
+
+-- Frozen copies of the city's dumpster spots.
+local dumpsters = {}
+for _, d in CityPlan.DUMPSTERS do
+	table.insert(dumpsters, table.freeze(table.clone(d)))
+end
+local districts = {}
+for _, d in CityPlan.DISTRICTS do
+	table.insert(districts, table.freeze(table.clone(d)))
+end
 
 return table.freeze({
 	AUTOSAVE_INTERVAL = 60,
@@ -162,46 +174,46 @@ return table.freeze({
 	Stores = table.freeze({
 		hardware = table.freeze({
 			name = "Hank's Hardware",
-			counter = v3(85, 0, 62),
+			counter = CityPlan.storeCounter("hardware"),
 			sells = "gear",
 			range = 14,
 		}),
 		motors = table.freeze({
 			name = "Maple Motors",
-			counter = v3(100, 0, -78),
+			counter = CityPlan.storeCounter("motors"),
 			sells = "cars",
 			range = 14,
 		}),
 		harbor = table.freeze({
 			name = "Harbor Supply",
-			counter = v3(2110, 0, 24),
+			counter = CityPlan.storeCounter("harbor"),
 			sells = "gear",
 			range = 14,
 			city = "port",
 		}),
 		bayside = table.freeze({
 			name = "Bayside Autos",
-			counter = v3(2090, 0, -78),
+			counter = CityPlan.storeCounter("bayside"),
 			sells = "cars",
 			range = 14,
 			city = "port",
 		}),
 		realty = table.freeze({
 			name = "Maple Realty",
-			counter = v3(-690, 0, -600),
+			counter = CityPlan.storeCounter("realty"),
 			sells = "house",
 			range = 14,
 		}),
 	}),
 
 	-- Cities on the one connected map. Items, cars and tools without a city
-	-- belong to Maple. Route 9 (Main St east of Maple) leads to Port Haven.
+	-- belong to Maple (the mainland). The Harbor Fwy bridge leads to Port Haven.
 	Cities = table.freeze({
 		maple = table.freeze({ name = "Maple", order = 1 }),
 		port = table.freeze({ name = "Port Haven", order = 2 }),
 	}),
 
-	-- Houses on Sunset Lane: a trophy room other players can visit and like.
+	-- Houses on Sunset Ln: a trophy room other players can visit and like.
 	-- Each level rebuilds the house bigger with more pedestals.
 	Houses = table.freeze({
 		table.freeze({ name = "Starter Home", price = 6000, slots = 4 }),
@@ -209,27 +221,16 @@ return table.freeze({
 		table.freeze({ name = "Collector's Villa", price = 90000, slots = 12 }),
 	}),
 	-- Lot fronts on Sunset Ln (z = -640). yaw 0 = house north of the road.
-	Lots = table.freeze({
-		table.freeze({ x = -1190, yaw = 0 }),
-		table.freeze({ x = -1090, yaw = 0 }),
-		table.freeze({ x = -870, yaw = 0 }),
-		table.freeze({ x = -770, yaw = 0 }),
-		table.freeze({ x = -1190, yaw = 180 }),
-		table.freeze({ x = -1090, yaw = 180 }),
-		table.freeze({ x = -990, yaw = 180 }),
-		table.freeze({ x = -890, yaw = 180 }),
-		table.freeze({ x = -790, yaw = 180 }),
-		table.freeze({ x = -690, yaw = 180 }),
-	}),
-	LOT_ROAD_Z = -640,
+	-- Lot frames on Sunset Ln (Eastgate): origin at the front, +Z away from the street.
+	Lots = table.freeze(table.clone(CityPlan.LOTS)),
 
 	-- Higher-tier districts need a permit: their dumpsters stay locked until the
 	-- stat reaches the target. Stats only grow, so a permit is never lost. The
 	-- Meridian yard has guards instead of a permit.
 	Gates = table.freeze({
-		maple = table.freeze({ stat = "searches", need = 12, text = "Search 12 dumpsters" }),
-		hillcrest = table.freeze({ stat = "rares", need = 4, text = "Find 4 Rare-or-better items" }),
-		business = table.freeze({ stat = "earned", need = 5000, text = "Earn $5,000 from sales" }),
+		midtown = table.freeze({ stat = "searches", need = 12, text = "Search 12 dumpsters" }),
+		hills = table.freeze({ stat = "rares", need = 4, text = "Find 4 Rare-or-better items" }),
+		downtown = table.freeze({ stat = "earned", need = 5000, text = "Earn $5,000 from sales" }),
 		docks = table.freeze({ stat = "rares", need = 12, text = "Find 12 Rare-or-better items" }),
 	}),
 
@@ -243,29 +244,29 @@ return table.freeze({
 			table.freeze({
 				id = "earl",
 				name = "Old Earl",
-				pos = v3(-40, 0, 24),
-				yaw = 180,
+				pos = CityPlan.GIVERS.earl.pos,
+				yaw = CityPlan.GIVERS.earl.yaw,
 				line = "Back in my day we found treasure in every can.",
 			}),
 			table.freeze({
 				id = "rosa",
 				name = "Rosa",
-				pos = v3(-560, 0, -216),
-				yaw = 0,
+				pos = CityPlan.GIVERS.rosa.pos,
+				yaw = CityPlan.GIVERS.rosa.yaw,
 				line = "I pay well for help. Interested?",
 			}),
 			table.freeze({
 				id = "mae",
 				name = "Captain Mae",
-				pos = v3(2300, 0, 22),
-				yaw = 180,
+				pos = CityPlan.GIVERS.mae.pos,
+				yaw = CityPlan.GIVERS.mae.yaw,
 				line = "The tide brings in strange things. Want work?",
 			}),
 			table.freeze({
 				id = "vic",
 				name = "Vic",
-				pos = v3(300, 0, 322),
-				yaw = 0,
+				pos = CityPlan.GIVERS.vic.pos,
+				yaw = CityPlan.GIVERS.vic.yaw,
 				line = "That yard's full of goodies. Got the nerve?",
 			}),
 		}),
@@ -307,17 +308,17 @@ return table.freeze({
 			}),
 			table.freeze({
 				kind = "district",
-				district = "maple",
+				district = "beach",
 				n = 4,
 				reward = 500,
-				text = "Search 4 dumpsters in Maple Grove",
+				text = "Search 4 dumpsters in Westshore",
 			}),
 			table.freeze({
 				kind = "district",
-				district = "hillcrest",
+				district = "southside",
 				n = 3,
 				reward = 700,
-				text = "Search 3 dumpsters in Hillcrest",
+				text = "Search 3 dumpsters in Southside",
 			}),
 			table.freeze({
 				kind = "yard",
@@ -402,113 +403,7 @@ return table.freeze({
 	-- Districts, cheapest to richest. A dumpster's loot boost = its district's
 	-- boost (+ the red-zone boost inside the Meridian yard). First match wins,
 	-- so the Meridian yard (inside Industrial Park) needs no entry of its own.
-	Districts = table.freeze({
-		table.freeze({
-			id = "town",
-			name = "Town Center",
-			tier = 1,
-			boost = 0,
-			x0 = -640,
-			x1 = 640,
-			z0 = -200,
-			z1 = 300,
-		}),
-		table.freeze({
-			id = "eastside",
-			name = "Eastside",
-			tier = 1,
-			boost = 0.2,
-			x0 = -1300,
-			x1 = -640,
-			z0 = -500,
-			z1 = 300,
-		}),
-		table.freeze({
-			id = "maple",
-			name = "Maple Grove",
-			tier = 2,
-			boost = 0.45,
-			x0 = -640,
-			x1 = 640,
-			z0 = -495,
-			z1 = -200,
-		}),
-		table.freeze({
-			id = "hillcrest",
-			name = "Hillcrest Estates",
-			tier = 3,
-			boost = 0.8,
-			x0 = -640,
-			x1 = 640,
-			z0 = -1080,
-			z1 = -495,
-		}),
-		table.freeze({
-			id = "business",
-			name = "Business District",
-			tier = 4,
-			boost = 1.2,
-			x0 = 640,
-			x1 = 1300,
-			z0 = -1080,
-			z1 = 300,
-		}),
-		table.freeze({
-			id = "industrial",
-			name = "Industrial Park",
-			tier = 5,
-			boost = 1.6,
-			x0 = -1300,
-			x1 = 1300,
-			z0 = 300,
-			z1 = 900,
-		}),
-		table.freeze({
-			id = "sunset",
-			name = "Sunset Lane",
-			tier = 0, -- homes, no dumpsters
-			note = "Homes for sale at Maple Realty",
-			boost = 0,
-			x0 = -1300,
-			x1 = -640,
-			z0 = -1080,
-			z1 = -500,
-		}),
-		table.freeze({
-			id = "route9",
-			name = "Route 9",
-			tier = 0,
-			note = "Highway to Port Haven",
-			boost = 0,
-			x0 = 1300,
-			x1 = 1880,
-			z0 = -1110,
-			z1 = 900,
-		}),
-		-- Port Haven: a second city with its own items.
-		table.freeze({
-			id = "oldport",
-			name = "Old Port",
-			city = "port",
-			tier = 3,
-			boost = 0.7,
-			x0 = 1880,
-			x1 = 2280,
-			z0 = -600,
-			z1 = 600,
-		}),
-		table.freeze({
-			id = "docks",
-			name = "The Docks",
-			city = "port",
-			tier = 5,
-			boost = 1.4,
-			x0 = 2280,
-			x1 = 2900,
-			z0 = -600,
-			z1 = 600,
-		}),
-	}),
+	Districts = table.freeze(districts),
 
 	Guard = table.freeze({
 		MAX_SPEED = 48, -- studs/s horizontal; anything faster counts as a teleport
@@ -517,121 +412,21 @@ return table.freeze({
 	}),
 
 	-- Gameplay anchors of the town. World.luau builds the city around these.
+	-- Gameplay anchors of the city (see CityPlan). World builds around these.
 	World = table.freeze({
-		HIDEOUT_CENTER = v3(10, 0, 90),
+		HIDEOUT_CENTER = CityPlan.HIDEOUT,
 		HIDEOUT_RADIUS = 30, -- "inside the Hideout" for selling and ending chases
-		-- Every hideout (selling, safe zone). The first is Maple's main Hideout.
-		HIDEOUTS = table.freeze({ v3(10, 0, 90), v3(1985, 0, 75) }),
-		SPAWN = v3(10, 0, 104),
-		SELL_POINT = v3(-8, 0, 108),
+		-- Every hideout (selling, safe zone). The first is the main Hideout.
+		HIDEOUTS = table.freeze({ CityPlan.HIDEOUT, CityPlan.LOCKUP }),
+		SPAWN = CityPlan.HIDEOUT + v3(0, 0, 14),
+		SELL_POINT = CityPlan.HIDEOUT + v3(-18, 0, 18),
 		-- Meridian Logistics yard: the fenced private property.
-		RED_CENTER = v3(0, 0, 465),
+		RED_CENTER = CityPlan.RED_CENTER,
 		RED_SIZE = Vector2.new(460, 270),
-		-- yaw turns the dumpster's open front; pad "wall" backs it against a wall,
-		-- "enclosure" builds a three-sided block pen around it.
-		Dumpsters = table.freeze({
-			table.freeze({
-				pos = v3(-26, 0, 80),
-				zone = "Green",
-				tutorial = true,
-				yaw = 90,
-				pad = "wall",
-			}),
-			-- Main St service alley, against the shops' back walls
-			table.freeze({ pos = v3(-350, 0, 90), zone = "Green", yaw = 180, pad = "enclosure" }),
-			table.freeze({ pos = v3(-266, 0, 90), zone = "Green", yaw = 180, pad = "wall" }),
-			table.freeze({ pos = v3(-184, 0, 90), zone = "Green", yaw = 180, pad = "enclosure" }),
-			-- Strip mall loading lane, beside the dock doors
-			table.freeze({ pos = v3(214, 0, 190), zone = "Green", yaw = 180, pad = "wall" }),
-			table.freeze({ pos = v3(296, 0, 190), zone = "Green", yaw = 180, pad = "enclosure" }),
-			table.freeze({ pos = v3(372, 0, 190), zone = "Green", yaw = 180, pad = "wall" }),
-			-- Behind the motel, the gas station and by the apartments
-			table.freeze({ pos = v3(-500, 0, 154), zone = "Green", yaw = 180, pad = "enclosure" }),
-			table.freeze({ pos = v3(540, 0, 133), zone = "Green", yaw = 180, pad = "wall" }),
-			table.freeze({ pos = v3(-170, 0, -120), zone = "Green", yaw = 0, pad = "enclosure" }),
-			-- Eastside
-			table.freeze({ pos = v3(-862, 0, 87), zone = "Green", yaw = 180, pad = "enclosure" }),
-			table.freeze({ pos = v3(-1040, 0, 150), zone = "Green", yaw = 90, pad = "enclosure" }),
-			table.freeze({ pos = v3(-745, 0, 215), zone = "Green", yaw = 90, pad = "enclosure" }),
-			-- Maple Grove back alley, against the backyard fences
-			table.freeze({ pos = v3(-330, 0, -346), zone = "Green", yaw = 0, pad = "wall" }),
-			table.freeze({ pos = v3(110, 0, -346), zone = "Green", yaw = 0, pad = "wall" }),
-			table.freeze({ pos = v3(470, 0, -346), zone = "Green", yaw = 0, pad = "wall" }),
-			-- Hillcrest service lane and the country club kitchen
-			table.freeze({ pos = v3(-300, 0, -760), zone = "Green", yaw = 0, pad = "enclosure" }),
-			table.freeze({ pos = v3(300, 0, -760), zone = "Green", yaw = 0, pad = "enclosure" }),
-			table.freeze({ pos = v3(60, 0, -968), zone = "Green", yaw = -90, pad = "wall" }),
-			-- Business District, behind the towers and by the garage
-			table.freeze({ pos = v3(965, 0, 232), zone = "Green", yaw = 180, pad = "enclosure" }),
-			table.freeze({ pos = v3(1150, 0, 174), zone = "Green", yaw = 180, pad = "wall" }),
-			table.freeze({ pos = v3(994, 0, -196), zone = "Green", yaw = -90, pad = "wall" }),
-			-- Industrial Park (outside the Meridian fence)
-			table.freeze({ pos = v3(-666, 0, 500), zone = "Green", yaw = 90, pad = "wall" }),
-			table.freeze({
-				pos = v3(-1014, 0, 600),
-				zone = "Green",
-				yaw = 90,
-				pad = "wall",
-				heavy = true,
-			}),
-			table.freeze({
-				pos = v3(944, 0, 500),
-				zone = "Green",
-				yaw = -90,
-				pad = "wall",
-				heavy = true,
-			}),
-			-- Corporate Park, beside the office towers
-			table.freeze({ pos = v3(960, 0, -560), zone = "Green", yaw = 90, pad = "enclosure" }),
-			table.freeze({ pos = v3(1222, 0, -560), zone = "Green", yaw = -90, pad = "enclosure" }),
-			table.freeze({ pos = v3(960, 0, -850), zone = "Green", yaw = 90, pad = "enclosure" }),
-			table.freeze({ pos = v3(1222, 0, -850), zone = "Green", yaw = -90, pad = "enclosure" }),
-			-- Port Haven: Old Port alleys behind the shops
-			table.freeze({ pos = v3(2030, 0, 100), zone = "Green", yaw = 180, pad = "enclosure" }),
-			table.freeze({ pos = v3(2160, 0, 100), zone = "Green", yaw = 180, pad = "enclosure" }),
-			table.freeze({ pos = v3(1990, 0, -100), zone = "Green", yaw = 0, pad = "enclosure" }),
-			table.freeze({ pos = v3(2215, 0, -100), zone = "Green", yaw = 0, pad = "enclosure" }),
-			table.freeze({ pos = v3(1960, 0, 330), zone = "Green", yaw = 180, pad = "enclosure" }),
-			table.freeze({ pos = v3(2150, 0, -330), zone = "Green", yaw = 0, pad = "enclosure" }),
-			-- Port Haven: the Docks
-			table.freeze({ pos = v3(2320, 0, 190), zone = "Green", yaw = 90, pad = "enclosure" }),
-			table.freeze({
-				pos = v3(2470, 0, 120),
-				zone = "Green",
-				yaw = -90,
-				pad = "enclosure",
-				heavy = true,
-			}),
-			table.freeze({ pos = v3(2330, 0, -60), zone = "Green", yaw = 90, pad = "enclosure" }),
-			table.freeze({ pos = v3(2585, 0, -200), zone = "Green", yaw = -90, pad = "enclosure" }),
-			table.freeze({ pos = v3(2340, 0, 330), zone = "Green", yaw = 180, pad = "enclosure" }),
-			table.freeze({ pos = v3(2560, 0, -330), zone = "Green", yaw = 0, pad = "enclosure" }),
-			-- Meridian yard: by the dock doors, the guard booth and the back fence
-			table.freeze({ pos = v3(-150, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),
-			table.freeze({ pos = v3(-80, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),
-			table.freeze({ pos = v3(80, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),
-			table.freeze({ pos = v3(150, 0, 486), zone = "Red", yaw = 0, pad = "wall" }),
-			table.freeze({ pos = v3(-36, 0, 340), zone = "Red", yaw = 90, pad = "wall" }),
-			table.freeze({ pos = v3(-214, 0, 590), zone = "Red", yaw = 90, pad = "enclosure" }),
-		}),
-		-- Open ground inside the yard the guards walk between (warehouses excluded).
-		GUARD_POINTS = table.freeze({
-			v3(0, 0, 358),
-			v3(-120, 0, 364),
-			v3(120, 0, 364),
-			v3(-212, 0, 384),
-			v3(212, 0, 384),
-			v3(0, 0, 440),
-			v3(-214, 0, 446),
-			v3(214, 0, 446),
-			v3(-160, 0, 512),
-			v3(-60, 0, 516),
-			v3(60, 0, 516),
-			v3(160, 0, 512),
-			v3(0, 0, 562),
-			v3(-200, 0, 576),
-			v3(200, 0, 576),
-		}),
+		-- yaw turns the dumpster's open front (0 opens toward -Z); pad "wall"
+		-- backs it against a wall, "enclosure" builds a three-sided block pen.
+		Dumpsters = table.freeze(dumpsters),
+		GUARD_POINTS = table.freeze(table.clone(CityPlan.GUARD_POINTS)),
 	}),
 
 	-- Licensed Roblox Creator Store audio (ProSoundEffects / APM Music).

@@ -28,8 +28,8 @@ local STEPS: { { text: string, path: { string }, label: string } } = {
 		label = "SELL",
 	},
 	{
-		text = "Buy a bigger backpack at Hank's Hardware on Main St.",
-		path = { "Districts", "Stores", "hardwareCounter" },
+		text = "Buy a bigger backpack inside Hank's Hardware, down the street.",
+		path = { "Districts", "Stores", "hardwareStore", "hardwareCounter" },
 		label = "UPGRADE",
 	},
 	{

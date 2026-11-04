@@ -1127,3 +1127,34 @@ Spec: `docs/superpowers/specs/2026-11-04-phase1-feel-navigation-design.md`.
 ## Undang teman
 -   Tombol "Invite" di HUD membuka dialog undangan Roblox.
 -   Push notification belum dibuat: butuh Open Cloud dari server luar.
+
+# Lampiran J — Kota Baru (Rombak Total, Gaya GTA + Cyberpunk)
+
+Spec: `docs/superpowers/specs/2026-11-05-city-rebuild-design.md`. Layoutnya
+original, bukan salinan map game lain.
+
+-   Ukuran ±5400 × 4050 stud (±2× map lama). Seluruh layout diatur oleh satu
+    file, `src/shared/CityPlan.luau`. Server, peta, lalu lintas, dan pejalan
+    kaki semuanya membaca file itu.
+-   Area dan tier:
+    -   Westshore (pantai, tier 2): pasir, boardwalk, pier dengan arcade dan
+        Ferris wheel neon.
+    -   Southside (start, tier 1) dan Eastgate (tier 1): perumahan padat.
+        Sunset Ln di Eastgate berisi 12 lot rumah pemain.
+    -   Midtown (tier 2): apartemen, ruko, taman.
+    -   Downtown (tier 4): pencakar langit dengan lampu neon, billboard, dan
+        plaza dengan hologram.
+    -   Vista Hills (tier 3): plateau setinggi 40 dengan villa dan tulisan
+        VISTA di tebing.
+    -   Industrial (tier 5): gudang, pabrik, yard Meridian.
+    -   Port Haven (pulau): Old Port dan The Docks.
+-   Harbor Fwy: jalan layang setinggi 36 dengan pilar, garis neon, ramp di
+    kedua ujung, dan jembatan gantung ke pulau.
+-   Infill membangun ±1.900 bangunan berdempetan sesuai distrik. Sekitar 100
+    di antaranya rumah yang bisa dimasuki (ada sofa, TV, kasur, dapur).
+-   Lima toko jadi bangunan walk-in. Konter dan clerk ada di dalam; belanja
+    dari luar ditolak.
+-   ±120 tempat sampah diletakkan di celah antarbangunan.
+-   Izin distrik: Midtown, Vista Hills, Downtown, dan The Docks.
+-   UI shop dipisah dari Bag/Book. Konter toko membuka jendela toko itu,
+    tombol R$ membuka Robux Shop, dan tombol Shop (pass) membuka semua toko.

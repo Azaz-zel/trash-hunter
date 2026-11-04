@@ -392,6 +392,7 @@ function Search.init()
 		Loot.selfCheck()
 		require(Shared.ItemModels).selfCheck()
 		require(Shared.Quests).selfCheck()
+		require(Shared.CityPlan).selfCheck()
 	end
 	Router.on("pickBag", 0.2, pick)
 	Router.on("resolve", 0.2, resolve)

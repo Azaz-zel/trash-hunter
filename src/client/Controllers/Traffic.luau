@@ -10,14 +10,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-local MapData = require(Shared:WaitForChild("MapData"))
+local CityPlan = require(Shared:WaitForChild("CityPlan"))
 
 local player = Players.LocalPlayer
 local rng = Random.new()
 
 local ROAD_TOP = 0.2
-local LANE = 8 -- lane centre, studs right of the road centre line
-local STOP_GAP = MapData.ROAD_WIDTH / 2 + 3 -- stop line before an intersection
 local CRUISE = 34
 local ACCEL = 14
 local BRAKE = 40
@@ -27,7 +25,7 @@ local NEAR = 380 -- spawn within this distance of the player
 local FAR = 560 -- recycle beyond this
 local LOCK_TIMEOUT = 8
 
-type Node = { pos: Vector3, out: { Edge }, cross: boolean }
+type Node = { pos: Vector3, out: { Edge }, cross: boolean, gap: number }
 type Edge = {
 	from: Node,
 	to: Node,
@@ -69,36 +67,44 @@ local folder: Folder
 
 -- ─── road graph ───────────────────────────────────────────────────────────
 
-local function nodeAt(pos: Vector3, cross: boolean): Node
+-- gap: distance from the node to the stop line (half the widest road there).
+local function nodeAt(pos: Vector3, cross: boolean, gap: number): Node
 	for _, n in nodes do
 		if (n.pos - pos).Magnitude < 2 then
 			n.cross = n.cross or cross
+			n.gap = math.max(n.gap, gap)
 			return n
 		end
 	end
-	local n: Node = { pos = pos, out = {}, cross = cross }
+	local n: Node = { pos = pos, out = {}, cross = cross, gap = gap }
 	table.insert(nodes, n)
 	return n
 end
 
 local function point(road: any, along: number): Vector3
+	local y = CityPlan.roadY(road, along)
 	return if road.axis == "X"
-		then Vector3.new(along, 0, road.at)
-		else Vector3.new(road.at, 0, along)
+		then Vector3.new(along, y, road.at)
+		else Vector3.new(road.at, y, along)
 end
 
 local function buildGraph()
-	for _, road in MapData.ROADS do
+	for _, road in CityPlan.ROADS do
 		local stops = {}
-		for _, other in MapData.ROADS do
+		for _, other in CityPlan.ROADS do
 			if
 				other.axis ~= road.axis
 				and other.at >= road.from - 1
 				and other.at <= road.to + 1
 				and road.at >= other.from - 1
 				and road.at <= other.to + 1
+				and math.abs(CityPlan.roadY(road, other.at) - CityPlan.roadY(other, road.at))
+					< 1
 			then
-				table.insert(stops, { at = other.at, cross = true })
+				table.insert(
+					stops,
+					{ at = other.at, cross = true, gap = math.max(other.w, road.w) / 2 + 3 }
+				)
 			end
 		end
 		table.sort(stops, function(a, b)
@@ -106,21 +112,22 @@ local function buildGraph()
 		end)
 		-- Road ends become dead-end nodes unless an intersection is right there.
 		if #stops == 0 or stops[1].at - road.from > 40 then
-			table.insert(stops, 1, { at = road.from, cross = false })
+			table.insert(stops, 1, { at = road.from, cross = false, gap = 0 })
 		end
 		if #stops == 0 or road.to - stops[#stops].at > 40 then
-			table.insert(stops, { at = road.to, cross = false })
+			table.insert(stops, { at = road.to, cross = false, gap = 0 })
 		end
+		local lane = road.w * 0.24
 		for i = 1, #stops - 1 do
-			local n1 = nodeAt(point(road, stops[i].at), stops[i].cross)
-			local n2 = nodeAt(point(road, stops[i + 1].at), stops[i + 1].cross)
+			local n1 = nodeAt(point(road, stops[i].at), stops[i].cross, stops[i].gap)
+			local n2 = nodeAt(point(road, stops[i + 1].at), stops[i + 1].cross, stops[i + 1].gap)
 			local pair = {}
 			for _, dir in { { n1, n2 }, { n2, n1 } } do
 				local from, to = dir[1], dir[2]
 				local fwd = (to.pos - from.pos).Unit
-				local right = Vector3.new(-fwd.Z, 0, fwd.X)
-				local a = from.pos + fwd * (if from.cross then STOP_GAP else 0) + right * LANE
-				local b = to.pos - fwd * (if to.cross then STOP_GAP else 0) + right * LANE
+				local right = Vector3.new(-fwd.Z, 0, fwd.X).Unit
+				local a = from.pos + fwd * from.gap + right * lane
+				local b = to.pos - fwd * to.gap + right * lane
 				local e: Edge = {
 					from = from,
 					to = to,

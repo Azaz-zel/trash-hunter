@@ -1,12 +1,8 @@
 --!strict
--- The outer districts of the town, built with World's kit of primitives.
--- Loot tier rises from Eastside (1) to Maple Grove (2), Hillcrest Estates (3),
--- the Business District (4) and the Industrial Park (5). Each district looks
--- like what it is worth: worn bungalows and a trailer park, gated mansions with
--- pools, glass office towers, factories with smokestacks and a rail yard.
--- Also fills the Town Center gaps and plants the tree belt around the map.
+-- City landmarks (plaza, park, beach and pier, hills plateau, Port Haven
+-- docks) and the building builders that Infill uses, made from World's kit.
 
-local Config = require(game:GetService("ReplicatedStorage").Shared.Config)
+local CityPlan = require(game:GetService("ReplicatedStorage").Shared.CityPlan)
 
 local CityDistricts = {}
 
@@ -42,58 +38,6 @@ local function welcomeSign(
 	k.sign(board, Enum.NormalId.Front, title .. "\n" .. sub, bg, C.white)
 	k.sign(board, Enum.NormalId.Back, title .. "\n" .. sub, bg, C.white)
 end
-
-local function slab(
-	k: Kit,
-	parent: Instance,
-	x0: number,
-	x1: number,
-	z0: number,
-	z1: number,
-	color: Color3,
-	material: Enum.Material
-)
-	k.part(parent, {
-		Name = "Ground",
-		Size = Vector3.new(x1 - x0, k.ROAD_TOP, z1 - z0),
-		CFrame = CFrame.new((x0 + x1) / 2, k.ROAD_TOP / 2 - 0.02, (z0 + z1) / 2),
-		Color = color,
-		Material = material,
-	})
-end
-
-local function streetTrees(
-	k: Kit,
-	parent: Instance,
-	axis: string,
-	roadAt: number,
-	from: number,
-	to: number,
-	step: number,
-	skip: { number }?
-)
-	local edge = k.ROAD_W / 2 + k.WALK_W - 2
-	local p = from
-	while p <= to do
-		local blocked = false
-		for _, s in skip or {} do
-			if math.abs(p - s) < 30 then
-				blocked = true
-			end
-		end
-		if not blocked then
-			for _, side in { -1, 1 } do
-				local pos = if axis == "X"
-					then Vector3.new(p, 0, roadAt + side * edge)
-					else Vector3.new(roadAt + side * edge, 0, p)
-				k.tree(parent, pos, 0.9)
-			end
-		end
-		p += step
-	end
-end
-
--- ─── Eastside: low-income housing ──────────────────────────────────────────
 
 local function bungalow(k: Kit, parent: Instance, cf: CFrame)
 	local C, M, rng = k.C, k.M, k.rng
@@ -170,107 +114,6 @@ local function trailer(k: Kit, parent: Instance, cf: CFrame)
 		k.window(parent, cf * CFrame.new(-7.2, 4.5, z) * CFrame.Angles(0, math.rad(90), 0), 5, 3)
 	end
 	k.box(parent, "Steps", cf * CFrame.new(-9, 0, -4), Vector3.new(3, 1.4, 4), C.wood, M.WoodPlanks)
-end
-
-local function buildEastside(k: Kit, parent: Instance)
-	local C, M = k.C, k.M
-	local folder = Instance.new("Folder")
-	folder.Name = "Eastside"
-	folder.Parent = parent
-
-	-- Bungalow rows: both sides of Elm St, south side of Maple Ave.
-	for _, block in { { -1225, -1007 }, { -953, -727 } } do
-		local x = block[1] + 16
-		while x < block[2] - 30 do
-			bungalow(k, folder, at(x, -79, 0))
-			bungalow(k, folder, at(x + 8, -161, 180))
-			bungalow(k, folder, at(x + 4, -281, 180))
-			x += 46
-		end
-	end
-
-	-- Corner stores on Main St with the service alley behind.
-	k.storefront(
-		folder,
-		at(-900, 57),
-		50,
-		50,
-		16,
-		Color3.fromRGB(178, 164, 140),
-		M.Brick,
-		"QUIK STOP",
-		Color3.fromRGB(170, 40, 30)
-	)
-	k.storefront(
-		folder,
-		at(-835, 57),
-		46,
-		50,
-		14,
-		Color3.fromRGB(160, 150, 136),
-		M.Concrete,
-		"EASTSIDE LAUNDRY",
-		Color3.fromRGB(40, 80, 120)
-	)
-	k.storefront(
-		folder,
-		at(-772, 57),
-		44,
-		50,
-		14,
-		Color3.fromRGB(150, 120, 100),
-		M.Brick,
-		"CHECKS CASHED",
-		Color3.fromRGB(40, 110, 60)
-	)
-	slab(k, folder, -925, -745, 90, 118, C.asphaltLight, M.Asphalt)
-
-	-- Eastgate Apartments: two-story walk-up.
-	local apt = at(-850, 215)
-	for floor = 0, 1 do
-		k.box(
-			folder,
-			"Apartments",
-			apt * CFrame.new(0, floor * 11, 0),
-			Vector3.new(180, 11, 40),
-			Color3.fromRGB(176, 150, 120),
-			M.Brick
-		)
-		for i = 0, 11 do
-			k.window(folder, apt * CFrame.new(-80 + i * 14.5, floor * 11 + 3, -20.15), 4, 4)
-		end
-	end
-	k.box(folder, "AptRoof", apt * CFrame.new(0, 22, 0), Vector3.new(182, 1, 42), C.roof, M.Slate)
-	slab(k, folder, -940, -727, 140, 192, C.asphaltLight, M.Asphalt)
-
-	-- Trailer park.
-	slab(k, folder, -1225, -1007, 40, 268, Color3.fromRGB(120, 114, 104), M.Pebble)
-	for row = 0, 3 do
-		for col = 0, 1 do
-			trailer(k, folder, at(-1200 + row * 52, 90 + col * 120, 0))
-		end
-	end
-	welcomeSign(
-		k,
-		folder,
-		at(-1100, 34, 180),
-		"SHADY PINES",
-		"MOBILE HOME PARK",
-		Color3.fromRGB(70, 90, 60)
-	)
-
-	-- Utility poles, worn street, trees.
-	local last: Vector3? = nil
-	for x = -1230, -650, 70 do
-		local top = k.utilityPole(folder, Vector3.new(x, 0, -120 + k.ROAD_W / 2 + k.WALK_W - 1))
-		if last then
-			k.wire(folder, last, top)
-		end
-		last = top
-	end
-	streetTrees(k, folder, "X", -120, -1220, -660, 44, { -980, -700 })
-	streetTrees(k, folder, "X", -240, -1220, -660, 50, { -980, -700 })
-	welcomeSign(k, folder, at(-660, -30, 90), "EASTSIDE", "LOOT TIER 1", Color3.fromRGB(80, 80, 80))
 end
 
 -- ─── Hillcrest Estates: luxury homes ───────────────────────────────────────
@@ -385,130 +228,6 @@ local function mansion(k: Kit, parent: Instance, cf: CFrame)
 	model.Parent = parent
 end
 
-local function buildHillcrest(k: Kit, parent: Instance)
-	local C, M = k.C, k.M
-	local folder = Instance.new("Folder")
-	folder.Name = "Hillcrest"
-	folder.Parent = parent
-
-	-- Stone perimeter wall with a gatehouse on the boulevard.
-	local stone = Color3.fromRGB(176, 166, 150)
-	for _, span in { { -640, -30 }, { 30, 640 } } do
-		k.box(
-			folder,
-			"EstateWall",
-			CFrame.new((span[1] + span[2]) / 2, 0, -495),
-			Vector3.new(span[2] - span[1], 7, 2),
-			stone,
-			M.Cobblestone
-		)
-	end
-	for _, x in { -32, 32 } do
-		k.box(folder, "GatePillar", at(x, -495), Vector3.new(4, 10, 4), stone, M.Cobblestone)
-	end
-	local gatehouse = at(44, -512)
-	k.box(
-		folder,
-		"Gatehouse",
-		gatehouse,
-		Vector3.new(12, 10, 10),
-		Color3.fromRGB(226, 220, 206),
-		M.Limestone
-	)
-	k.box(
-		folder,
-		"GatehouseRoof",
-		gatehouse * CFrame.new(0, 10, 0),
-		Vector3.new(14, 1, 12),
-		Color3.fromRGB(56, 58, 64),
-		M.Slate
-	)
-	welcomeSign(
-		k,
-		folder,
-		at(-40, -485, 180),
-		"HILLCREST ESTATES",
-		"LOOT TIER 3",
-		Color3.fromRGB(40, 56, 46)
-	)
-
-	-- Boulevard median with trees.
-	for z = -520, -870, -30 do
-		k.part(folder, {
-			Name = "Median",
-			Size = Vector3.new(6, 0.6, 26),
-			CFrame = CFrame.new(0, 0.5, z),
-			Color = Color3.fromRGB(72, 110, 58),
-			Material = M.LeafyGrass,
-		})
-		k.tree(folder, Vector3.new(0, 0.6, z), 1)
-	end
-
-	-- Mansion rows along Hillcrest Dr (-640) and Ridge Ln (-860).
-	for _, x in { -540, -420, -300, -170, 170, 300, 420, 540 } do
-		mansion(k, folder, at(x, -593, 0))
-		mansion(k, folder, at(x + 10, -687, 180))
-		mansion(k, folder, at(x - 10, -833, 0))
-		if math.abs(x) > 200 then
-			mansion(k, folder, at(x, -927, 180))
-		end
-	end
-	-- Service lane between the rows (where the bins go out).
-	k.part(folder, {
-		Name = "ServiceLane",
-		Size = Vector3.new(1240, k.ROAD_TOP, 16),
-		CFrame = CFrame.new(0, k.ROAD_TOP / 2, -760),
-		Color = C.asphaltLight,
-		Material = M.Asphalt,
-	})
-	streetTrees(k, folder, "X", -640, -600, 600, 40, { 0 })
-	streetTrees(k, folder, "X", -880, -600, 600, 40, { 0 })
-
-	-- Country club at the end of the boulevard, golf green behind.
-	local club = at(0, -960, 180)
-	k.box(
-		folder,
-		"Clubhouse",
-		club,
-		Vector3.new(110, 18, 44),
-		Color3.fromRGB(236, 232, 220),
-		M.Limestone
-	)
-	k.gableRoof(folder, club * CFrame.new(0, 18, 0), 110, 44, 9, Color3.fromRGB(56, 58, 64))
-	for i = -4, 4 do
-		k.window(folder, club * CFrame.new(i * 11, 4, -22.15), 6, 8)
-	end
-	local clubSign = k.box(
-		folder,
-		"ClubSign",
-		club * CFrame.new(0, 13, -22.4),
-		Vector3.new(40, 3, 0.3),
-		Color3.fromRGB(40, 56, 46)
-	)
-	k.sign(
-		clubSign,
-		Enum.NormalId.Front,
-		"HILLCREST COUNTRY CLUB",
-		Color3.fromRGB(40, 56, 46),
-		Color3.fromRGB(230, 214, 160)
-	)
-	k.part(folder, {
-		Name = "Green",
-		Size = Vector3.new(300, 0.3, 60),
-		CFrame = CFrame.new(0, 0.15, -1040),
-		Color = Color3.fromRGB(86, 150, 66),
-		Material = M.Grass,
-	})
-	k.box(folder, "FlagPin", at(60, -1040), Vector3.new(0.2, 8, 0.2), C.white)
-	k.box(
-		folder,
-		"Flag",
-		at(61.2, -1040) * CFrame.new(0, 6.6, 0),
-		Vector3.new(2.2, 1.4, 0.05),
-		Color3.fromRGB(200, 40, 40)
-	)
-end
-
 -- ─── Business District: offices ────────────────────────────────────────────
 
 local function tower(
@@ -591,165 +310,6 @@ local function tower(
 	model.Parent = parent
 end
 
-local function buildBusiness(k: Kit, parent: Instance): { CFrame }
-	local C, M = k.C, k.M
-	local folder = Instance.new("Folder")
-	folder.Name = "BusinessDistrict"
-	folder.Parent = parent
-	local paving = Color3.fromRGB(168, 164, 156)
-	slab(k, folder, 787, 1013, 27, 273, paving, M.Concrete)
-	slab(k, folder, 1067, 1240, 27, 273, paving, M.Concrete)
-	slab(k, folder, 1067, 1240, -213, -27, paving, M.Concrete)
-
-	tower(k, folder, at(845, 110), 80, 70, 160, Color3.fromRGB(70, 100, 124), "CRESTLINE FINANCIAL")
-	tower(k, folder, at(965, 200), 60, 56, 112, Color3.fromRGB(60, 86, 96), "HARBOR & LANE LLP")
-	tower(k, folder, at(1150, 130), 90, 80, 210, Color3.fromRGB(80, 104, 130), "SUMMIT TOWER")
-	tower(k, folder, at(1150, -60), 80, 50, 96, Color3.fromRGB(70, 92, 110), "NORTHSTAR INSURANCE")
-	tower(k, folder, at(1150, -180), 80, 50, 72, Color3.fromRGB(86, 100, 112), "MEDICAL ARTS")
-
-	-- Plaza: fountain, planters, benches.
-	local fountain = at(960, 80)
-	k.part(folder, {
-		Name = "FountainBasin",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(2, 22, 22),
-		CFrame = fountain * CFrame.new(0, 1, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(190, 186, 178),
-		Material = M.Granite,
-	})
-	local water = k.part(folder, {
-		Name = "FountainWater",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.2, 20, 20),
-		CFrame = fountain * CFrame.new(0, 2, 0) * CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(70, 150, 190),
-		Material = M.Glass,
-	})
-	water.Transparency = 0.25
-	local jet = Instance.new("ParticleEmitter")
-	jet.Rate = 40
-	jet.Speed = NumberRange.new(14, 18)
-	jet.SpreadAngle = Vector2.new(6, 6)
-	jet.Lifetime = NumberRange.new(1, 1.4)
-	jet.Acceleration = Vector3.new(0, -30, 0)
-	jet.Size = NumberSequence.new(0.5, 1.2)
-	jet.Transparency = NumberSequence.new(0.3, 1)
-	jet.Color = ColorSequence.new(Color3.fromRGB(220, 240, 255))
-	jet.EmissionDirection = Enum.NormalId.Top
-	jet.Parent = water
-	for _, p in
-		{
-			Vector3.new(910, 0, 50),
-			Vector3.new(1000, 0, 50),
-			Vector3.new(910, 0, 150),
-			Vector3.new(1000, 0, 140),
-		}
-	do
-		k.box(
-			folder,
-			"Planter",
-			CFrame.new(p),
-			Vector3.new(10, 2, 10),
-			Color3.fromRGB(120, 116, 110),
-			M.Concrete
-		)
-		k.tree(folder, p + Vector3.new(0, 2, 0), 1)
-	end
-	for _, x in { 930, 990 } do
-		k.bench(folder, at(x, 106, 180))
-	end
-
-	-- Coffee shop and bank across Main St.
-	k.storefront(
-		folder,
-		at(840, -54, 180),
-		60,
-		44,
-		18,
-		Color3.fromRGB(110, 80, 60),
-		M.Brick,
-		"ROAST & CO. COFFEE",
-		Color3.fromRGB(40, 70, 50)
-	)
-	k.storefront(
-		folder,
-		at(950, -54, 180),
-		90,
-		44,
-		22,
-		Color3.fromRGB(200, 196, 186),
-		M.Limestone,
-		"FIRST NATIONAL BANK",
-		Color3.fromRGB(30, 50, 90)
-	)
-
-	-- Parking garage.
-	local garage = at(890, -180)
-	for level = 0, 2 do
-		k.box(
-			folder,
-			"GarageDeck",
-			garage * CFrame.new(0, level * 10, 0),
-			Vector3.new(200, 1, 60),
-			C.concrete,
-			M.Concrete
-		)
-		k.box(
-			folder,
-			"GarageParapet",
-			garage * CFrame.new(0, level * 10 + 1, -29.5),
-			Vector3.new(200, 3, 1),
-			C.concrete,
-			M.Concrete
-		)
-	end
-	for x = -95, 95, 38 do
-		for _, z in { -28, 28 } do
-			k.box(
-				folder,
-				"GarageColumn",
-				garage * CFrame.new(x, 0, z),
-				Vector3.new(2, 30, 2),
-				C.concreteDark,
-				M.Concrete
-			)
-		end
-	end
-	local garageSign = k.box(
-		folder,
-		"GarageSign",
-		garage * CFrame.new(-60, 26, -30.3),
-		Vector3.new(30, 4, 0.3),
-		Color3.fromRGB(30, 80, 160)
-	)
-	k.sign(garageSign, Enum.NormalId.Front, "PUBLIC PARKING", Color3.fromRGB(30, 80, 160), C.white)
-
-	-- Office campus and lot south of Maple Ave.
-	tower(
-		k,
-		folder,
-		at(900, -340),
-		220,
-		60,
-		36,
-		Color3.fromRGB(80, 96, 106),
-		"MAPLEWOOD BUSINESS PARK"
-	)
-	local stalls = k.parkingLot(folder, Vector3.new(900, 0, -435), Vector2.new(220, 60), { -440 })
-
-	streetTrees(k, folder, "X", 0, 660, 1230, 36, { 760, 1040 })
-	streetTrees(k, folder, "X", -120, 660, 1230, 36, { 760, 1040 })
-	welcomeSign(
-		k,
-		folder,
-		at(660, -60, -90),
-		"BUSINESS DISTRICT",
-		"LOOT TIER 4",
-		Color3.fromRGB(40, 50, 70)
-	)
-	return stalls
-end
-
 -- ─── Industrial Park ───────────────────────────────────────────────────────
 
 local function factory(
@@ -799,442 +359,6 @@ local function factory(
 	k.sign(plate, Enum.NormalId.Front, name, wall, Color3.fromRGB(40, 44, 50), true)
 	model.Parent = parent
 	return model
-end
-
-local function smokestack(k: Kit, parent: Instance, pos: Vector3, height: number)
-	local stack = k.part(parent, {
-		Name = "Smokestack",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(height, 7, 7),
-		CFrame = CFrame.new(pos + Vector3.new(0, height / 2, 0))
-			* CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(150, 70, 56),
-		Material = k.M.Brick,
-	})
-	local top = Instance.new("Attachment")
-	top.Position = Vector3.new(height / 2, 0, 0)
-	top.Parent = stack
-	local smoke = Instance.new("ParticleEmitter")
-	smoke.Rate = 6
-	smoke.Lifetime = NumberRange.new(8, 12)
-	smoke.Speed = NumberRange.new(4, 6)
-	smoke.SpreadAngle = Vector2.new(10, 10)
-	smoke.Acceleration = Vector3.new(2, 1, 0)
-	smoke.Size =
-		NumberSequence.new({ NumberSequenceKeypoint.new(0, 5), NumberSequenceKeypoint.new(1, 24) })
-	smoke.Transparency =
-		NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.5), NumberSequenceKeypoint.new(1, 1) })
-	smoke.Color = ColorSequence.new(Color3.fromRGB(190, 190, 190))
-	smoke.EmissionDirection = Enum.NormalId.Right
-	smoke.LightInfluence = 1
-	smoke.Parent = top
-end
-
-local function buildIndustrial(k: Kit, parent: Instance)
-	local C, M, rng = k.C, k.M, k.rng
-	local folder = Instance.new("Folder")
-	folder.Name = "IndustrialPark"
-	folder.Parent = parent
-	local yardGround = Color3.fromRGB(128, 126, 120)
-	slab(k, folder, -1240, -587, 327, 673, yardGround, M.Concrete)
-	slab(k, folder, -533, -257, 327, 673, yardGround, M.Concrete)
-	slab(k, folder, 257, 533, 327, 673, yardGround, M.Concrete)
-	slab(k, folder, 587, 1240, 327, 673, yardGround, M.Concrete)
-
-	-- West: Bayline Steel and A1 Scrap.
-	factory(
-		k,
-		folder,
-		at(-800, 480),
-		260,
-		150,
-		46,
-		Color3.fromRGB(190, 184, 172),
-		"BAYLINE STEEL WORKS"
-	)
-	smokestack(k, folder, Vector3.new(-650, 0, 520), 90)
-	smokestack(k, folder, Vector3.new(-630, 0, 540), 76)
-	local scrap = at(-1110, 520)
-	for _, side in { -1, 1 } do
-		k.box(
-			folder,
-			"ScrapFence",
-			scrap * CFrame.new(side * 100, 0, 0),
-			Vector3.new(0.4, 12, 280),
-			C.metal,
-			M.CorrodedMetal
-		)
-	end
-	for _ = 1, 16 do
-		local tilt = CFrame.Angles(
-			math.rad(rng:NextNumber(-15, 15)),
-			rng:NextNumber(0, 6.28),
-			math.rad(rng:NextNumber(-15, 15))
-		)
-		local size =
-			Vector3.new(rng:NextNumber(8, 20), rng:NextNumber(4, 10), rng:NextNumber(8, 18))
-		k.box(
-			folder,
-			"ScrapPile",
-			scrap * CFrame.new(rng:NextNumber(-80, 80), 0, rng:NextNumber(-120, 110)) * tilt,
-			size,
-			C.metal:Lerp(Color3.fromRGB(130, 76, 44), rng:NextNumber(0.2, 0.9)),
-			M.CorrodedMetal
-		)
-	end
-	k.box(
-		folder,
-		"CraneMast",
-		scrap * CFrame.new(40, 0, 60),
-		Vector3.new(3, 46, 3),
-		Color3.fromRGB(220, 170, 30),
-		M.Metal
-	)
-	k.box(
-		folder,
-		"CraneBoom",
-		scrap * CFrame.new(10, 44, 60),
-		Vector3.new(66, 2.4, 2.4),
-		Color3.fromRGB(220, 170, 30),
-		M.Metal
-	)
-	welcomeSign(
-		k,
-		folder,
-		at(-1110, 345, 180),
-		"A1 SCRAP & METAL",
-		"WE BUY SCRAP",
-		Color3.fromRGB(120, 60, 30)
-	)
-	for i = 0, 2 do
-		k.part(folder, {
-			Name = "Tank",
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(36, 30, 30),
-			CFrame = CFrame.new(-470 + i * 70, 18, 440) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = Color3.fromRGB(214, 214, 210),
-			Material = M.Metal,
-		})
-	end
-
-	-- East: bottling plant, self storage, truck lot.
-	factory(
-		k,
-		folder,
-		at(820, 480),
-		240,
-		140,
-		40,
-		Color3.fromRGB(176, 186, 196),
-		"NORTHFIELD BOTTLING CO."
-	)
-	smokestack(k, folder, Vector3.new(955, 0, 590), 70)
-	for i = 0, 3 do
-		k.part(folder, {
-			Name = "Silo",
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(50, 16, 16),
-			CFrame = CFrame.new(980 + (i % 2) * 20, 25, 420 + math.floor(i / 2) * 20)
-				* CFrame.Angles(0, 0, math.rad(90)),
-			Color = Color3.fromRGB(200, 200, 204),
-			Material = M.Metal,
-		})
-	end
-	for row = 0, 2 do
-		local base = at(395, 380 + row * 100)
-		k.box(
-			folder,
-			"StorageRow",
-			base,
-			Vector3.new(240, 10, 30),
-			Color3.fromRGB(196, 176, 140),
-			M.Concrete
-		)
-		for i = 0, 11 do
-			k.box(
-				folder,
-				"UnitDoor",
-				base * CFrame.new(-110 + i * 20, 0, -15.2),
-				Vector3.new(14, 8, 0.3),
-				Color3.fromRGB(200, 90, 40),
-				M.CorrodedMetal
-			)
-		end
-	end
-	welcomeSign(
-		k,
-		folder,
-		at(395, 340, 180),
-		"U-STORE-IT",
-		"SELF STORAGE",
-		Color3.fromRGB(200, 90, 40)
-	)
-	for i = 0, 5 do
-		k.box(
-			folder,
-			"Trailer",
-			at(1130, 420 + i * 36, 90) * CFrame.new(0, 4, 0),
-			Vector3.new(8.5, 12, 44),
-			if i % 2 == 0 then C.white else Color3.fromRGB(190, 60, 50),
-			M.Metal
-		)
-	end
-
-	-- Rail line north of Rail Rd with parked boxcars.
-	k.part(folder, {
-		Name = "Ballast",
-		Size = Vector3.new(2480, 0.8, 14),
-		CFrame = CFrame.new(0, 0.4, 780),
-		Color = Color3.fromRGB(110, 104, 96),
-		Material = M.Pebble,
-	})
-	for _, z in { 777.5, 782.5 } do
-		k.part(folder, {
-			Name = "Rail",
-			Size = Vector3.new(2480, 0.5, 0.4),
-			CFrame = CFrame.new(0, 1.05, z),
-			Color = Color3.fromRGB(90, 84, 80),
-			Material = M.Metal,
-		})
-	end
-	for x = -1236, 1236, 8 do
-		k.part(folder, {
-			Name = "Tie",
-			Size = Vector3.new(1.2, 0.3, 9),
-			CFrame = CFrame.new(x, 0.9, 780),
-			Color = Color3.fromRGB(70, 56, 44),
-			Material = M.Wood,
-			CanCollide = false,
-		})
-	end
-	local boxcarColors =
-		{ Color3.fromRGB(140, 54, 40), Color3.fromRGB(60, 80, 110), Color3.fromRGB(120, 110, 60) }
-	for i = 0, 9 do
-		local x = -500 + i * 48
-		k.box(
-			folder,
-			"Boxcar",
-			at(x, 780, 90) * CFrame.new(0, 3, 0),
-			Vector3.new(10, 13, 44),
-			boxcarColors[i % 3 + 1],
-			M.CorrodedMetal
-		)
-	end
-
-	welcomeSign(
-		k,
-		folder,
-		at(-560 + 40, 325, 180),
-		"INDUSTRIAL PARK",
-		"LOOT TIER 5",
-		Color3.fromRGB(110, 70, 30)
-	)
-	streetTrees(k, folder, "X", 700, -1220, 1220, 60, { -560, 560 })
-end
-
--- ─── Town Center infill ────────────────────────────────────────────────────
-
-local function buildTownInfill(k: Kit, parent: Instance)
-	local C, M = k.C, k.M
-	local folder = Instance.new("Folder")
-	folder.Name = "TownCenter"
-	folder.Parent = parent
-
-	-- Town hall with columns and a flagpole.
-	local hall = at(10, -110, 180)
-	k.box(folder, "TownHall", hall, Vector3.new(96, 26, 56), Color3.fromRGB(176, 104, 84), M.Brick)
-	k.gableRoof(folder, hall * CFrame.new(0, 26, 0), 96, 56, 10, Color3.fromRGB(60, 62, 66))
-	for x = -15, 15, 6 do
-		k.part(folder, {
-			Name = "Column",
-			Shape = Enum.PartType.Cylinder,
-			Size = Vector3.new(20, 2, 2),
-			CFrame = hall * CFrame.new(x, 10, -31) * CFrame.Angles(0, 0, math.rad(90)),
-			Color = C.white,
-			Material = M.Marble,
-		})
-	end
-	k.box(
-		folder,
-		"Portico",
-		hall * CFrame.new(0, 20, -31),
-		Vector3.new(36, 2, 8),
-		C.white,
-		M.Marble
-	)
-	for i = -3, 3 do
-		if i ~= 0 then
-			k.window(folder, hall * CFrame.new(i * 12, 6, -28.15), 5, 8)
-		end
-	end
-	local hallSign = k.box(
-		folder,
-		"HallSign",
-		hall * CFrame.new(0, 23, -35.2),
-		Vector3.new(30, 2.4, 0.3),
-		C.white
-	)
-	k.sign(hallSign, Enum.NormalId.Front, "MAPLE CITY HALL", C.white, Color3.fromRGB(40, 40, 44))
-	k.box(folder, "FlagPole", at(-30, -55), Vector3.new(0.5, 34, 0.5), C.metal, M.Metal)
-	k.box(
-		folder,
-		"Flag",
-		at(-26.5, -55) * CFrame.new(0, 29, 0),
-		Vector3.new(7, 4, 0.1),
-		Color3.fromRGB(180, 30, 40),
-		M.Fabric
-	)
-
-	-- Church and fire station.
-	local church = at(-520, -110, 180)
-	k.box(
-		folder,
-		"Church",
-		church,
-		Vector3.new(50, 24, 80),
-		Color3.fromRGB(230, 226, 214),
-		M.WoodPlanks
-	)
-	k.gableRoof(
-		folder,
-		church * CFrame.new(0, 24, 0) * CFrame.Angles(0, math.rad(90), 0),
-		80,
-		50,
-		14,
-		Color3.fromRGB(70, 66, 64)
-	)
-	k.box(
-		folder,
-		"Steeple",
-		church * CFrame.new(0, 0, -36),
-		Vector3.new(12, 52, 12),
-		Color3.fromRGB(236, 232, 222),
-		M.WoodPlanks
-	)
-	k.wedge(
-		folder,
-		"Spire",
-		church * CFrame.new(0, 60, -36),
-		Vector3.new(12, 16, 12),
-		Color3.fromRGB(70, 66, 64),
-		M.Slate
-	)
-	local station = at(540, -105)
-	k.box(
-		folder,
-		"FireStation",
-		station,
-		Vector3.new(80, 24, 60),
-		Color3.fromRGB(170, 60, 50),
-		M.Brick
-	)
-	for i = -1, 1 do
-		k.box(
-			folder,
-			"EngineBay",
-			station * CFrame.new(i * 24, 0, -30.2),
-			Vector3.new(18, 16, 0.4),
-			C.white,
-			M.Metal
-		)
-	end
-	local fireSign = k.box(
-		folder,
-		"FireSign",
-		station * CFrame.new(0, 19, -30.4),
-		Vector3.new(40, 3, 0.3),
-		Color3.fromRGB(170, 60, 50)
-	)
-	k.sign(
-		fireSign,
-		Enum.NormalId.Front,
-		"MAPLE CITY FIRE DEPT. STATION 1",
-		Color3.fromRGB(170, 60, 50),
-		C.white
-	)
-
-	-- Burger joint next to the gas station.
-	k.storefront(
-		folder,
-		at(545, 220),
-		60,
-		40,
-		16,
-		Color3.fromRGB(196, 60, 40),
-		M.Brick,
-		"BURGER BARN",
-		Color3.fromRGB(230, 180, 40)
-	)
-
-	-- Trees on the empty lots.
-	for _, p in
-		{
-			Vector3.new(-80, 0, -60),
-			Vector3.new(100, 0, -60),
-			Vector3.new(-600, 0, -50),
-			Vector3.new(620, 0, -40),
-			Vector3.new(-100, 0, 220),
-			Vector3.new(-40, 0, 250),
-			Vector3.new(80, 0, 230),
-			Vector3.new(120, 0, 270),
-			Vector3.new(-600, 0, 250),
-			Vector3.new(-450, 0, 270),
-			Vector3.new(440, 0, 270),
-			Vector3.new(620, 0, 160),
-		}
-	do
-		k.tree(folder, p, 1.1)
-	end
-end
-
--- ─── Sunset Lane: player house lots (Housing builds the homes) ─────────────
-
-local function buildSunset(k: Kit, parent: Instance)
-	local folder = Instance.new("Folder")
-	folder.Name = "SunsetLane"
-	folder.Parent = parent
-	welcomeSign(
-		k,
-		folder,
-		at(-1262, -606, 90),
-		"SUNSET LANE",
-		"Homes by Maple Realty",
-		Color3.fromRGB(196, 120, 60)
-	)
-	-- Front-lawn trees in the gaps between lots, and a row behind each side
-	-- (lots reach about 60 studs back from the sidewalk).
-	for _, x in { -1240, -1140, -1040, -940 } do
-		for _, side in { -1, 1 } do
-			k.tree(folder, Vector3.new(x, 0, -640 + side * 36), 1)
-		end
-	end
-	k.tree(folder, Vector3.new(-840, 0, -676), 1)
-	for x = -1240, -740, 100 do
-		k.tree(folder, Vector3.new(x + 50, 0, -514), 1.2)
-		k.tree(folder, Vector3.new(x + 50, 0, -770), 1.2)
-	end
-end
-
--- ─── Corporate Park: southern half of the Business District ────────────────
-
-local function buildCorporatePark(k: Kit, parent: Instance)
-	local M = k.M
-	local folder = Instance.new("Folder")
-	folder.Name = "CorporatePark"
-	folder.Parent = parent
-	local paving = Color3.fromRGB(168, 164, 156)
-	slab(k, folder, 787, 1013, -673, -520, paving, M.Concrete)
-	slab(k, folder, 1067, 1240, -673, -520, paving, M.Concrete)
-	slab(k, folder, 787, 1013, -900, -727, paving, M.Concrete)
-	slab(k, folder, 1067, 1240, -900, -727, paving, M.Concrete)
-	tower(k, folder, at(880, -600), 80, 60, 132, Color3.fromRGB(64, 96, 118), "PINNACLE TECH")
-	tower(k, folder, at(1150, -600), 70, 56, 96, Color3.fromRGB(78, 98, 120), "BAYVIEW MEDIA")
-	tower(k, folder, at(880, -810, 180), 90, 60, 84, Color3.fromRGB(70, 90, 104), "CORPORATE PLAZA")
-	tower(k, folder, at(1150, -810, 180), 70, 60, 168, Color3.fromRGB(58, 84, 110), "ATLAS HQ")
-	for _, x in { 700, 1100 } do
-		k.bench(folder, at(x, -676))
-	end
-	streetTrees(k, folder, "X", -700, 680, 1230, 60, { 760, 1040 })
 end
 
 -- ─── Port Haven: the second city, east along Route 9 ───────────────────────
@@ -1542,306 +666,576 @@ local function boat(k: Kit, parent: Instance, cf: CFrame, color: Color3)
 	)
 end
 
-local function scatterTrees(
+-- ─── cyberpunk dressing ───────────────────────────────────────────────────
+
+local NEON = {
+	Color3.fromRGB(0, 230, 255),
+	Color3.fromRGB(255, 40, 170),
+	Color3.fromRGB(170, 80, 255),
+	Color3.fromRGB(255, 190, 40),
+	Color3.fromRGB(60, 255, 150),
+}
+local BRANDS = {
+	"KAIJU COLA",
+	"NOVA BANK",
+	"SYNTH//LIFE",
+	"ORBITAL AIR",
+	"ZEN NOODLE",
+	"HYPERDRIVE",
+	"MOTOKO TECH",
+	"NEON NIGHTS",
+	"PULSE RADIO",
+	"QUANTUM ZERO",
+}
+
+-- A glowing rooftop or wall billboard.
+local function billboard(k: Kit, parent: Instance, cf: CFrame, w: number, h: number)
+	local color = NEON[k.rng:NextInteger(1, #NEON)]
+	local frame = k.box(
+		parent,
+		"BillboardFrame",
+		cf,
+		Vector3.new(w + 1, h + 1, 0.6),
+		Color3.fromRGB(20, 20, 26),
+		k.M.Metal
+	)
+	local screen = k.box(
+		parent,
+		"Billboard",
+		cf * CFrame.new(0, 0.5, -0.35),
+		Vector3.new(w, h, 0.1),
+		Color3.fromRGB(12, 12, 20),
+		k.M.Neon
+	)
+	k.sign(
+		screen,
+		Enum.NormalId.Front,
+		BRANDS[k.rng:NextInteger(1, #BRANDS)],
+		Color3.fromRGB(12, 12, 20),
+		color
+	)
+	k.box(
+		parent,
+		"BillboardEdge",
+		cf * CFrame.new(0, -h / 2, -0.4),
+		Vector3.new(w + 1, 0.3, 0.2),
+		color,
+		k.M.Neon
+	)
+	return frame
+end
+
+-- Skyscraper with neon edge strips, a crown light and a rooftop billboard.
+local function neonTower(k: Kit, parent: Instance, cf: CFrame, w: number, d: number, h: number)
+	local M = k.M
+	local glass = ({
+		Color3.fromRGB(40, 56, 80),
+		Color3.fromRGB(30, 40, 56),
+		Color3.fromRGB(60, 70, 96),
+		Color3.fromRGB(44, 30, 60),
+	})[k.rng:NextInteger(1, 4)]
+	tower(k, parent, cf, w, d, h, glass, BRANDS[k.rng:NextInteger(1, #BRANDS)])
+	local color = NEON[k.rng:NextInteger(1, #NEON)]
+	for _, sx in { -1, 1 } do
+		k.box(
+			parent,
+			"NeonEdge",
+			cf * CFrame.new(sx * (w / 2 + 0.9), 12, -d / 2 - 0.9),
+			Vector3.new(0.4, h - 12, 0.4),
+			color,
+			M.Neon
+		)
+	end
+	k.box(
+		parent,
+		"NeonCrown",
+		cf * CFrame.new(0, h + 3, -d / 2 - 0.6),
+		Vector3.new(w + 1, 0.5, 0.3),
+		color,
+		M.Neon
+	)
+	if k.rng:NextNumber() < 0.6 then
+		billboard(k, parent, cf * CFrame.new(0, h + 12, 0), math.min(w - 6, 40), 14)
+	end
+	if k.rng:NextNumber() < 0.5 then
+		-- A vertical sign hanging off the corner, Tokyo style.
+		local sign = k.box(
+			parent,
+			"BladeSign",
+			cf * CFrame.new(w / 2 + 3, h * 0.45, -d / 2 + 4),
+			Vector3.new(0.6, math.min(30, h * 0.3), 6),
+			Color3.fromRGB(12, 12, 20),
+			M.Neon
+		)
+		k.sign(
+			sign,
+			Enum.NormalId.Right,
+			BRANDS[k.rng:NextInteger(1, #BRANDS)],
+			Color3.fromRGB(12, 12, 20),
+			color
+		)
+	end
+end
+
+-- ─── landmarks ────────────────────────────────────────────────────────────
+
+local function rectPart(
 	k: Kit,
 	parent: Instance,
-	x0: number,
-	x1: number,
-	z0: number,
-	z1: number,
-	count: number,
-	keepOut: ((Vector3) -> boolean)?
+	name: string,
+	r: any,
+	y: number,
+	h: number,
+	color: Color3,
+	material: Enum.Material
 )
-	local rng = k.rng
-	for _ = 1, count do
-		local pos = Vector3.new(rng:NextNumber(x0, x1), 0, rng:NextNumber(z0, z1))
-		if not (keepOut and keepOut(pos)) then
-			k.tree(parent, pos, rng:NextNumber(1, 1.6), 3)
+	return k.part(parent, {
+		Name = name,
+		Size = Vector3.new(r.x1 - r.x0, h, r.z1 - r.z0),
+		CFrame = CFrame.new((r.x0 + r.x1) / 2, y + h / 2, (r.z0 + r.z1) / 2),
+		Color = color,
+		Material = material,
+	})
+end
+
+local function buildPlaza(k: Kit, parent: Instance)
+	local C, M = k.C, k.M
+	local r = CityPlan.PLAZA
+	local folder = Instance.new("Folder")
+	folder.Name = "CivicPlaza"
+	folder.Parent = parent
+	rectPart(k, folder, "Ground", r, 0, k.ROAD_TOP, Color3.fromRGB(150, 146, 140), M.Concrete)
+	local cx, cz = (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2
+	local fountain = CFrame.new(cx, 0, cz)
+	k.part(folder, {
+		Name = "FountainBasin",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(2, 30, 30),
+		CFrame = fountain * CFrame.new(0, 1, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(190, 186, 178),
+		Material = M.Granite,
+	})
+	local water = k.part(folder, {
+		Name = "FountainWater",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.2, 27, 27),
+		CFrame = fountain * CFrame.new(0, 2, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(0, 200, 230),
+		Material = M.Neon,
+	})
+	water.Transparency = 0.4
+	-- A holographic statue: a tall neon pillar with a turning ring.
+	k.box(
+		folder,
+		"HoloPillar",
+		fountain * CFrame.new(0, 2, 0),
+		Vector3.new(2, 24, 2),
+		Color3.fromRGB(255, 40, 170),
+		M.Neon
+	)
+	for _, x in { r.x0 + 20, r.x1 - 20 } do
+		for _, z in { r.z0 + 20, r.z1 - 20 } do
+			k.tree(folder, Vector3.new(x, 0, z), 1.1, nil, "oak")
+			k.bench(folder, CFrame.new(x + (if x < cx then 14 else -14), k.ROAD_TOP, z))
+		end
+	end
+	billboard(k, folder, CFrame.new(cx, 22, r.z1 - 4), 50, 18)
+	for _, side in { -1, 1 } do
+		k.box(
+			folder,
+			"LightStrip",
+			CFrame.new(cx + side * 40, k.ROAD_TOP, cz),
+			Vector3.new(0.6, 0.2, r.z1 - r.z0 - 30),
+			NEON[1],
+			M.Neon
+		)
+	end
+	local _ = C
+end
+
+local function buildPark(k: Kit, parent: Instance)
+	local M = k.M
+	local r = CityPlan.PARK
+	local folder = Instance.new("Folder")
+	folder.Name = "MidtownPark"
+	folder.Parent = parent
+	rectPart(k, folder, "Ground", r, 0, 0.3, Color3.fromRGB(86, 132, 62), M.Grass)
+	local cx, cz = (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2
+	local pond = k.part(folder, {
+		Name = "Pond",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.4, 60, 60),
+		CFrame = CFrame.new(cx + 30, 0.35, cz) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(50, 110, 130),
+		Material = M.Glass,
+	})
+	pond.Transparency = 0.2
+	pond.Reflectance = 0.2
+	for _, p in { { r.x0, cz, r.x1, cz }, { cx, r.z0, cx, r.z1 } } do
+		local a, b = Vector3.new(p[1], 0.4, p[2]), Vector3.new(p[3], 0.4, p[4])
+		k.part(folder, {
+			Name = "Path",
+			Size = Vector3.new(6, 0.2, (b - a).Magnitude),
+			CFrame = CFrame.lookAt((a + b) / 2, b),
+			Color = Color3.fromRGB(196, 180, 150),
+			Material = M.Pebble,
+		})
+	end
+	for i = 1, 26 do
+		local pos = Vector3.new(
+			k.rng:NextNumber(r.x0 + 8, r.x1 - 8),
+			0.3,
+			k.rng:NextNumber(r.z0 + 8, r.z1 - 8)
+		)
+		if
+			(pos - Vector3.new(cx + 30, 0.3, cz)).Magnitude > 36
+			and math.abs(pos.X - cx) > 6
+			and math.abs(pos.Z - cz) > 6
+		then
+			k.tree(folder, pos, k.rng:NextNumber(0.9, 1.3))
+		end
+		if i <= 6 then
+			k.bench(folder, CFrame.new(cx - 40 + i * 12, 0.3, cz + 5))
 		end
 	end
 end
 
-local function buildPortHaven(k: Kit, parent: Instance, hideout: Vector3)
+local function ferrisWheel(k: Kit, parent: Instance, center: Vector3)
+	local M = k.M
+	local model = Instance.new("Model")
+	model.Name = "FerrisWheel"
+	local radius = 34
+	for _, side in { -1, 1 } do
+		-- A-frame legs on both faces of the wheel.
+		for _, lean in { -1, 1 } do
+			local foot = center + Vector3.new(lean * 24, -radius - 4, side * 6)
+			local top = center + Vector3.new(0, 0, side * 6)
+			k.part(model, {
+				Name = "Leg",
+				Size = Vector3.new(1.4, 1.4, (top - foot).Magnitude),
+				CFrame = CFrame.lookAt((foot + top) / 2, top),
+				Color = Color3.fromRGB(230, 230, 236),
+				Material = M.Metal,
+			})
+		end
+	end
+	k.part(model, {
+		Name = "Hub",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(14, 4, 4),
+		CFrame = CFrame.new(center) * CFrame.Angles(0, math.rad(90), 0),
+		Color = Color3.fromRGB(80, 80, 90),
+		Material = M.Metal,
+	})
+	local spokes = 16
+	for i = 0, spokes - 1 do
+		local a = i / spokes * math.pi * 2
+		local rim = center + Vector3.new(math.cos(a) * radius, math.sin(a) * radius, 0)
+		k.part(model, {
+			Name = "Spoke",
+			Size = Vector3.new(0.5, 0.5, radius),
+			CFrame = CFrame.lookAt((center + rim) / 2, rim),
+			Color = Color3.fromRGB(230, 230, 236),
+			Material = M.Metal,
+		})
+		local nextA = (i + 1) / spokes * math.pi * 2
+		local rim2 = center + Vector3.new(math.cos(nextA) * radius, math.sin(nextA) * radius, 0)
+		k.part(model, {
+			Name = "Rim",
+			Size = Vector3.new(0.8, 0.8, (rim2 - rim).Magnitude),
+			CFrame = CFrame.lookAt((rim + rim2) / 2, rim2),
+			Color = NEON[(i % #NEON) + 1],
+			Material = M.Neon,
+		})
+		k.box(
+			model,
+			"Gondola",
+			CFrame.new(rim - Vector3.new(0, 4, 0)),
+			Vector3.new(4, 4, 5),
+			NEON[((i + 2) % #NEON) + 1],
+			M.SmoothPlastic
+		)
+	end
+	model.Parent = parent
+end
+
+local function buildBeach(k: Kit, parent: Instance)
 	local C, M = k.C, k.M
+	local folder = Instance.new("Folder")
+	folder.Name = "Westshore"
+	folder.Parent = parent
+	local b = CityPlan.BEACH
+	-- Boardwalk along the sand's inland edge.
+	k.part(folder, {
+		Name = "Boardwalk",
+		Size = Vector3.new(10, 0.6, b.z1 - b.z0),
+		CFrame = CFrame.new(b.x1 - 5, 0.3, (b.z0 + b.z1) / 2),
+		Color = Color3.fromRGB(150, 116, 84),
+		Material = M.WoodPlanks,
+	})
+	for z = b.z0 + 60, b.z1 - 60, 140 do
+		-- Lifeguard tower and a couple of umbrellas.
+		local stand = CFrame.new(b.x0 + 50, 0, z)
+		for _, sx in { -2, 2 } do
+			for _, sz in { -2, 2 } do
+				k.box(
+					folder,
+					"TowerLeg",
+					stand * CFrame.new(sx, 0, sz),
+					Vector3.new(0.5, 8, 0.5),
+					C.white,
+					M.Wood
+				)
+			end
+		end
+		k.box(
+			folder,
+			"TowerCabin",
+			stand * CFrame.new(0, 8, 0),
+			Vector3.new(6, 5, 6),
+			Color3.fromRGB(230, 70, 60),
+			M.WoodPlanks
+		)
+		k.box(
+			folder,
+			"TowerRoof",
+			stand * CFrame.new(0, 13, 0),
+			Vector3.new(7, 0.6, 7),
+			C.white,
+			M.SmoothPlastic
+		)
+		for i = 1, 3 do
+			local u = CFrame.new(b.x0 + 20 + i * 18, 0, z + 40 + (i % 2) * 14)
+			k.box(folder, "UmbrellaPole", u, Vector3.new(0.3, 7, 0.3), C.white, M.Metal)
+			k.part(folder, {
+				Name = "Umbrella",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(0.6, 10, 10),
+				CFrame = u * CFrame.new(0, 7, 0) * CFrame.Angles(0, 0, math.rad(90)),
+				Color = NEON[k.rng:NextInteger(1, #NEON)],
+				Material = M.Fabric,
+			})
+			k.box(
+				folder,
+				"Towel",
+				u * CFrame.new(3, 0.1, 3),
+				Vector3.new(3, 0.1, 6),
+				NEON[k.rng:NextInteger(1, #NEON)],
+				M.Fabric
+			)
+		end
+		k.tree(folder, Vector3.new(b.x1 - 14, 0, z + 70), 1.2, nil, "palm")
+	end
+	-- Pier out into the ocean, with an arcade strip and the Ferris wheel.
+	local pz = -200
+	local x0, x1 = b.x0 - 340, b.x1
+	k.part(folder, {
+		Name = "Pier",
+		Size = Vector3.new(x1 - x0, 1, 34),
+		CFrame = CFrame.new((x0 + x1) / 2, 1.5, pz),
+		Color = Color3.fromRGB(140, 108, 78),
+		Material = M.WoodPlanks,
+	})
+	for x = x0 + 8, b.x0, 20 do
+		for _, sz in { -15, 15 } do
+			k.part(folder, {
+				Name = "Piling",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(14, 1.4, 1.4),
+				CFrame = CFrame.new(x, -5, pz + sz) * CFrame.Angles(0, 0, math.rad(90)),
+				Color = Color3.fromRGB(90, 70, 52),
+				Material = M.Wood,
+			})
+		end
+	end
+	for _, sz in { -16.5, 16.5 } do
+		k.box(
+			folder,
+			"PierRail",
+			CFrame.new((x0 + x1) / 2, 2, pz + sz),
+			Vector3.new(x1 - x0, 3, 0.4),
+			C.white,
+			M.Wood
+		)
+	end
+	for i = 0, 4 do
+		local stall = CFrame.new(b.x0 - 40 - i * 30, 2, pz - 10)
+		k.box(
+			folder,
+			"Arcade",
+			stall,
+			Vector3.new(20, 10, 10),
+			Color3.fromRGB(30, 30, 44),
+			M.SmoothPlastic
+		)
+		local sign = k.box(
+			folder,
+			"ArcadeSign",
+			stall * CFrame.new(0, 10, 4),
+			Vector3.new(18, 3, 0.3),
+			Color3.fromRGB(12, 12, 20),
+			M.Neon
+		)
+		k.sign(
+			sign,
+			Enum.NormalId.Back,
+			({ "ARCADE", "TACOS", "PRIZES", "BOBA", "TICKETS" })[i + 1],
+			Color3.fromRGB(12, 12, 20),
+			NEON[(i % #NEON) + 1]
+		)
+	end
+	ferrisWheel(k, folder, Vector3.new(x0 + 60, 40, pz + 4))
+	-- Palms along Ocean Dr.
+	for z = b.z0 + 30, b.z1 - 30, 46 do
+		k.tree(folder, Vector3.new(b.x1 - 2, 0, z), 1.1, nil, "palm")
+	end
+end
+
+local function buildPlateau(k: Kit, parent: Instance)
+	local M = k.M
+	local p = CityPlan.PLATEAU
+	local folder = Instance.new("Folder")
+	folder.Name = "VistaHills"
+	folder.Parent = parent
+	local rock = Color3.fromRGB(120, 108, 92)
+	local blocks = {
+		{ x0 = p.x0, x1 = p.gorge.x0, z0 = p.z0, z1 = p.gorge.z1 },
+		{ x0 = p.gorge.x1, x1 = p.x1, z0 = p.z0, z1 = p.gorge.z1 },
+		{ x0 = p.x0, x1 = p.x1, z0 = p.gorge.z1, z1 = p.z1 },
+	}
+	for _, r in blocks do
+		rectPart(k, folder, "Cliff", r, 0, p.height - 0.4, rock, M.Rock)
+		-- The grass top is named Lawn so infill treats it as open ground.
+		local top = rectPart(
+			k,
+			folder,
+			"Lawn",
+			r,
+			p.height - 0.42,
+			0.4,
+			Color3.fromRGB(96, 128, 66),
+			M.Grass
+		)
+		top.CanCollide = true
+	end
+	-- Big letters on the cliff face above the city.
+	local word = "VISTA"
+	for i = 1, #word do
+		local letter = k.box(
+			folder,
+			"HillLetter",
+			CFrame.new(-1200 + i * 26, p.height - 2, p.z0 + 30) * CFrame.Angles(math.rad(-15), 0, 0),
+			Vector3.new(22, 26, 1),
+			Color3.fromRGB(245, 245, 240),
+			M.SmoothPlastic
+		)
+		k.sign(
+			letter,
+			Enum.NormalId.Front,
+			word:sub(i, i),
+			Color3.fromRGB(245, 245, 240),
+			Color3.fromRGB(30, 30, 30)
+		)
+	end
+	-- Pines along the cliff edge and the back of the plateau.
+	for x = p.x0 + 20, p.x1 - 20, 34 do
+		if x < p.gorge.x0 - 30 or x > p.gorge.x1 + 30 then
+			k.tree(
+				folder,
+				Vector3.new(x, p.height, p.z0 + 10 + k.rng:NextNumber(0, 8)),
+				1.1,
+				nil,
+				"pine"
+			)
+		end
+		k.tree(folder, Vector3.new(x, p.height, p.z1 - 12), 1.3, nil, "pine")
+	end
+end
+
+local function buildIsland(k: Kit, parent: Instance)
+	local M = k.M
 	local folder = Instance.new("Folder")
 	folder.Name = "PortHaven"
 	folder.Parent = parent
-
-	-- Route 9: forest on both sides of the highway, signs at each end.
-	local route = Instance.new("Folder")
-	route.Name = "Route9"
-	route.Parent = folder
-	scatterTrees(k, route, 1310, 1870, -1100, 880, 170, function(p)
-		return math.abs(p.Z) < 48
-	end)
-	welcomeSign(
-		k,
-		route,
-		at(1880, 44, 90),
-		"PORT HAVEN",
-		"Harbor city on Route 9",
-		Color3.fromRGB(30, 60, 90)
-	)
-	welcomeSign(k, route, at(1310, -44, 90), "MAPLE", "Welcome back", Color3.fromRGB(176, 40, 32))
-
-	harborLockup(k, folder, hideout)
-
-	-- Old Port: shopfronts along Main St and the side streets.
-	local shops = {
-		{
-			2050,
-			51,
-			0,
-			44,
-			22,
-			Color3.fromRGB(150, 84, 60),
-			M.Brick,
-			"SALTY'S FISH MARKET",
-			Color3.fromRGB(30, 90, 120),
-		},
-		{
-			2180,
-			51,
-			0,
-			50,
-			22,
-			Color3.fromRGB(196, 186, 160),
-			M.Plaster,
-			"BAYVIEW DINER",
-			Color3.fromRGB(176, 40, 32),
-		},
-		{
-			2235,
-			51,
-			0,
-			28,
-			26,
-			Color3.fromRGB(120, 110, 100),
-			M.Granite,
-			"MARINER'S BANK",
-			Color3.fromRGB(40, 40, 46),
-		},
-		{
-			1990,
-			-51,
-			180,
-			50,
-			22,
-			Color3.fromRGB(110, 70, 50),
-			M.Brick,
-			"OLD PORT TAVERN",
-			Color3.fromRGB(40, 70, 50),
-		},
-		{
-			2200,
-			-51,
-			180,
-			70,
-			34,
-			Color3.fromRGB(200, 196, 186),
-			M.Plaster,
-			"HARBOR HOTEL",
-			Color3.fromRGB(30, 60, 90),
-		},
-		{
-			2000,
-			291,
-			0,
-			60,
-			26,
-			Color3.fromRGB(176, 150, 120),
-			M.Brick,
-			"SEASIDE APARTMENTS",
-			Color3.fromRGB(70, 70, 76),
-		},
-		{
-			2160,
-			291,
-			0,
-			60,
-			26,
-			Color3.fromRGB(150, 120, 100),
-			M.Brick,
-			"SEASIDE FLATS",
-			Color3.fromRGB(70, 70, 76),
-		},
-		{
-			2060,
-			-291,
-			180,
-			70,
-			22,
-			Color3.fromRGB(120, 130, 140),
-			M.Concrete,
-			"PORT HAVEN MARKET",
-			Color3.fromRGB(32, 120, 128),
-		},
-	}
-	for _, s in shops do
-		k.storefront(folder, at(s[1], s[2], s[3]), s[4], 44, s[5], s[6], s[7], s[8], s[9])
-	end
-
-	-- Harbor Park behind the Main St shops.
-	local park = Instance.new("Folder")
-	park.Name = "HarborPark"
-	park.Parent = folder
-	k.part(park, {
-		Name = "Path",
-		Size = Vector3.new(260, k.ROAD_TOP, 8),
-		CFrame = CFrame.new(2100, k.ROAD_TOP / 2, 160),
-		Color = C.concrete,
-		Material = M.Concrete,
-	})
-	k.part(park, {
-		Name = "Plinth",
-		Size = Vector3.new(8, 4, 8),
-		CFrame = CFrame.new(2100, 2, 160),
-		Color = Color3.fromRGB(176, 172, 164),
-		Material = M.Granite,
-	})
-	-- An anchor monument on the plinth.
-	k.box(
-		park,
-		"Monument",
-		CFrame.new(2100, 4, 160),
-		Vector3.new(1, 10, 1),
-		Color3.fromRGB(60, 64, 70),
-		M.Metal
-	)
-	k.box(
-		park,
-		"Monument",
-		CFrame.new(2100, 11, 160),
-		Vector3.new(5, 0.8, 0.8),
-		Color3.fromRGB(60, 64, 70),
-		M.Metal
-	)
-	for _, x in { 1990, 2050, 2150, 2210 } do
-		k.bench(park, at(x, 152))
-		k.bench(park, at(x, 168, 180))
-	end
-	for x = 1970, 2240, 30 do
-		k.tree(park, Vector3.new(x, 0, 132), 1.1)
-		k.tree(park, Vector3.new(x + 15, 0, 194), 1.2)
-	end
-
-	-- The Docks: warehouses, containers, cranes, the quay, piers and boats.
-	local docks = Instance.new("Folder")
-	docks.Name = "TheDocks"
-	docks.Parent = folder
-	factory(k, docks, at(2380, 120, 180), 110, 64, 26, Color3.fromRGB(150, 140, 126), "WAREHOUSE 3")
-	factory(
-		k,
-		docks,
-		at(2440, 420, 180),
-		140,
-		80,
-		30,
-		Color3.fromRGB(120, 130, 140),
-		"BLUE FIN SEAFOOD"
-	)
-	factory(
-		k,
-		docks,
-		at(2440, -420),
-		140,
-		80,
-		24,
-		Color3.fromRGB(160, 150, 136),
-		"PORT AUTHORITY DEPOT"
-	)
-	containerYard(k, docks, 2510, 190, 5, 6)
-	containerYard(k, docks, 2390, -60, 12, 5)
-	gantryCrane(k, docks, Vector3.new(2655, 0, -120))
-	gantryCrane(k, docks, Vector3.new(2655, 0, 120))
-	-- Quay edge, piers and moored boats on the water (World adds the sea).
-	k.part(docks, {
+	harborLockup(k, folder, CityPlan.LOCKUP)
+	-- East quay wall, cranes and moored boats.
+	k.part(folder, {
 		Name = "Quay",
-		Size = Vector3.new(24, 8.4, 1200),
-		CFrame = CFrame.new(2660, -3.9, 0),
+		Size = Vector3.new(20, 8.4, 2560),
+		CFrame = CFrame.new(2670, -3.9, 0),
 		Color = Color3.fromRGB(150, 146, 138),
 		Material = M.Concrete,
 	})
-	for _, z in { -260, -60, 160 } do
-		pier(k, docks, 2672, 2800, z, 14)
+	for _, z in { -700, -200, 400, 900 } do
+		gantryCrane(k, folder, Vector3.new(2655, 0, z))
+	end
+	for _, z in { -950, -450, 150, 650 } do
+		pier(k, folder, 2680, 2810, z, 14)
 		boat(
 			k,
-			docks,
-			CFrame.new(2730, -0.6, z + 16) * CFrame.Angles(0, math.rad(90), 0),
+			folder,
+			CFrame.new(2745, -0.6, z + 16) * CFrame.Angles(0, math.rad(90), 0),
 			Color3.fromRGB(240, 240, 236)
 		)
 	end
-	boat(
-		k,
-		docks,
-		CFrame.new(2770, -0.6, -44) * CFrame.Angles(0, math.rad(90), 0),
-		Color3.fromRGB(40, 92, 150)
-	)
-	-- Breakwater out to the lighthouse.
-	k.part(docks, {
+	k.part(folder, {
 		Name = "Breakwater",
-		Size = Vector3.new(200, 4, 16),
-		CFrame = CFrame.new(2770, -1.4, 470),
+		Size = Vector3.new(16, 4, 220),
+		CFrame = CFrame.new(2900, -1.4, 1200),
 		Color = Color3.fromRGB(120, 118, 112),
 		Material = M.Slate,
 	})
-	lighthouse(k, docks, Vector3.new(2860, 0.6, 470))
-
-	-- A green edge around the city so it does not end in bare lawn.
-	scatterTrees(k, folder, 1890, 2650, 620, 880, 40)
-	scatterTrees(k, folder, 1890, 2650, -1100, -620, 70)
+	lighthouse(k, folder, Vector3.new(2900, 0.6, 1300))
+	welcomeSign(
+		k,
+		folder,
+		at(2080, -560, 90),
+		"PORT HAVEN",
+		"Harbor city",
+		Color3.fromRGB(30, 60, 90)
+	)
 end
 
--- ─── tree belt around the map ──────────────────────────────────────────────
-
-local function buildTreeBelt(k: Kit, parent: Instance)
-	local folder = Instance.new("Folder")
-	folder.Name = "TreeBelt"
-	folder.Parent = parent
-	local rng = k.rng
-	local x0, x1, z0, z1 = -1290, 1290, -1110, 880
-	local function edge(a: Vector3, b: Vector3, step: number, inset: number)
-		local len = (b - a).Magnitude
-		local dir = (b - a).Unit
-		local normal = Vector3.new(-dir.Z, 0, dir.X)
-		local t = 0
-		while t < len do
-			local jitter = normal * rng:NextNumber(-8, 8) + normal * inset
-			k.tree(folder, a + dir * t + jitter, rng:NextNumber(1.1, 1.6), 3)
-			t += step + rng:NextNumber(-4, 4)
-		end
+-- Exposes the building builders to Infill through the kit.
+function CityDistricts.extendKit(k: Kit)
+	k.bungalow = function(parent: Instance, cf: CFrame)
+		bungalow(k, parent, cf)
 	end
-	local corners = {
-		Vector3.new(x0, 0, z0),
-		Vector3.new(x1, 0, z0),
-		Vector3.new(x1, 0, z1),
-		Vector3.new(x0, 0, z1),
-	}
-	for i = 1, 4 do
-		local a, b = corners[i], corners[i % 4 + 1]
-		edge(a, b, 22, 0)
-		edge(a, b, 34, -28)
+	k.trailer = function(parent: Instance, cf: CFrame)
+		trailer(k, parent, cf)
 	end
-	-- Route 9 leaves through the east edge: clear the trees off the highway.
-	for _, tree in folder:GetChildren() do
-		local pos = tree:GetPivot().Position
-		if pos.X > 1200 and math.abs(pos.Z) < 46 then
-			tree:Destroy()
-		end
+	k.mansion = function(parent: Instance, cf: CFrame)
+		mansion(k, parent, cf)
 	end
+	k.neonTower = function(parent: Instance, cf: CFrame, w: number, d: number, h: number)
+		neonTower(k, parent, cf, w, d, h)
+	end
+	k.factory = function(
+		parent: Instance,
+		cf: CFrame,
+		w: number,
+		d: number,
+		h: number,
+		wall: Color3,
+		name: string
+	)
+		factory(k, parent, cf, w, d, h, wall, name)
+	end
+	k.containerYard = function(parent: Instance, x0: number, z0: number, cols: number, rows: number)
+		containerYard(k, parent, x0, z0, cols, rows)
+	end
+	k.billboard = function(parent: Instance, cf: CFrame, w: number, h: number)
+		billboard(k, parent, cf, w, h)
+	end
+	k.NEON = NEON
 end
 
-function CityDistricts.build(parent: Instance, k: Kit): { CFrame }
-	buildEastside(k, parent)
-	buildHillcrest(k, parent)
-	local stalls = buildBusiness(k, parent)
-	buildIndustrial(k, parent)
-	buildTownInfill(k, parent)
-	buildSunset(k, parent)
-	buildPortHaven(k, parent, Config.World.HIDEOUTS[2])
-	buildCorporatePark(k, parent)
-	buildTreeBelt(k, parent)
-	return stalls
+function CityDistricts.build(parent: Instance, k: Kit)
+	buildPlaza(k, parent)
+	buildPark(k, parent)
+	buildBeach(k, parent)
+	buildPlateau(k, parent)
+	buildIsland(k, parent)
 end
 
 return CityDistricts

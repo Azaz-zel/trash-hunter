@@ -1,8 +1,7 @@
 --!strict
--- Client-only life: a police
--- cruiser patrolling past the Meridian yard, light bars that flash when the
--- yard alarm is up, day/night ambience and chase music. Cars are clones of
--- server-prepared templates moved with one tween on an anchored root.
+-- Client-only life: light bars on the yard's gate cruiser that flash when
+-- the alarm is up, day/night ambience and chase music. Traffic lives in
+-- Traffic.luau.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -13,58 +12,12 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 
 local player = Players.LocalPlayer
-local rng = Random.new()
-
-local ROAD_TOP = 0.2
-local CRUISER_SPEED = 22
-local ROAD_END = 1230
 
 local Ambience = {}
 
 local folder: Folder
 
-local function play(tween: Tween)
-	tween:Play()
-	tween.Completed:Wait()
-end
-
 -- Weld every part to the primary part and anchor only that one.
-local function makeMovable(model: Model): (BasePart, number)
-	local root = (model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart", true)) :: BasePart
-	model.PrimaryPart = root
-	for _, d in model:GetDescendants() do
-		if d:IsA("BasePart") and d ~= root then
-			d.Anchored = false
-			d.Massless = true
-			d.CanCollide = false
-			local w = Instance.new("WeldConstraint")
-			w.Part0 = root
-			w.Part1 = d
-			w.Parent = d
-		end
-	end
-	root.Anchored = true
-	root.CanCollide = false
-	local cf, size = model:GetBoundingBox()
-	local lift = model:GetPivot().Y - (cf.Y - size.Y / 2)
-	return root, lift
-end
-
-local function drive(model: Model, lane: { z: number, dir: number }, speed: number)
-	local root, lift = makeMovable(model)
-	local facing = CFrame.lookAt(Vector3.zero, Vector3.new(lane.dir, 0, 0)).Rotation
-	local info = TweenInfo.new(ROAD_END * 2 / speed, Enum.EasingStyle.Linear)
-	-- Root CFrame offset from the pivot, so the tween moves the pivot along the lane.
-	local rootOffset = model:GetPivot():ToObjectSpace(root.CFrame)
-	local y = ROAD_TOP + lift
-	while model.Parent do
-		local from = CFrame.new(-ROAD_END * lane.dir, y, lane.z) * facing
-		local to = CFrame.new(ROAD_END * lane.dir, y, lane.z) * facing
-		root.CFrame = from * rootOffset
-		play(TweenService:Create(root, info, { CFrame = to * rootOffset }))
-		task.wait(rng:NextNumber(2, 7))
-	end
-end
 
 -- Red/blue flashers on a police car, active while the yard alarm is up.
 local function lightBar(model: Model, attachToRoot: boolean)
@@ -160,15 +113,7 @@ function Ambience.start()
 		if not templates then
 			return
 		end
-		-- Civilian traffic lives in Traffic.luau; only the yard cruiser runs here.
-		local police = templates:FindFirstChild("PoliceCar")
-		if police and police:IsA("Model") then
-			local cruiser = police:Clone()
-			cruiser.Name = "Cruiser"
-			cruiser.Parent = folder
-			lightBar(cruiser, true)
-			task.delay(3, drive, cruiser, { z = 308, dir = -1 }, CRUISER_SPEED)
-		end
+		-- Traffic (and its patrol cruisers) lives in Traffic.luau.
 		local town = workspace:WaitForChild("Town")
 		local gate = town:WaitForChild("GateCruiser", 30)
 		if gate and gate:IsA("Model") then

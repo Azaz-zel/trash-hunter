@@ -43,6 +43,17 @@ local function districtName(id: string): string
 	return id
 end
 
+local PERMIT_ORDER = { "midtown", "hills", "downtown", "docks" }
+
+local function districtById(id: string): any
+	for _, d in Config.Districts do
+		if d.id == id then
+			return d
+		end
+	end
+	return nil
+end
+
 local function renderTracker(state: any)
 	for _, child in tracker:GetChildren() do
 		if child:IsA("TextLabel") then
@@ -75,10 +86,12 @@ local function renderTracker(state: any)
 			end
 		end
 	end
-	-- The cheapest permit still locked, so there is always a next goal.
-	for _, d in Config.Districts do
-		local gate = Config.Gates[d.id]
-		if gate and not Quests.permitted(state.stats, d.id) then
+	-- The next permit still locked (in the order players unlock them), so
+	-- there is always a goal.
+	for _, id in PERMIT_ORDER do
+		local gate = Config.Gates[id]
+		local d = districtById(id)
+		if gate and d and not Quests.permitted(state.stats, id) then
 			local have = math.min(state.stats[gate.stat] or 0, gate.need)
 			local shown = if gate.stat == "earned"
 				then `{Ui.money(have)}/{Ui.money(gate.need)}`

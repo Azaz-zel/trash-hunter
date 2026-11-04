@@ -1,5 +1,5 @@
 --!strict
--- One window with four tabs: Bag, Trunk, Shop, Book. Items are shown as
+-- One window with tabs Bag, Trunk (only at your opened car trunk) and Book. Items are shown as
 -- picture cards (3D item models in ViewportFrames). Tap a card to select it;
 -- the action bar at the bottom shows what you can do with it right now.
 -- Opened from the side buttons, the B / C keys, or the Hideout and car prompts.
@@ -18,14 +18,8 @@ local Store = require(script.Parent.Parent.Store)
 local C = Ui.COLORS
 local player = Players.LocalPlayer
 
-local TABS = { "bag", "trunk", "shop", "book" }
--- What the shop tab lists: "gear", "cars" or "robux" at a store counter or
--- the R$ button; nil (everything) only with the Shop Anywhere pass.
-local storeFilter: string? = nil
--- City of the store counter that opened the shop (nil: every city).
-local storeCity: string? = nil
-local STORE_TAB = { gear = "Hardware", cars = "Motors", house = "Realty" }
-local TAB_NAMES = { bag = "Bag", trunk = "Trunk", shop = "Shop", book = "Book" }
+local TABS = { "bag", "trunk", "book" }
+local TAB_NAMES = { bag = "Bag", trunk = "Trunk", book = "Book" }
 
 type Action = { text: string, style: string, enabled: boolean, fn: () -> () }
 
@@ -587,184 +581,6 @@ local function renderTrunk(state: any)
 end
 
 -- Row in the shop: name, description, and one action button on the right.
-local function shopRow(
-	order: number,
-	name: string,
-	desc: string,
-	buttonText: string,
-	style: string,
-	enabled: boolean,
-	fn: () -> ()
-)
-	local row = Ui.new("Frame", {
-		BackgroundColor3 = C.panelLight,
-		BackgroundTransparency = 0.25,
-		Size = UDim2.new(1, 0, 0, 64),
-		LayoutOrder = order,
-		Parent = body,
-	}, { Ui.corner(12), Ui.stroke() })
-	Ui.label(name, 17, {
-		Position = UDim2.fromOffset(14, 10),
-		Size = UDim2.new(1, -150, 0, 22),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Font = Ui.FONT,
-		Parent = row,
-	})
-	Ui.label(desc, 14, {
-		Position = UDim2.fromOffset(14, 34),
-		Size = UDim2.new(1, -150, 0, 18),
-		TextColor3 = C.muted,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		TextWrapped = false,
-		Parent = row,
-	})
-	local button = Ui.button(buttonText, style, UDim2.fromOffset(124, 44), fn)
-	button.AnchorPoint = Vector2.new(1, 0.5)
-	button.Position = UDim2.new(1, -10, 0.5, 0)
-	button.TextSize = 16
-	Ui.setEnabled(button, enabled)
-	button.Parent = row
-end
-
-local function renderGear(state: any, atCounter: boolean)
-	local tools = {}
-	for id, t in Config.Tools do
-		table.insert(tools, { id = id, t = t })
-	end
-	table.sort(tools, function(a, b)
-		return a.t.order < b.t.order
-	end)
-	for i, entry in tools do
-		if storeCity and (entry.t.city or "maple") ~= storeCity then
-			continue
-		end
-		local owned = state.tools[entry.id] == true
-		local text = if owned then "Owned" else Ui.money(entry.t.price)
-		local can = not owned and atCounter and state.cash >= entry.t.price
-		shopRow(2 + i, entry.t.name, entry.t.desc, text, "primary", can, function()
-			Store.action("buyTool", entry.id)
-		end)
-	end
-
-	heading("Backpack", 20, `{state.capacity} slots`)
-	local up = state.nextUpgrade
-	if up then
-		local can = atCounter and state.cash >= up.price
-		shopRow(
-			21,
-			"Bigger backpack",
-			`{state.capacity} to {up.capacity} slots`,
-			Ui.money(up.price),
-			"primary",
-			can,
-			function()
-				Store.action("buyUpgrade")
-			end
-		)
-	else
-		note("Your backpack is maxed out.", 21)
-	end
-end
-
-local function renderCars(state: any, atCounter: boolean)
-	heading("Cars", 30, Ui.money(state.cash))
-	for i, car in Config.Cars do
-		local owned = state.ownedCars[car.id] == true
-		-- A dealer sells its own city's cars; owned cars can be picked anywhere.
-		if storeCity and (car.city or "maple") ~= storeCity and not owned then
-			continue
-		end
-		local driving = state.car == car.id
-		local text = if driving then "Selected" elseif owned then "Use" else Ui.money(car.price)
-		local can = not driving and atCounter and (owned or state.cash >= car.price)
-		shopRow(
-			30 + i,
-			car.name,
-			`Trunk holds {car.trunk} items`,
-			text,
-			if owned then "secondary" else "primary",
-			can,
-			function()
-				Store.action("buyCar", car.id)
-			end
-		)
-	end
-end
-
-local function renderRobux(state: any)
-	heading("Robux", 50, "Convenience only")
-	local order = 51
-	for key, pass in Config.Robux.Passes do
-		local owned = state.passes[key] == true
-		local text = if owned
-			then "Owned"
-			elseif pass.id == 0 then "Coming soon"
-			else `R$ {pass.price}`
-		shopRow(order, pass.name, pass.desc, text, "primary", not owned and pass.id ~= 0, function()
-			Store.action("robux", key)
-		end)
-		order += 1
-	end
-	for key, product in Config.Robux.Products do
-		local text = if product.id == 0 then "Coming soon" else `R$ {product.price}`
-		shopRow(
-			order,
-			product.name,
-			`Adds {Ui.money(product.cash)} cash`,
-			text,
-			"primary",
-			product.id ~= 0,
-			function()
-				Store.action("robux", key)
-			end
-		)
-		order += 1
-	end
-end
-
-local function renderHouses(state: any)
-	heading("Sunset Lane homes", 2, Ui.money(state.cash))
-	note("Show off your best finds on pedestals. Visitors can like your house.", 3)
-	for i, house in Config.Houses do
-		local owned = state.houseLevel >= i
-		local isNext = state.houseLevel + 1 == i
-		local text = if owned then "Owned" elseif isNext then Ui.money(house.price) else "Locked"
-		shopRow(
-			3 + i,
-			house.name,
-			`{house.slots} pedestals`,
-			text,
-			"primary",
-			isNext and state.cash >= house.price,
-			function()
-				Store.action("buyHouse")
-			end
-		)
-	end
-end
-
-local function renderShop(state: any)
-	-- The server re-checks the store distance on every purchase.
-	local atCounter = storeFilter ~= nil or state.passes.shopanywhere == true
-	local function shows(kind: string): boolean
-		return storeFilter == nil or storeFilter == kind
-	end
-	actions({}, nil)
-
-	if shows("gear") then
-		renderGear(state, atCounter)
-	end
-	if shows("cars") then
-		renderCars(state, atCounter)
-	end
-	if storeFilter == "house" then
-		renderHouses(state)
-	end
-	if shows("robux") then
-		renderRobux(state)
-	end
-end
 
 local function renderBook(state: any)
 	actions({}, nil)
@@ -885,22 +701,17 @@ function Panels.render()
 		renderBag(state)
 	elseif current == "trunk" then
 		renderTrunk(state)
-	elseif current == "shop" then
-		renderShop(state)
 	else
 		renderBook(state)
 	end
 	body.CanvasPosition = scroll
 end
 
-local function open(which: string, filter: string?)
-	if which == "robux" then
-		which, filter = "shop", "robux"
-	end
+local function open(which: string)
 	if which == "trunk" and not trunkOpen then
 		which = "bag" -- the trunk is opened at the car, not from a menu
 	end
-	if current == which and window.Visible and storeFilter == filter then
+	if current == which and window.Visible then
 		current = nil
 		window.Visible = false
 		return
@@ -910,16 +721,7 @@ local function open(which: string, filter: string?)
 		selected = nil
 	end
 	current = which
-	storeFilter = filter
-	storeCity = nil
-	local state = Store.get()
-	local anywhere = state ~= nil and state.passes.shopanywhere == true
-	tabButtons.shop.Visible = anywhere or which == "shop"
 	tabButtons.trunk.Visible = trunkOpen
-	tabButtons.shop.Text = if filter == "robux"
-		then "R$"
-		elseif filter then STORE_TAB[filter] or TAB_NAMES.shop
-		else TAB_NAMES.shop
 	window.Visible = true
 	Ui.pop(window, 0.92)
 	Panels.render()
@@ -984,7 +786,7 @@ local function build()
 		}, { Ui.corner(9) })
 		b.Activated:Connect(function()
 			if current ~= tab then
-				open(tab, if tab == "shop" then storeFilter else nil)
+				open(tab)
 			end
 		end)
 		tabButtons[tab] = b
@@ -1038,13 +840,6 @@ function Panels.start()
 	ProximityPromptService.PromptTriggered:Connect(function(prompt)
 		if prompt.Name == "SellPrompt" then
 			open("bag")
-		elseif prompt.Name == "StorePrompt" then
-			local store = Config.Stores[prompt.Parent and prompt.Parent:GetAttribute("Store") or ""]
-			if store then
-				open("shop", store.sells)
-				storeCity = store.city or "maple"
-				Panels.render()
-			end
 		elseif prompt.Name == "TrunkPrompt" then
 			local car = prompt:FindFirstAncestorWhichIsA("Model")
 			while car and car.Parent and car.Parent.Name ~= "PlayerCars" do
@@ -1056,8 +851,7 @@ function Panels.start()
 			end
 		end
 	end)
-	-- A store view closes once the player walks away from that counter, and
-	-- the trunk once they walk away from the car.
+	-- The trunk closes once the player walks away from the car.
 	task.spawn(function()
 		while true do
 			task.wait(0.5)
@@ -1071,28 +865,6 @@ function Panels.start()
 					or not car.Parent
 					or (car:GetPivot().Position - root.Position).Magnitude > 22
 				then
-					close()
-				end
-			end
-			local state = Store.get()
-			if
-				current == "shop"
-				and (storeFilter == "gear" or storeFilter == "cars" or storeFilter == "house")
-				and not (state and state.passes.shopanywhere)
-			then
-				local character = player.Character
-				local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
-				local near = false
-				for _, store in Config.Stores do
-					if
-						root
-						and store.sells == storeFilter
-						and (root.Position - store.counter).Magnitude <= store.range + 6
-					then
-						near = true
-					end
-				end
-				if not near then
 					close()
 				end
 			end

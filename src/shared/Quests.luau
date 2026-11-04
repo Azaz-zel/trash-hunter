@@ -32,8 +32,8 @@ function Quests.selfCheck()
 			seen[q] = true
 		end
 	end
-	assert(not Quests.permitted({ searches = 11 }, "maple"), "maple gate opened early")
-	assert(Quests.permitted({ searches = 12 }, "maple"), "maple gate stuck")
+	assert(not Quests.permitted({ searches = 11 }, "midtown"), "midtown gate opened early")
+	assert(Quests.permitted({ searches = 12 }, "midtown"), "midtown gate stuck")
 	assert(Quests.permitted({}, "town"), "town should be open")
 end
 
