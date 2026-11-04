@@ -394,8 +394,14 @@ end
 
 -- Stands or sits around a hangout spot, shifting about now and then.
 local function loiterer(index: number, folder: Instance, spot: CityPlan.Hangout)
-	local base = spot.cf
-		* CFrame.new(rng:NextNumber(-4, 4), 3.2 + CityPlan.SURFACE, rng:NextNumber(-1, 3))
+	-- On a bench: sit on the seat itself (left or right half); elsewhere mill about.
+	local base = if spot.kind == "bench"
+		then spot.cf * CFrame.new(if rng:NextNumber() < 0.5 then -1.5 else 1.5, 2.9, -0.1)
+		else spot.cf * CFrame.new(
+			rng:NextNumber(-4, 4),
+			3.2 + CityPlan.SURFACE,
+			rng:NextNumber(-1, 3)
+		)
 	local npc = Npc.new("civilian", "Local" .. index, base, folder, rng)
 	if not npc then
 		return

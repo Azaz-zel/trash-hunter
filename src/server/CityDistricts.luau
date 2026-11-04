@@ -2,6 +2,8 @@
 -- City landmarks (plaza, park, beach and pier, hills plateau, Port Haven
 -- docks) and the building builders that Infill uses, made from World's kit.
 
+local CollectionService = game:GetService("CollectionService")
+
 local CityPlan = require(game:GetService("ReplicatedStorage").Shared.CityPlan)
 
 local CityDistricts = {}
@@ -850,52 +852,576 @@ local function buildPlaza(k: Kit, parent: Instance)
 			M.Neon
 		)
 	end
+	-- Benches on the townspeople's hangout spots (CityPlan HANGOUTS "bench").
+	for i = 0, 3 do
+		local x = r.x0 + 20 + i * (r.x1 - r.x0 - 40) / 3
+		k.bench(folder, CFrame.new(x, k.ROAD_TOP, r.z0 + 14))
+	end
 	local _ = C
 end
 
+-- Maple Park (Midtown): a ring path around a tiered fountain, a pond with a
+-- little pier, lily pads, reeds and ducks, a gazebo, a playground, flower
+-- beds, picnic spots, hedges with a neon gate, and park lamps that come on
+-- with the street lights. Benches stand on the townspeople's hangout spots
+-- (CityPlan HANGOUTS "bench", along the south promenade).
 local function buildPark(k: Kit, parent: Instance)
-	local M = k.M
+	local C, M = k.C, k.M
 	local r = CityPlan.PARK
 	local folder = Instance.new("Folder")
 	folder.Name = "MidtownPark"
 	folder.Parent = parent
-	rectPart(k, folder, "Ground", r, 0, 0.3, Color3.fromRGB(86, 132, 62), M.Grass)
+	local rng = Random.new(42)
 	local cx, cz = (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2
+	local GROUND = 0.3
+	local RING_A, RING_B = 92, 48 -- ring path half-axes (x, z)
+	local POND = Vector3.new(cx + 52, GROUND, cz + 4)
+	local POND_R = 21
+	local PLAY = Vector3.new(cx - 96, GROUND, cz + 44)
+	local GAZEBO = Vector3.new(cx + 98, GROUND, cz + 44)
+	local PATH = Color3.fromRGB(206, 192, 162)
+	local FLOWERS = {
+		Color3.fromRGB(255, 90, 120),
+		Color3.fromRGB(255, 200, 60),
+		Color3.fromRGB(180, 110, 255),
+		Color3.fromRGB(255, 255, 255),
+		Color3.fromRGB(255, 140, 60),
+	}
+
+	rectPart(k, folder, "Ground", r, 0, GROUND, Color3.fromRGB(86, 132, 62), M.Grass)
+	-- Mown stripes in two greens.
+	for i = 0, math.floor((r.x1 - r.x0) / 16) - 1 do
+		if i % 2 == 0 then
+			local stripe = k.part(folder, {
+				Name = "Mow",
+				Size = Vector3.new(16, 0.04, r.z1 - r.z0 - 4),
+				CFrame = CFrame.new(r.x0 + 8 + i * 16, GROUND + 0.02, cz),
+				Color = Color3.fromRGB(96, 146, 70),
+				Material = M.Grass,
+				CanCollide = false,
+			})
+			stripe.CastShadow = false
+		end
+	end
+
+	local function path(a: Vector3, b: Vector3, width: number)
+		local mid = (a + b) / 2
+		k.part(folder, {
+			Name = "Path",
+			Size = Vector3.new(width, 0.2, (b - a).Magnitude + width * 0.6),
+			CFrame = CFrame.lookAt(
+				Vector3.new(mid.X, GROUND + 0.1, mid.Z),
+				Vector3.new(b.X, GROUND + 0.1, b.Z)
+			),
+			Color = PATH,
+			Material = M.Pebble,
+		})
+	end
+	local function onRing(t: number): Vector3
+		return Vector3.new(cx + RING_A * math.cos(t), GROUND, cz + RING_B * math.sin(t))
+	end
+	-- Ring path, spokes to the gates, and the south promenade.
+	local SEGMENTS = 28
+	for i = 0, SEGMENTS - 1 do
+		path(onRing(i / SEGMENTS * math.pi * 2), onRing((i + 1) / SEGMENTS * math.pi * 2), 7)
+	end
+	path(Vector3.new(cx, 0, r.z0), Vector3.new(cx, 0, cz - 14), 7)
+	path(Vector3.new(cx, 0, cz + 14), Vector3.new(cx, 0, r.z1), 7)
+	path(Vector3.new(r.x0, 0, cz), Vector3.new(cx - 14, 0, cz), 7)
+	path(Vector3.new(cx + RING_A, 0, cz), Vector3.new(r.x1, 0, cz), 7)
+	path(Vector3.new(r.x0 + 4, 0, r.z0 + 8), Vector3.new(r.x1 - 4, 0, r.z0 + 8), 8)
+
+	-- Fountain: paved circle, stone basin, two bowls, spray, a neon ring in the water.
+	k.part(folder, {
+		Name = "FountainPlaza",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.3, 36, 36),
+		CFrame = CFrame.new(cx, GROUND + 0.15, cz) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(200, 196, 186),
+		Material = M.Cobblestone,
+	})
+	local function disc(
+		name: string,
+		radius: number,
+		y: number,
+		h: number,
+		color: Color3,
+		mat: Enum.Material
+	): Part
+		return k.part(folder, {
+			Name = name,
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(h, radius * 2, radius * 2),
+			CFrame = CFrame.new(cx, y + h / 2, cz) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = color,
+			Material = mat,
+		})
+	end
+	-- Basin: a stone base, the water sheet on top of it, a ring of rim stones.
+	disc("Basin", 12, GROUND, 1.6, Color3.fromRGB(176, 170, 160), M.Limestone)
+	local water = disc("Water", 11, GROUND + 1.6, 0.25, Color3.fromRGB(70, 170, 210), M.Glass)
+	water.Transparency = 0.15
+	water.CanCollide = false
+	-- Cyan glow from the water at night (cyberpunk touch).
+	k.light(
+		water,
+		"PointLight",
+		{ Range = 18, Brightness = 1.2, Color = Color3.fromRGB(0, 220, 255) }
+	)
+	for i = 0, 23 do
+		local t = i / 24 * math.pi * 2
+		k.part(folder, {
+			Name = "Rim",
+			Size = Vector3.new(1.2, 0.9, 3.4),
+			CFrame = CFrame.new(cx + 11.6 * math.cos(t), GROUND + 2.05, cz + 11.6 * math.sin(t))
+				* CFrame.Angles(0, -t, 0),
+			Color = Color3.fromRGB(196, 190, 180),
+			Material = M.Limestone,
+		})
+	end
+	disc("Pillar", 1.6, GROUND + 1.6, 4.6, Color3.fromRGB(176, 170, 160), M.Limestone)
+	disc("BowlLow", 5.5, GROUND + 5, 0.8, Color3.fromRGB(176, 170, 160), M.Limestone)
+	disc("Column", 0.8, GROUND + 5.8, 3, Color3.fromRGB(176, 170, 160), M.Limestone)
+	local top = disc("BowlTop", 2.6, GROUND + 8.8, 0.6, Color3.fromRGB(176, 170, 160), M.Limestone)
+	local spray = Instance.new("ParticleEmitter")
+	spray.Color = ColorSequence.new(Color3.fromRGB(210, 240, 255))
+	spray.LightEmission = 0.4
+	spray.Size = NumberSequence.new(0.35, 0.1)
+	spray.Transparency = NumberSequence.new(0.2, 0.8)
+	spray.Lifetime = NumberRange.new(0.9, 1.2)
+	spray.Speed = NumberRange.new(12, 15)
+	spray.SpreadAngle = Vector2.new(14, 14)
+	spray.Acceleration = Vector3.new(0, -30, 0)
+	spray.Rate = 70
+	spray.EmissionDirection = Enum.NormalId.Right -- the cylinder's axis points up
+	spray.Parent = top
+	-- Flowers round the fountain plaza.
+	for i = 0, 35 do
+		local t = i / 36 * math.pi * 2
+		if math.abs(math.cos(t)) > 0.12 and math.abs(math.sin(t)) > 0.12 then -- gaps for the spokes
+			k.part(folder, {
+				Name = "Flower",
+				Shape = Enum.PartType.Ball,
+				Size = Vector3.new(1.2, 1.2, 1.2),
+				CFrame = CFrame.new(cx + 19.5 * math.cos(t), GROUND + 0.6, cz + 19.5 * math.sin(t)),
+				Color = FLOWERS[i % #FLOWERS + 1],
+				Material = M.SmoothPlastic,
+				CanCollide = false,
+			})
+		end
+	end
+
+	-- Pond: water, rim, lily pads, reeds, a pier, two ducks.
+	k.part(folder, {
+		Name = "PondRim",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.5, POND_R * 2 + 3, POND_R * 2 + 3),
+		CFrame = CFrame.new(POND.X, GROUND + 0.2, POND.Z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(150, 140, 120),
+		Material = M.Cobblestone,
+	})
 	local pond = k.part(folder, {
 		Name = "Pond",
 		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.4, 60, 60),
-		CFrame = CFrame.new(cx + 30, 0.35, cz) * CFrame.Angles(0, 0, math.rad(90)),
+		Size = Vector3.new(0.4, POND_R * 2, POND_R * 2),
+		CFrame = CFrame.new(POND.X, GROUND + 0.35, POND.Z) * CFrame.Angles(0, 0, math.rad(90)),
 		Color = Color3.fromRGB(50, 110, 130),
 		Material = M.Glass,
 	})
 	pond.Transparency = 0.2
-	pond.Reflectance = 0.2
-	for _, p in { { r.x0, cz, r.x1, cz }, { cx, r.z0, cx, r.z1 } } do
-		local a, b = Vector3.new(p[1], 0.4, p[2]), Vector3.new(p[3], 0.4, p[4])
+	pond.Reflectance = 0.25
+	for _ = 1, 9 do
+		local a, d = rng:NextNumber(0, math.pi * 2), rng:NextNumber(3, POND_R - 4)
 		k.part(folder, {
-			Name = "Path",
-			Size = Vector3.new(6, 0.2, (b - a).Magnitude),
-			CFrame = CFrame.lookAt((a + b) / 2, b),
-			Color = Color3.fromRGB(196, 180, 150),
-			Material = M.Pebble,
+			Name = "LilyPad",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.08, 2.4, 2.4),
+			CFrame = CFrame.new(POND.X + d * math.cos(a), GROUND + 0.6, POND.Z + d * math.sin(a))
+				* CFrame.Angles(0, 0, math.rad(90)),
+			Color = Color3.fromRGB(70, 140, 60),
+			Material = M.Grass,
+			CanCollide = false,
 		})
 	end
-	for i = 1, 26 do
-		local pos = Vector3.new(
-			k.rng:NextNumber(r.x0 + 8, r.x1 - 8),
-			0.3,
-			k.rng:NextNumber(r.z0 + 8, r.z1 - 8)
+	for i = 1, 14 do
+		local a = i / 14 * math.pi * 2 + rng:NextNumber(-0.1, 0.1)
+		k.box(
+			folder,
+			"Reed",
+			CFrame.new(
+				POND.X + (POND_R + 0.8) * math.cos(a),
+				GROUND,
+				POND.Z + (POND_R + 0.8) * math.sin(a)
+			),
+			Vector3.new(0.25, rng:NextNumber(2.5, 4), 0.25),
+			Color3.fromRGB(90, 130, 50),
+			M.Grass
 		)
-		if
-			(pos - Vector3.new(cx + 30, 0.3, cz)).Magnitude > 36
-			and math.abs(pos.X - cx) > 6
-			and math.abs(pos.Z - cz) > 6
-		then
-			k.tree(folder, pos, k.rng:NextNumber(0.9, 1.3))
+	end
+	-- Pier from the ring path into the pond.
+	local pierFrom = Vector3.new(POND.X, GROUND, POND.Z - POND_R - 2)
+	k.box(
+		folder,
+		"Pier",
+		CFrame.new(pierFrom.X, GROUND + 0.4, pierFrom.Z + 6),
+		Vector3.new(4, 0.4, 12),
+		Color3.fromRGB(140, 100, 64),
+		M.WoodPlanks
+	)
+	for _, sx in { -1.8, 1.8 } do
+		k.box(
+			folder,
+			"PierPost",
+			CFrame.new(pierFrom.X + sx, GROUND, pierFrom.Z + 11.6),
+			Vector3.new(0.4, 2.2, 0.4),
+			Color3.fromRGB(110, 80, 50),
+			M.Wood
+		)
+	end
+	for i = 1, 2 do
+		local spot = Vector3.new(
+			POND.X + (if i == 1 then -8 else 6),
+			GROUND + 0.8,
+			POND.Z + (if i == 1 then 5 else -3)
+		)
+		k.part(folder, {
+			Name = "Duck",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(1.4, 1, 1),
+			CFrame = CFrame.new(spot),
+			Color = Color3.fromRGB(250, 220, 60),
+			Material = M.SmoothPlastic,
+			CanCollide = false,
+		})
+		k.part(folder, {
+			Name = "DuckHead",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(0.7, 0.7, 0.7),
+			CFrame = CFrame.new(spot + Vector3.new(0.6, 0.55, 0)),
+			Color = Color3.fromRGB(250, 220, 60),
+			Material = M.SmoothPlastic,
+			CanCollide = false,
+		})
+		k.box(
+			folder,
+			"DuckBill",
+			CFrame.new(spot + Vector3.new(1.05, 0.45, 0)),
+			Vector3.new(0.4, 0.15, 0.3),
+			Color3.fromRGB(255, 140, 30),
+			M.SmoothPlastic
+		).CanCollide =
+			false
+	end
+
+	-- Gazebo (north-east): round deck, six posts, a domed roof.
+	k.part(folder, {
+		Name = "GazeboDeck",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1, 18, 18),
+		CFrame = CFrame.new(GAZEBO.X, GROUND + 0.5, GAZEBO.Z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(230, 226, 214),
+		Material = M.WoodPlanks,
+	})
+	for i = 0, 5 do
+		local a = i / 6 * math.pi * 2
+		k.box(
+			folder,
+			"GazeboPost",
+			CFrame.new(GAZEBO.X + 7.6 * math.cos(a), GROUND + 1, GAZEBO.Z + 7.6 * math.sin(a)),
+			Vector3.new(0.6, 8, 0.6),
+			C.white,
+			M.Wood
+		)
+	end
+	k.part(folder, {
+		Name = "GazeboRoof",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(1, 20, 20),
+		CFrame = CFrame.new(GAZEBO.X, GROUND + 9.5, GAZEBO.Z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(120, 60, 50),
+		Material = M.Slate,
+	})
+	k.part(folder, {
+		Name = "GazeboDome",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(12, 6, 12),
+		CFrame = CFrame.new(GAZEBO.X, GROUND + 10.5, GAZEBO.Z),
+		Color = Color3.fromRGB(120, 60, 50),
+		Material = M.Slate,
+	})
+	local fairy = k.part(folder, {
+		Name = "GazeboLights",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.2, 19, 19),
+		CFrame = CFrame.new(GAZEBO.X, GROUND + 9, GAZEBO.Z) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(255, 220, 150),
+		Material = M.Neon,
+		CanCollide = false,
+	})
+	fairy.Transparency = 0.4
+
+	-- Playground (north-west): sand, a slide, a swing frame, a seesaw.
+	k.box(
+		folder,
+		"Sandpit",
+		CFrame.new(PLAY.X, GROUND, PLAY.Z),
+		Vector3.new(30, 0.25, 22),
+		Color3.fromRGB(226, 206, 160),
+		M.Sand
+	)
+	local slide = CFrame.new(PLAY.X - 8, GROUND, PLAY.Z)
+	k.box(folder, "SlideTower", slide, Vector3.new(4, 6, 4), Color3.fromRGB(230, 60, 60), M.Plastic)
+	k.wedge(
+		folder,
+		"Slide",
+		slide * CFrame.new(0, 0, 6) * CFrame.Angles(0, math.pi, 0),
+		Vector3.new(2.4, 6, 8),
+		Color3.fromRGB(250, 200, 40),
+		M.Plastic
+	)
+	local swings = CFrame.new(PLAY.X + 6, GROUND, PLAY.Z - 4)
+	for _, x in { -5, 5 } do
+		k.box(
+			folder,
+			"SwingPost",
+			swings * CFrame.new(x, 0, 0),
+			Vector3.new(0.5, 8, 0.5),
+			Color3.fromRGB(40, 110, 200),
+			M.Metal
+		)
+	end
+	k.box(
+		folder,
+		"SwingBar",
+		swings * CFrame.new(0, 8, 0),
+		Vector3.new(10.5, 0.5, 0.5),
+		Color3.fromRGB(40, 110, 200),
+		M.Metal
+	)
+	for _, x in { -2, 2 } do
+		k.box(
+			folder,
+			"SwingRope",
+			swings * CFrame.new(x, 2.4, 0),
+			Vector3.new(0.1, 5.6, 0.1),
+			C.ink,
+			M.Fabric
+		).CanCollide =
+			false
+		k.box(
+			folder,
+			"SwingSeat",
+			swings * CFrame.new(x, 2.2, 0),
+			Vector3.new(1.6, 0.25, 0.8),
+			C.ink,
+			M.Rubber
+		)
+	end
+	k.box(
+		folder,
+		"Seesaw",
+		CFrame.new(PLAY.X + 6, GROUND + 1, PLAY.Z + 6) * CFrame.Angles(0, 0, math.rad(10)),
+		Vector3.new(9, 0.3, 1),
+		Color3.fromRGB(60, 200, 120),
+		M.Plastic
+	)
+	k.box(
+		folder,
+		"SeesawPivot",
+		CFrame.new(PLAY.X + 6, GROUND, PLAY.Z + 6),
+		Vector3.new(0.8, 1, 0.8),
+		C.darkMetal,
+		M.Metal
+	)
+
+	-- Hedges round the edge, with gaps for the four gates.
+	local function hedge(a: Vector3, b: Vector3)
+		local mid = (a + b) / 2
+		k.part(folder, {
+			Name = "Hedge",
+			Size = Vector3.new(2.4, 2.6, (b - a).Magnitude),
+			CFrame = CFrame.lookAt(
+				Vector3.new(mid.X, GROUND + 1.3, mid.Z),
+				Vector3.new(b.X, GROUND + 1.3, b.Z)
+			),
+			Color = Color3.fromRGB(60, 110, 50),
+			Material = M.Grass,
+		})
+	end
+	local GAP = 6
+	for _, edge in
+		{
+			{ Vector3.new(r.x0 + 1, 0, r.z0 + 1), Vector3.new(r.x1 - 1, 0, r.z0 + 1), cx },
+			{ Vector3.new(r.x0 + 1, 0, r.z1 - 1), Vector3.new(r.x1 - 1, 0, r.z1 - 1), cx },
+		}
+	do
+		hedge(edge[1], Vector3.new(edge[3] - GAP, 0, edge[1].Z))
+		hedge(Vector3.new(edge[3] + GAP, 0, edge[1].Z), edge[2])
+	end
+	for _, x in { r.x0 + 1, r.x1 - 1 } do
+		hedge(Vector3.new(x, 0, r.z0 + 1), Vector3.new(x, 0, cz - GAP))
+		hedge(Vector3.new(x, 0, cz + GAP), Vector3.new(x, 0, r.z1 - 1))
+	end
+	-- Main gate (south): stone pillars and a neon name arch.
+	for _, sx in { -1, 1 } do
+		k.box(
+			folder,
+			"GatePillar",
+			CFrame.new(cx + sx * (GAP + 1), GROUND, r.z0 + 1),
+			Vector3.new(2, 9, 2),
+			Color3.fromRGB(176, 170, 160),
+			M.Limestone
+		)
+	end
+	local arch = k.box(
+		folder,
+		"GateSign",
+		CFrame.new(cx, GROUND + 8, r.z0 + 1),
+		Vector3.new(GAP * 2 + 4, 2.4, 0.6),
+		Color3.fromRGB(20, 24, 30),
+		M.SmoothPlastic
+	)
+	k.sign(
+		arch,
+		Enum.NormalId.Front,
+		"MAPLE PARK",
+		Color3.fromRGB(20, 24, 30),
+		Color3.fromRGB(120, 255, 170)
+	)
+	k.sign(
+		arch,
+		Enum.NormalId.Back,
+		"MAPLE PARK",
+		Color3.fromRGB(20, 24, 30),
+		Color3.fromRGB(120, 255, 170)
+	)
+
+	-- Park lamps round the ring: they come on with the street lights.
+	for i = 0, 11 do
+		local t = (i + 0.5) / 12 * math.pi * 2
+		local p =
+			Vector3.new(cx + (RING_A + 5) * math.cos(t), GROUND, cz + (RING_B + 5) * math.sin(t))
+		k.box(folder, "LampPost", CFrame.new(p), Vector3.new(0.4, 9, 0.4), C.darkMetal, M.Metal)
+		local globe = k.part(folder, {
+			Name = "LampGlobe",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(1.6, 1.6, 1.6),
+			CFrame = CFrame.new(p + Vector3.new(0, 9.6, 0)),
+			Color = Color3.fromRGB(255, 236, 190),
+			Material = M.SmoothPlastic,
+		})
+		if i % 2 == 0 then
+			local l = Instance.new("PointLight")
+			l.Range = 22
+			l.Brightness = 1.2
+			l.Color = Color3.fromRGB(255, 226, 170)
+			l.Enabled = false
+			l.Parent = globe
 		end
-		if i <= 6 then
-			k.bench(folder, CFrame.new(cx - 40 + i * 12, 0.3, cz + 5))
+		CollectionService:AddTag(globe, "StreetLight")
+	end
+
+	-- Benches: on the townspeople's hangout spots along the promenade,
+	-- round the fountain, and at the pond.
+	for b = 0, 3 do
+		local x = r.x0 + 20 + b * (r.x1 - r.x0 - 40) / 3
+		k.bench(folder, CFrame.new(x, GROUND, r.z0 + 14))
+		k.trashCan(folder, Vector3.new(x + 5, GROUND, r.z0 + 14), Color3.fromRGB(40, 60, 46))
+	end
+	for _, a in { 0.6, 2.2, 3.8, 5.4 } do
+		local p = Vector3.new(cx + 23 * math.cos(a), GROUND, cz + 23 * math.sin(a))
+		k.bench(
+			folder,
+			CFrame.lookAt(p, Vector3.new(cx, GROUND, cz)) * CFrame.Angles(0, math.pi, 0)
+		)
+	end
+	-- Flower beds along the north path.
+	for i = 0, 5 do
+		for _, sx in { -1, 1 } do
+			k.box(
+				folder,
+				"FlowerBed",
+				CFrame.new(cx + sx * 7, GROUND, cz + 22 + i * 4.5),
+				Vector3.new(3, 0.8, 3.6),
+				FLOWERS[(i + (if sx > 0 then 2 else 0)) % #FLOWERS + 1],
+				M.Grass
+			)
+		end
+	end
+	-- Picnic: two blankets with a basket, two tables.
+	for i, spot in { Vector3.new(cx - 40, GROUND, cz - 22), Vector3.new(cx + 20, GROUND, cz - 30) } do
+		k.box(
+			folder,
+			"Blanket",
+			CFrame.new(spot) * CFrame.Angles(0, math.rad(i * 25), 0),
+			Vector3.new(6, 0.1, 5),
+			if i == 1 then Color3.fromRGB(210, 50, 50) else Color3.fromRGB(60, 120, 210),
+			M.Fabric
+		)
+		k.box(
+			folder,
+			"Basket",
+			CFrame.new(spot + Vector3.new(1.5, 0, 1)),
+			Vector3.new(1.6, 1.2, 1.2),
+			Color3.fromRGB(170, 120, 60),
+			M.Wood
+		)
+	end
+	for _, spot in { Vector3.new(cx - 52, GROUND, cz + 26), Vector3.new(cx + 30, GROUND, cz + 32) } do
+		k.box(
+			folder,
+			"PicnicTable",
+			CFrame.new(spot + Vector3.new(0, 2.6, 0)),
+			Vector3.new(6, 0.3, 3),
+			Color3.fromRGB(150, 110, 70),
+			M.WoodPlanks
+		)
+		for _, sz in { -2.4, 2.4 } do
+			k.box(
+				folder,
+				"PicnicSeat",
+				CFrame.new(spot + Vector3.new(0, 1.4, sz)),
+				Vector3.new(6, 0.25, 1),
+				Color3.fromRGB(150, 110, 70),
+				M.WoodPlanks
+			)
+		end
+		k.box(
+			folder,
+			"PicnicLegs",
+			CFrame.new(spot),
+			Vector3.new(4, 2.6, 0.4),
+			Color3.fromRGB(120, 85, 55),
+			M.Wood
+		)
+	end
+
+	-- Trees in clusters, clear of paths, the fountain, the pond and the playground.
+	local function clear(p: Vector3): boolean
+		local ex = (p.X - cx) / RING_A
+		local ez = (p.Z - cz) / RING_B
+		local ring = math.sqrt(ex * ex + ez * ez)
+		return math.abs(ring - 1) > 0.12
+			and math.abs(p.X - cx) > 9
+			and math.abs(p.Z - cz) > 9
+			and (p - Vector3.new(cx, p.Y, cz)).Magnitude > 28
+			and (p - Vector3.new(POND.X, p.Y, POND.Z)).Magnitude > POND_R + 7
+			and (p - Vector3.new(PLAY.X, p.Y, PLAY.Z)).Magnitude > 22
+			and (p - Vector3.new(GAZEBO.X, p.Y, GAZEBO.Z)).Magnitude > 16
+			and p.Z > r.z0 + 22
+			and p.X > r.x0 + 6
+			and p.X < r.x1 - 6
+			and p.Z < r.z1 - 6
+	end
+	local planted = 0
+	for _ = 1, 400 do
+		if planted >= 34 then
+			break
+		end
+		local p = Vector3.new(rng:NextNumber(r.x0, r.x1), GROUND, rng:NextNumber(r.z0, r.z1))
+		if clear(p) then
+			k.tree(folder, p, rng:NextNumber(0.8, 1.35))
+			planted += 1
 		end
 	end
 end
