@@ -2275,7 +2275,7 @@ end
 local RESIDENTIAL = { southside = true, eastgate = true, hills = true, beach = true }
 
 -- Fallback plans for district `id`, tried in order after the chosen one.
-local function fallbacks(k: Kit, id: string): { Plan }
+local function fallbacks(id: string): { Plan }
 	local res = RESIDENTIAL[id] == true
 	return {
 		{
@@ -2429,7 +2429,7 @@ local function fillLots(k: Kit, parent: Instance): number
 					if second then
 						table.insert(candidates, second)
 					end
-					for _, f in fallbacks(k, district.id) do
+					for _, f in fallbacks(district.id) do
 						table.insert(candidates, f)
 					end
 					for _, plan in candidates do

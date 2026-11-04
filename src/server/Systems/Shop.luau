@@ -270,13 +270,13 @@ end
 local function refreshPasses(player: Player)
 	for key, pass in R.Passes do
 		if pass.id ~= 0 then
-			local ok, owns = pcall(
+			local ok, ownsPass = pcall(
 				MarketplaceService.UserOwnsGamePassAsync,
 				MarketplaceService,
 				player.UserId,
 				pass.id
 			)
-			if ok and owns then
+			if ok and ownsPass then
 				player:SetAttribute("Pass_" .. key, true)
 			end
 		end

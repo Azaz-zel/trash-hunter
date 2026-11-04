@@ -793,7 +793,7 @@ local function step(car: Car, dt: number, now: number, clock: number, wanted: bo
 end
 
 local crashSound: Sound? = nil
-local function crunch(at: BasePart)
+local function crunch(onPart: BasePart)
 	local s = crashSound
 	if not s then
 		local made = Instance.new("Sound")
@@ -804,7 +804,7 @@ local function crunch(at: BasePart)
 		s = made
 	end
 	local one = (s :: Sound):Clone()
-	one.Parent = at
+	one.Parent = onPart
 	one:Play()
 	one.Ended:Once(function()
 		one:Destroy()
