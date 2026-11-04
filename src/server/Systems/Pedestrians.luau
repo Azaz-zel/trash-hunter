@@ -6,9 +6,10 @@
 
 local CollectionService = game:GetService("CollectionService")
 
+local MapData = require(game:GetService("ReplicatedStorage").Shared.MapData)
 local Npc = require(script.Parent.Parent.Npc)
 
-local COUNT = 26
+local COUNT = 40
 local NAMES = {
 	"Dave",
 	"Linda",
@@ -34,7 +35,7 @@ local NAMES = {
 local WALK_Y = 0.7
 
 -- Sidewalk lines: fixed axis value plus the range walkers may use.
-local LINES = {
+local LINES: { { axis: string, at: number, from: number, to: number } } = {
 	{ axis = "X", at = 22, from = -380, to = 400 }, -- Main St, north side
 	{ axis = "X", at = -22, from = -400, to = 400 }, -- Main St, south side
 	{ axis = "X", at = -218, from = -600, to = 600 }, -- Maple Ave, north side
@@ -49,6 +50,25 @@ local LINES = {
 	{ axis = "X", at = -22, from = 1940, to = 2260 }, -- Port Haven, Main St
 	{ axis = "X", at = 160, from = 1980, to = 2220 }, -- Harbor Park path
 }
+
+-- Every road's two sidewalks too, except along the Route 9 highway (x 1300-1880).
+local SIDEWALK = MapData.ROAD_WIDTH / 2 + 5
+for _, road in MapData.ROADS do
+	local ranges = { { road.from, road.to } }
+	if road.axis == "X" and road.from < 1300 and road.to > 1880 then
+		ranges = { { road.from, 1240 }, { 1920, road.to } }
+	end
+	for _, r in ranges do
+		for _, side in { -1, 1 } do
+			table.insert(LINES, {
+				axis = road.axis,
+				at = road.at + side * SIDEWALK,
+				from = r[1] + 20,
+				to = r[2] - 20,
+			})
+		end
+	end
+end
 
 local Pedestrians = {}
 
@@ -66,7 +86,8 @@ local function pointOn(
 end
 
 local function walker(index: number, folder: Instance)
-	local line = LINES[(index - 1) % #LINES + 1]
+	-- The first lines are the busy hand-picked ones; the rest are random sidewalks.
+	local line = if index <= 13 then LINES[index] else LINES[rng:NextInteger(14, #LINES)]
 	local start = pointOn(line, rng:NextNumber())
 	local npc = Npc.new(
 		"civilian",

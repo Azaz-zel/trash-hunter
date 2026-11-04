@@ -828,7 +828,7 @@ function Panels.start()
 		elseif prompt.Name == "TrunkPrompt" then
 			local car = prompt:FindFirstAncestorWhichIsA("Model")
 			while car and car.Parent and car.Parent.Name ~= "PlayerCars" do
-				car = car.Parent:FindFirstAncestorWhichIsA("Model")
+				car = car:FindFirstAncestorWhichIsA("Model")
 			end
 			if car and car:GetAttribute("Owner") == player.UserId then
 				open("trunk")

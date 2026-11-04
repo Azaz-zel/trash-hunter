@@ -31,29 +31,9 @@ local announceLabel: TextLabel
 local busted: Frame
 local bustedBody: TextLabel
 local homeButton: TextButton
+local bagFill: Frame
+local streakLabel: TextLabel
 local shopButton: TextButton
-
-local function pill(name: string, caption: string, order: number): TextLabel
-	local frame = Ui.panel({
-		Name = name,
-		Size = UDim2.fromOffset(124, 52),
-		LayoutOrder = order,
-	})
-	Ui.label(string.upper(caption), 12, {
-		Position = UDim2.fromOffset(14, 7),
-		Size = UDim2.new(1, -28, 0, 14),
-		TextColor3 = C.muted,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = frame,
-	})
-	local label = Ui.label("", 22, {
-		Position = UDim2.fromOffset(14, 21),
-		Size = UDim2.new(1, -28, 0, 26),
-		TextXAlignment = Enum.TextXAlignment.Left,
-	})
-	label.Parent = frame
-	return label
-end
 
 local function toast(text: string, color: Color3?)
 	local label = Ui.label(text, 20, {
@@ -91,6 +71,28 @@ end
 local lastCash: number? = nil
 local lastBag: number? = nil
 
+-- "+$45" floats up from the cash readout.
+local function floatDelta(delta: number)
+	local card = cashLabel.Parent :: GuiObject
+	local label = Ui.label((if delta > 0 then "+" else "-") .. Ui.money(math.abs(delta)), 18, {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, card.AbsoluteSize.X + 8, 0, 40),
+		Size = UDim2.fromOffset(120, 22),
+		TextColor3 = if delta > 0 then C.safe else C.danger,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextStrokeTransparency = 0.4,
+		Parent = card,
+	})
+	Ui.tween(
+		label,
+		1.1,
+		{ Position = UDim2.new(0, card.AbsoluteSize.X + 8, 0, 10), TextTransparency = 1 }
+	)
+	task.delay(1.2, function()
+		label:Destroy()
+	end)
+end
+
 local function renderState()
 	local state = Store.get()
 	if not state then
@@ -101,6 +103,7 @@ local function renderState()
 	Ui.countMoney(cashLabel, state.cash)
 	if lastCash and state.cash ~= lastCash then
 		Ui.bump(cashLabel.Parent :: GuiObject)
+		floatDelta(state.cash - lastCash)
 	end
 	if lastBag and #state.backpack ~= lastBag then
 		Ui.bump(bagLabel.Parent :: GuiObject)
@@ -108,8 +111,15 @@ local function renderState()
 	lastCash, lastBag = state.cash, #state.backpack
 	homeButton.Visible = state.passes.homerun == true
 	shopButton.Visible = state.passes.shopanywhere == true
-	bagLabel.Text = `{#state.backpack}/{state.capacity}`
-	bagLabel.TextColor3 = if #state.backpack >= state.capacity then C.accent else C.cream
+	local fill = if state.capacity > 0 then #state.backpack / state.capacity else 0
+	bagLabel.Text = `Bag {#state.backpack}/{state.capacity}`
+	bagLabel.TextColor3 = if fill >= 1 then C.danger else C.cream
+	Ui.tween(bagFill, 0.25, { Size = UDim2.fromScale(math.clamp(fill, 0, 1), 1) })
+	bagFill.BackgroundColor3 = if fill >= 1
+		then C.danger
+		elseif fill >= 0.75 then C.accent
+		else C.safe
+	streakLabel.Text = if state.streak > 1 then `Day {state.streak} streak` else ""
 end
 
 local function renderSuspicion()
@@ -151,18 +161,77 @@ local function build()
 		Parent = player:WaitForChild("PlayerGui"),
 	})
 
-	local stats = Ui.new("Frame", {
-		Name = "Stats",
-		BackgroundTransparency = 1,
+	-- Player card: avatar, name, cash and a backpack fill bar.
+	local cardFrame = Ui.panel({
+		Name = "PlayerCard",
 		Position = UDim2.fromOffset(16, 16),
-		Size = UDim2.fromOffset(300, 52),
+		Size = UDim2.fromOffset(292, 86),
 		Parent = gui,
-	}, { Ui.list(Enum.FillDirection.Horizontal, 10) })
-	cashLabel = pill("Cash", "Cash", 1)
-	cashLabel.Parent.Parent = stats
-	cashLabel.TextColor3 = C.accent
-	bagLabel = pill("Bag", "Backpack", 2)
-	bagLabel.Parent.Parent = stats
+	})
+	cardFrame.BackgroundTransparency = 0.04
+	local avatar: ImageLabel = Ui.new("ImageLabel", {
+		Position = UDim2.fromOffset(10, 10),
+		Size = UDim2.fromOffset(66, 66),
+		BackgroundColor3 = C.panelLight,
+		Image = "",
+		Parent = cardFrame,
+	}, { Ui.corner(33), Ui.stroke(2, C.accent) })
+	task.spawn(function()
+		local ok, image = pcall(
+			Players.GetUserThumbnailAsync,
+			Players,
+			player.UserId,
+			Enum.ThumbnailType.HeadShot,
+			Enum.ThumbnailSize.Size150x150
+		)
+		if ok then
+			avatar.Image = image
+		end
+	end)
+	Ui.label(player.DisplayName, 14, {
+		Position = UDim2.fromOffset(88, 8),
+		Size = UDim2.new(1, -150, 0, 18),
+		TextColor3 = C.muted,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		TextWrapped = false,
+		Parent = cardFrame,
+	})
+	streakLabel = Ui.label("", 12, {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -10, 0, 9),
+		Size = UDim2.fromOffset(70, 16),
+		TextColor3 = C.accent,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = cardFrame,
+	})
+	cashLabel = Ui.label("", 26, {
+		Name = "Cash",
+		Position = UDim2.fromOffset(88, 24),
+		Size = UDim2.new(1, -98, 0, 30),
+		TextColor3 = C.accent,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = cardFrame,
+	})
+	local bagTrack = Ui.new("Frame", {
+		Position = UDim2.fromOffset(88, 62),
+		Size = UDim2.new(1, -160, 0, 8),
+		BackgroundColor3 = C.panelLight,
+		Parent = cardFrame,
+	}, { Ui.corner(4) })
+	bagFill = Ui.new("Frame", {
+		Size = UDim2.fromScale(0, 1),
+		BackgroundColor3 = C.safe,
+		Parent = bagTrack,
+	}, { Ui.corner(4) })
+	bagLabel = Ui.label("", 13, {
+		Name = "Bag",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -10, 0, 57),
+		Size = UDim2.fromOffset(62, 18),
+		TextXAlignment = Enum.TextXAlignment.Right,
+		Parent = cardFrame,
+	})
 
 	suspicionFrame = Ui.panel({
 		Name = "Suspicion",
@@ -262,20 +331,34 @@ local function build()
 		BackgroundTransparency = 1,
 		-- Below the minimap (MapUi, 168px at top right).
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -16, 0, 196),
+		Position = UDim2.new(1, -16, 0, 230),
 		Size = UDim2.fromOffset(72, 420),
 		Parent = gui,
 	}, { Ui.list(Enum.FillDirection.Vertical, 8, Enum.HorizontalAlignment.Right) })
-	local function sideButton(text: string, order: number, fn: () -> ()): TextButton
+	local function sideButton(text: string, order: number, fn: () -> (), key: string?): TextButton
 		local b = Ui.button(text, "secondary", UDim2.fromOffset(72, 52), fn)
 		b.TextSize = 16
 		b.LayoutOrder = order
 		b.Parent = side
+		-- Keyboard shortcut badge (hidden on touch screens).
+		if key and not UserInputService.TouchEnabled then
+			Ui.new("Frame", {
+				AnchorPoint = Vector2.new(1, 0),
+				Position = UDim2.new(1, -4, 0, 4),
+				Size = UDim2.fromOffset(16, 16),
+				BackgroundColor3 = C.cream,
+				BackgroundTransparency = 0.1,
+				Parent = b,
+			}, {
+				Ui.corner(4),
+				Ui.label(key, 11, { Size = UDim2.fromScale(1, 1), TextColor3 = C.ink }),
+			})
+		end
 		return b
 	end
 	sideButton("Bag", 1, function()
 		Store.emit("openPanel", "bag")
-	end)
+	end, "B")
 	-- Without the Shop Anywhere pass, buying happens at the store counters.
 	shopButton = sideButton("Shop", 2, function()
 		Store.emit("openPanel", "shop")
@@ -283,7 +366,7 @@ local function build()
 	shopButton.Visible = false
 	sideButton("Book", 3, function()
 		Store.emit("openPanel", "book")
-	end)
+	end, "C")
 	sideButton("Car", 4, function()
 		Store.action("spawnCar")
 	end)

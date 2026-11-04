@@ -16,6 +16,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Districts = require(ReplicatedStorage.Shared.Districts)
 local MapData = require(ReplicatedStorage.Shared.MapData)
 local CityDistricts = require(script.Parent.Parent.CityDistricts)
+local Infill = require(script.Parent.Parent.Infill)
 
 local W = Config.World
 local FONT = Enum.Font.GothamBold
@@ -189,38 +190,148 @@ end
 
 -- ─── trees & street props ──────────────────────────────────────────────────
 
-local function tree(parent: Instance, pos: Vector3, scale: number?, leaves: number?)
+-- True when a point is within `half` studs of a road's centre line.
+local function onRoad(pos: Vector3, half: number): boolean
+	for _, road in MapData.ROADS do
+		local along = if road.axis == "X" then pos.X else pos.Z
+		local across = if road.axis == "X" then pos.Z else pos.X
+		if
+			math.abs(across - road.at) < half
+			and along > road.from - half
+			and along < road.to + half
+		then
+			return true
+		end
+	end
+	return false
+end
+
+-- Tree kinds give the town some variety; weights favour broadleaf trees.
+local TREE_KINDS = {
+	{ kind = "oak", weight = 40 },
+	{ kind = "pine", weight = 22 },
+	{ kind = "birch", weight = 14 },
+	{ kind = "autumn", weight = 14 },
+	{ kind = "bush", weight = 10 },
+}
+local AUTUMN = {
+	Color3.fromRGB(196, 96, 36),
+	Color3.fromRGB(214, 150, 40),
+	Color3.fromRGB(170, 52, 36),
+	Color3.fromRGB(190, 170, 60),
+}
+
+local function pickTreeKind(): string
+	local total = 0
+	for _, k in TREE_KINDS do
+		total += k.weight
+	end
+	local roll = rng:NextNumber() * total
+	for _, k in TREE_KINDS do
+		roll -= k.weight
+		if roll <= 0 then
+			return k.kind
+		end
+	end
+	return "oak"
+end
+
+-- kind: nil picks one at random. Trees never grow on the asphalt.
+local function tree(parent: Instance, pos: Vector3, scale: number?, leaves: number?, kind: string?)
+	-- Street trees stand at the outer sidewalk edge (2 studs in); nearer ones go.
+	if onRoad(pos, ROAD_W / 2 + WALK_W - 3) then
+		return
+	end
+	local model = Instance.new("Model")
+	model.Name = "Tree"
 	local s = (scale or 1) * rng:NextNumber(0.85, 1.2)
-	local trunkH = 12 * s
-	part(parent, {
-		Name = "Trunk",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(trunkH, 1.6 * s, 1.6 * s),
-		CFrame = CFrame.new(pos + Vector3.new(0, trunkH / 2, 0))
-			* CFrame.Angles(0, 0, math.rad(90)),
-		Color = C.trunk,
-		Material = M.Wood,
-	})
-	local leafColor = C.leaf:Lerp(Color3.fromRGB(96, 120, 60), rng:NextNumber(0, 0.6))
-	for i = 1, leaves or 4 do
-		local r = rng:NextNumber(7, 10) * s
-		local offset = if i == 1
-			then Vector3.new(0, trunkH + 2 * s, 0)
-			else Vector3.new(
-				rng:NextNumber(-4, 4) * s,
-				trunkH + rng:NextNumber(-1, 4) * s,
-				rng:NextNumber(-4, 4) * s
-			)
-		part(parent, {
-			Name = "Leaves",
-			Shape = Enum.PartType.Ball,
-			Size = Vector3.new(r, r * 0.85, r),
-			Position = pos + offset,
-			Color = leafColor,
-			Material = M.Grass,
-			CanCollide = false,
+	local which = kind or pickTreeKind()
+	local function trunk(h: number, w: number, color: Color3)
+		part(model, {
+			Name = "Trunk",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(h, w, w),
+			CFrame = CFrame.new(pos + Vector3.new(0, h / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Color = color,
+			Material = M.Wood,
 		})
 	end
+	local function blob(offset: Vector3, size: Vector3, color: Color3)
+		part(model, {
+			Name = "Leaves",
+			Shape = Enum.PartType.Ball,
+			Size = size,
+			Position = pos + offset,
+			Color = color,
+			Material = M.Grass,
+			CanCollide = false,
+			CastShadow = true,
+		})
+	end
+	if which == "pine" then
+		-- Stacked tiers read as a conifer.
+		local h = 6 * s
+		trunk(h + 4 * s, 1.3 * s, Color3.fromRGB(80, 62, 48))
+		local green = Color3.fromRGB(40, 72, 48):Lerp(Color3.fromRGB(58, 88, 56), rng:NextNumber())
+		for t = 0, 4 do
+			local d = (11 - t * 2) * s
+			part(model, {
+				Name = "Leaves",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(3.4 * s, d, d),
+				CFrame = CFrame.new(pos + Vector3.new(0, h + t * 3 * s, 0))
+					* CFrame.Angles(0, 0, math.rad(90)),
+				Color = green,
+				Material = M.Grass,
+				CanCollide = false,
+			})
+		end
+	elseif which == "birch" then
+		local h = 15 * s
+		trunk(h, 1 * s, Color3.fromRGB(226, 222, 212))
+		local green = Color3.fromRGB(120, 156, 70)
+			:Lerp(Color3.fromRGB(150, 170, 80), rng:NextNumber())
+		for i = 1, 4 do
+			local r = rng:NextNumber(5, 7) * s
+			blob(
+				Vector3.new(
+					rng:NextNumber(-2.5, 2.5) * s,
+					h - 2 * s + i * 1.6 * s,
+					rng:NextNumber(-2.5, 2.5) * s
+				),
+				Vector3.new(r, r * 1.2, r),
+				green
+			)
+		end
+	elseif which == "bush" then
+		local green = C.leaf:Lerp(Color3.fromRGB(90, 120, 60), rng:NextNumber())
+		for _ = 1, 3 do
+			local r = rng:NextNumber(4, 6) * s
+			blob(
+				Vector3.new(rng:NextNumber(-2, 2) * s, r * 0.3, rng:NextNumber(-2, 2) * s),
+				Vector3.new(r, r * 0.7, r),
+				green
+			)
+		end
+	else
+		local trunkH = 12 * s
+		trunk(trunkH, 1.6 * s, C.trunk)
+		local leafColor = if which == "autumn"
+			then AUTUMN[rng:NextInteger(1, #AUTUMN)]
+			else C.leaf:Lerp(Color3.fromRGB(96, 120, 60), rng:NextNumber(0, 0.6))
+		for i = 1, leaves or 4 do
+			local r = rng:NextNumber(7, 10) * s
+			local offset = if i == 1
+				then Vector3.new(0, trunkH + 2 * s, 0)
+				else Vector3.new(
+					rng:NextNumber(-4, 4) * s,
+					trunkH + rng:NextNumber(-1, 4) * s,
+					rng:NextNumber(-4, 4) * s
+				)
+			blob(offset, Vector3.new(r, r * 0.85, r), leafColor)
+		end
+	end
+	model.Parent = parent
 end
 
 local function streetLight(parent: Instance, pos: Vector3, yaw: number)
@@ -424,6 +535,25 @@ local function crossings(road: Road): { number }
 	return out
 end
 
+-- Whether `road` runs on past `at` in direction `dir` (-1 or 1).
+local function extendsToward(road: Road, at: number, dir: number): boolean
+	return if dir > 0 then road.to > at + ROAD_W / 2 else road.from < at - ROAD_W / 2
+end
+
+-- Crossings of roads that branch off toward `side` of this road.
+local function sideCuts(road: Road, side: number): { number }
+	local out = {}
+	for _, other in ROADS do
+		local onSpan = other.at >= road.from - 1 and other.at <= road.to + 1
+		local meets = road.at >= other.from - 1 and road.at <= other.to + 1
+		if other.axis ~= road.axis and onSpan and meets and extendsToward(other, road.at, side) then
+			table.insert(out, other.at)
+		end
+	end
+	table.sort(out)
+	return out
+end
+
 -- Spans of [from, to] with a hole of `half` around each cut.
 local function spans(from: number, to: number, cuts: { number }, half: number): { { number } }
 	local out = {}
@@ -468,17 +598,6 @@ local function buildRoad(parent: Instance, road: Road)
 	local cuts = crossings(road)
 	local half = ROAD_W / 2 + WALK_W
 	for _, s in spans(road.from, road.to, cuts, half) do
-		-- Raised concrete curb between road and sidewalk.
-		for _, side in { -1, 1 } do
-			local cf, len = alongCF(road, s[1], s[2], side * (ROAD_W / 2 + 0.3), 0.45)
-			part(parent, {
-				Name = "Curb",
-				Size = Vector3.new(len, 0.9, 0.6),
-				CFrame = cf,
-				Color = Color3.fromRGB(196, 194, 188),
-				Material = M.Concrete,
-			})
-		end
 		-- A manhole cover every so often in the right lane.
 		local along = s[1] + 30
 		while along < s[2] - 30 do
@@ -514,7 +633,11 @@ local function buildRoad(parent: Instance, road: Road)
 				CanCollide = false,
 			})
 		end
-		for _, side in { -1, 1 } do
+	end
+	-- Sidewalks and curbs per side: only a road that actually branches off on
+	-- that side cuts them, so T-junctions keep a continuous sidewalk.
+	for _, side in { -1, 1 } do
+		for _, s in spans(road.from, road.to, sideCuts(road, side), half) do
 			local cf, len =
 				alongCF(road, s[1], s[2], side * (ROAD_W / 2 + WALK_W / 2), WALK_TOP / 2)
 			part(parent, {
@@ -524,6 +647,41 @@ local function buildRoad(parent: Instance, road: Road)
 				Color = C.concrete,
 				Material = M.Concrete,
 			})
+			local curbCf, curbLen = alongCF(road, s[1], s[2], side * (ROAD_W / 2 + 0.3), 0.45)
+			part(parent, {
+				Name = "Curb",
+				Size = Vector3.new(curbLen, 0.9, 0.6),
+				CFrame = curbCf,
+				Color = Color3.fromRGB(196, 194, 188),
+				Material = M.Concrete,
+			})
+		end
+	end
+	-- Corner squares where both roads continue: neither sidewalk covers them.
+	if road.axis == "X" then
+		for _, other in ROADS do
+			if other.axis == "Z" and other.at >= road.from - 1 and other.at <= road.to + 1 then
+				for _, sz in { -1, 1 } do
+					if extendsToward(other, road.at, sz) then
+						for _, sx in { -1, 1 } do
+							if extendsToward(road, other.at, sx) then
+								local off = ROAD_W / 2 + WALK_W / 2
+								part(parent, {
+									Name = "SidewalkCorner",
+									Size = Vector3.new(WALK_W, WALK_TOP, WALK_W),
+									CFrame = CFrame.new(
+										other.at + sx * off,
+										WALK_TOP / 2,
+										road.at + sz * off
+									),
+									Color = C.concrete,
+									Material = M.Concrete,
+								})
+							end
+						end
+					end
+				end
+			end
 		end
 	end
 	for _, c in cuts do
@@ -2706,6 +2864,8 @@ local function buildStores(parent: Instance)
 end
 
 local kit = {
+	house = house,
+	onRoad = onRoad,
 	part = part,
 	box = box,
 	wedge = wedge,
@@ -2806,6 +2966,8 @@ function World.init()
 	end
 
 	town.Parent = workspace
+	local built = Infill.build(kit, town)
+	print(`[World] infill built {built} buildings`)
 	setupEnvironment()
 	game:GetService("StarterPlayer").CharacterWalkSpeed = Config.Player.WALK_SPEED
 end

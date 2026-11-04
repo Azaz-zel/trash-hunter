@@ -79,8 +79,48 @@ local function ownerOf(model: Model): Player?
 	return Players:GetPlayerByUserId(tonumber(model:GetAttribute("Owner")) or 0)
 end
 
+-- Puts a player who just left a seat beside the car instead of inside its body.
+local function stepOut(seat: BasePart, humanoid: Humanoid, model: Model)
+	local rider = Players:GetPlayerFromCharacter(humanoid.Parent)
+	if not rider or not model.Parent then
+		return
+	end
+	local _, size = model:GetBoundingBox()
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { model, humanoid.Parent :: Instance }
+	local side = seat.CFrame.RightVector
+	for _, dir in { -side, side, seat.CFrame.LookVector, -seat.CFrame.LookVector } do
+		local spot = seat.Position + dir * (size.X / 2 + 3)
+		local blocked = false
+		-- Box from the seat height up, so the ground under the car never counts.
+		local probe = CFrame.new(spot + Vector3.new(0, 2, 0))
+		for _, hit in workspace:GetPartBoundsInBox(probe, Vector3.new(3, 3.5, 3), params) do
+			if hit.CanCollide and hit.Size.Y > 1.2 then
+				blocked = true
+				break
+			end
+		end
+		if not blocked then
+			Guard.teleport(rider, Vector3.new(spot.X, seat.Position.Y - 2, spot.Z))
+			return
+		end
+	end
+	Guard.teleport(rider, seat.Position + Vector3.new(0, size.Y, 0))
+end
+
 local function guardSeats(model: Model)
 	for _, seat in model:GetDescendants() do
+		if seat:IsA("VehicleSeat") or seat:IsA("Seat") then
+			local last: Humanoid? = nil
+			seat:GetPropertyChangedSignal("Occupant"):Connect(function()
+				local left = last
+				last = seat.Occupant
+				if left and not seat.Occupant then
+					task.defer(stepOut, seat, left, model)
+				end
+			end)
+		end
 		if seat:IsA("VehicleSeat") then
 			seat:GetPropertyChangedSignal("Occupant"):Connect(function()
 				local humanoid = seat.Occupant

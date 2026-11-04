@@ -137,7 +137,7 @@ local function build()
 	tracker = Ui.new("Frame", {
 		Name = "Tracker",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(18, 76),
+		Position = UDim2.fromOffset(18, 110),
 		Size = UDim2.fromOffset(320, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Parent = gui,

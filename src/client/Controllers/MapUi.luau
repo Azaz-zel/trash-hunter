@@ -35,7 +35,7 @@ local DISTRICT_TINT = {
 	docks = Color3.fromRGB(110, 130, 150),
 }
 
-type Canvas = { world: Frame, scale: number, dots: { Frame }, arrow: Frame }
+type Canvas = { world: Frame, scale: number, dots: { Frame }, arrow: Frame, waypoint: Frame }
 
 local MapUi = {}
 
@@ -49,6 +49,12 @@ local cardSub: TextLabel
 local cardStripe: Frame
 -- Ready time per dumpster, indexed like Config.World.Dumpsters.
 local cooling: { number } = {}
+-- Player-set waypoint (click the full map), with its world marker.
+local waypoint: Vector3? = nil
+local waypointPart: Part? = nil
+local waypointText: TextLabel? = nil
+local edgeDot: Frame
+local streetLabel: TextLabel
 
 -- World (x, z) to canvas pixels. Origin is the map's north-west corner.
 local function toPixel(scale: number, x: number, z: number): (number, number)
@@ -228,6 +234,23 @@ local function drawWorld(parent: Instance, scale: number, labels: boolean): Canv
 			5
 		)
 	end
+	local wp = Ui.new("Frame", {
+		Name = "Waypoint",
+		AnchorPoint = Vector2.new(0.5, 1),
+		Size = UDim2.fromOffset(14, 18),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 9,
+		Parent = world,
+	})
+	Ui.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.fromScale(0.5, 0),
+		Size = UDim2.fromOffset(14, 14),
+		BackgroundColor3 = Color3.fromRGB(255, 80, 120),
+		ZIndex = 9,
+		Parent = wp,
+	}, { Ui.corner(7), Ui.stroke(2, C.cream) })
 	local arrow = Ui.new("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Size = UDim2.fromOffset(14, 14),
@@ -251,7 +274,27 @@ local function drawWorld(parent: Instance, scale: number, labels: boolean): Canv
 		ZIndex = 9,
 		Parent = arrow,
 	}, { Ui.corner(2) })
-	return { world = world, scale = scale, dots = dots, arrow = arrow }
+	-- Street names along named roads (full map only).
+	if labels then
+		for _, r in MapData.ROADS do
+			if r.name then
+				local mid = (r.from + r.to) / 2
+				local x = if r.axis == "X" then mid else r.at
+				local z = if r.axis == "X" then r.at else mid
+				local px, py = toPixel(scale, x, z)
+				Ui.label(r.name, 10, {
+					AnchorPoint = Vector2.new(0.5, 0.5),
+					Position = UDim2.fromOffset(px, py),
+					Size = UDim2.fromOffset(120, 12),
+					Rotation = if r.axis == "Z" then 90 else 0,
+					TextColor3 = Color3.fromRGB(60, 62, 66),
+					ZIndex = 4,
+					Parent = world,
+				})
+			end
+		end
+	end
+	return { world = world, scale = scale, dots = dots, arrow = arrow, waypoint = wp }
 end
 
 -- District id per dumpster, for permit locks.
@@ -278,6 +321,21 @@ local function refreshDots(canvas: Canvas)
 	end
 end
 
+local setWaypoint: (Vector3?) -> ()
+
+local function nearestStreet(pos: Vector3): string?
+	local best, bestDist = nil, MapData.ROAD_WIDTH / 2 + 14
+	for _, r in MapData.ROADS do
+		local along = if r.axis == "X" then pos.X else pos.Z
+		local across = if r.axis == "X" then pos.Z else pos.X
+		local dist = math.abs(across - r.at)
+		if r.name and along >= r.from - 10 and along <= r.to + 10 and dist < bestDist then
+			best, bestDist = r.name, dist
+		end
+	end
+	return best
+end
+
 local function build()
 	gui = Ui.new("ScreenGui", {
 		Name = "Map",
@@ -295,7 +353,7 @@ local function build()
 		Size = UDim2.fromOffset(MINI_SIZE, MINI_SIZE),
 		BackgroundColor3 = C.panel,
 		Parent = gui,
-	}, { Ui.corner(16) })
+	}, { Ui.corner(MINI_SIZE / 2) })
 	local miniButton = Ui.new("TextButton", {
 		Text = "",
 		BackgroundTransparency = 1,
@@ -313,14 +371,47 @@ local function build()
 		Position = UDim2.new(1, -16, 0, 16),
 		Size = UDim2.fromOffset(MINI_SIZE, MINI_SIZE),
 		Parent = gui,
-	}, { Ui.corner(16), Ui.stroke() })
-	Ui.label("N", 12, {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 3),
-		Size = UDim2.fromOffset(16, 14),
-		TextColor3 = C.cream,
-		TextStrokeTransparency = 0.3,
+	}, { Ui.corner(MINI_SIZE / 2), Ui.stroke(3, C.panel) })
+	-- Compass letters sit on the ring.
+	for _, c in { { "N", 0.5, 0 }, { "E", 1, 0.5 }, { "S", 0.5, 1 }, { "W", 0, 0.5 } } do
+		Ui.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(c[2], c[3]),
+			Size = UDim2.fromOffset(20, 20),
+			BackgroundColor3 = if c[1] == "N" then C.accent else C.panel,
+			ZIndex = 3,
+			Parent = border,
+		}, {
+			Ui.corner(10),
+			Ui.label(c[1], 12, {
+				Size = UDim2.fromScale(1, 1),
+				TextColor3 = if c[1] == "N" then C.ink else C.cream,
+				ZIndex = 3,
+			}),
+		})
+	end
+	-- Waypoint pointer on the ring when the waypoint is off the minimap.
+	edgeDot = Ui.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(12, 12),
+		BackgroundColor3 = Color3.fromRGB(255, 80, 120),
+		Visible = false,
+		ZIndex = 4,
 		Parent = border,
+	}, { Ui.corner(6), Ui.stroke(2, C.cream) })
+	-- Street and district under the minimap.
+	local strip = Ui.panel({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -16, 0, 16 + MINI_SIZE + 8),
+		Size = UDim2.fromOffset(MINI_SIZE + 24, 26),
+		Parent = gui,
+	})
+	streetLabel = Ui.label("", 13, {
+		Size = UDim2.new(1, -16, 1, 0),
+		Position = UDim2.fromOffset(8, 0),
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		TextWrapped = false,
+		Parent = strip,
 	})
 
 	-- Full map: fits the whole town on screen, with labels.
@@ -347,18 +438,50 @@ local function build()
 		TextXAlignment = Enum.TextXAlignment.Left,
 		Parent = fullFrame,
 	})
-	Ui.label(
-		"Green: ready · Gray: permit needed · Red: guarded · Blue: store · Purple: quests",
-		13,
-		{
-			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -96, 0, 18),
-			Size = UDim2.new(0.6, -96, 0, 18),
+	local legend = Ui.new("Frame", {
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -96, 0, 14),
+		Size = UDim2.new(1, -200, 0, 26),
+		BackgroundTransparency = 1,
+		Parent = fullFrame,
+	}, { Ui.list(Enum.FillDirection.Horizontal, 12, Enum.HorizontalAlignment.Right) })
+	local entries = {
+		{ "Dumpster", Color3.fromRGB(120, 230, 140) },
+		{ "Guarded", Color3.fromRGB(255, 120, 110) },
+		{ "Locked", Color3.fromRGB(150, 150, 156) },
+		{ "Store", Color3.fromRGB(80, 170, 255) },
+		{ "Quest", Color3.fromRGB(190, 120, 255) },
+		{ "Hideout", C.accent },
+		{ "Waypoint", Color3.fromRGB(255, 80, 120) },
+	}
+	for i, entry in entries do
+		local chip = Ui.new("Frame", {
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 26),
+			BackgroundTransparency = 1,
+			LayoutOrder = i,
+			Parent = legend,
+		}, { Ui.list(Enum.FillDirection.Horizontal, 5) })
+		Ui.new("Frame", {
+			Size = UDim2.fromOffset(10, 10),
+			BackgroundColor3 = entry[2],
+			Parent = chip,
+		}, { Ui.corner(5) })
+		Ui.label(entry[1], 12, {
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 26),
 			TextColor3 = C.muted,
-			TextXAlignment = Enum.TextXAlignment.Right,
-			Parent = fullFrame,
-		}
-	)
+			Parent = chip,
+		})
+	end
+	Ui.label("Click the map to set a waypoint. Click it again to clear.", 12, {
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, 16, 1, -2),
+		Size = UDim2.new(0.7, 0, 0, 12),
+		TextColor3 = C.muted,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Parent = fullFrame,
+	})
 	local close = Ui.button("Close", "secondary", UDim2.fromOffset(72, 36), function()
 		fullFrame.Visible = false
 	end)
@@ -374,6 +497,24 @@ local function build()
 		full = drawWorld(holder, if scale > 0 then scale else 0.25, true)
 		full.world.AnchorPoint = Vector2.new(0.5, 0.5)
 		full.world.Position = UDim2.fromScale(0.5, 0.5)
+		full.world.InputBegan:Connect(function(input)
+			if
+				input.UserInputType ~= Enum.UserInputType.MouseButton1
+				and input.UserInputType ~= Enum.UserInputType.Touch
+			then
+				return
+			end
+			local w = full.world
+			local f = (Vector2.new(input.Position.X, input.Position.Y) - w.AbsolutePosition)
+				/ w.AbsoluteSize
+			local spot = Vector3.new(B.x0 + f.X * (B.x1 - B.x0), 0, B.z1 - f.Y * (B.z1 - B.z0))
+			-- Clicking near the current waypoint clears it.
+			if waypoint and (waypoint - spot).Magnitude < 40 then
+				setWaypoint(nil)
+			else
+				setWaypoint(spot)
+			end
+		end)
 	end)
 
 	-- Location card left of the minimap (the side buttons sit below it).
@@ -424,6 +565,54 @@ local function showCard(title: string, sub: string, stripe: Color3)
 			Ui.tween(card, 0.6, { GroupTransparency = 1 })
 		end
 	end)
+end
+
+setWaypoint = function(spot: Vector3?)
+	waypoint = spot
+	if waypointPart then
+		waypointPart:Destroy()
+		waypointPart, waypointText = nil, nil
+	end
+	for _, canvas in { mini, full } do
+		if canvas then
+			canvas.waypoint.Visible = spot ~= nil
+			if spot then
+				local px, py = toPixel(canvas.scale, spot.X, spot.Z)
+				canvas.waypoint.Position = UDim2.fromOffset(px, py)
+			end
+		end
+	end
+	if not spot then
+		edgeDot.Visible = false
+		return
+	end
+	-- A tall beacon in the world, visible through buildings.
+	local beacon = Instance.new("Part")
+	beacon.Name = "WaypointBeacon"
+	beacon.Anchored = true
+	beacon.CanCollide = false
+	beacon.CanQuery = false
+	beacon.CanTouch = false
+	beacon.CastShadow = false
+	beacon.Material = Enum.Material.Neon
+	beacon.Color = Color3.fromRGB(255, 80, 120)
+	beacon.Transparency = 0.35
+	beacon.Size = Vector3.new(3, 120, 3)
+	beacon.Position = spot + Vector3.new(0, 60, 0)
+	local tag = Instance.new("BillboardGui")
+	tag.AlwaysOnTop = true
+	tag.Size = UDim2.fromOffset(160, 36)
+	tag.StudsOffset = Vector3.new(0, -30, 0)
+	tag.LightInfluence = 0
+	local label = Ui.label("", 20, {
+		Size = UDim2.fromScale(1, 1),
+		TextColor3 = Color3.fromRGB(255, 150, 170),
+		TextStrokeTransparency = 0.2,
+		Parent = tag,
+	})
+	tag.Parent = beacon
+	beacon.Parent = workspace
+	waypointPart, waypointText = beacon, label
 end
 
 function MapUi.init()
@@ -482,6 +671,32 @@ function MapUi.start()
 		end
 		local px, py = toPixel(mini.scale, pos.X, pos.Z)
 		mini.world.Position = UDim2.fromOffset(MINI_SIZE / 2 - px, MINI_SIZE / 2 - py)
+
+		local here = Districts.at(pos)
+		local street = nearestStreet(pos)
+		local area = if here then here.name else "Outskirts"
+		streetLabel.Text = if street then `{street} · {area}` else area
+
+		local wp = waypoint
+		if wp then
+			local flat = Vector3.new(wp.X - pos.X, 0, wp.Z - pos.Z)
+			local dist = flat.Magnitude
+			if dist < 18 then
+				setWaypoint(nil)
+			else
+				if waypointText then
+					waypointText.Text = `{math.floor(dist)} studs`
+				end
+				-- Pixel offset on the minimap (north-up: +Z is up, +X is right).
+				local offset = Vector2.new(flat.X, -flat.Z) * mini.scale
+				local radius = MINI_SIZE / 2 - 10
+				edgeDot.Visible = offset.Magnitude > radius
+				if edgeDot.Visible then
+					local edge = offset.Unit * radius
+					edgeDot.Position = UDim2.new(0.5, edge.X, 0.5, edge.Y)
+				end
+			end
+		end
 		refreshDots(mini)
 		if full and fullFrame.Visible then
 			refreshDots(full)
