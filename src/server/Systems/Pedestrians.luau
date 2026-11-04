@@ -3,10 +3,11 @@
 -- sidewalk, then on to the next block, sometimes crossing at the corner (at
 -- a signal they wait for the walk phase). Some hang out: waiting at a bus
 -- stop, queueing at a food cart, sitting on a plaza bench. Street vendors
--- (kaki lima) mind their stalls, often with a customer or two. Walkers are
--- busier where the city is denser, and a walker far from every player moves
--- to a street near one, so wherever players are the town feels alive. Any
--- of them will barter (see Barter.luau); a walker stops while an offer is open.
+-- (hot dog, taco and halal carts and the like) mind their stalls, often
+-- with a customer or two. Walkers are busier where the city is denser, and
+-- a walker far from every player moves to a street near one, so wherever
+-- players are the town feels alive. Any of them will barter (see
+-- Barter.luau); a walker stops while an offer is open.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")

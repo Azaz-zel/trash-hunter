@@ -1326,22 +1326,23 @@ for _, r in { PLAZA, PARK } do
 	end
 end
 
--- Street vendors (kaki lima): a small stall on the curb with the vendor
--- beside it. The streets around the Hideout get them first, so the first blocks a
--- new player walks are busy; elsewhere the rest are spread over the city.
+-- Street vendors: food carts and stands on the curb with the vendor beside
+-- them, like a big American downtown (hot dog and halal carts, a taco stand,
+-- a neon noodle bar). The streets around the Hideout get them first, so the
+-- first blocks a new player walks are busy; the rest spread over the city.
 -- The stall sits between the curb and the walking line (frame origin on the
 -- curb, +Z toward the shops), so walkers pass in front of it.
 local VENDOR_KINDS =
-	{ "bakso", "satay", "fruit", "hotdog", "coffee", "news", "icecream", "martabak" }
+	{ "hotdog", "tacos", "halal", "pretzel", "coffee", "news", "icecream", "noodles" }
 local VENDOR_NAMES = {
-	bakso = "Bakso",
-	satay = "Satay Grill",
-	fruit = "Fresh Fruit",
 	hotdog = "Hot Dogs",
+	tacos = "Tacos",
+	halal = "Halal Food",
+	pretzel = "Pretzels",
 	coffee = "Coffee",
 	news = "Newsstand",
 	icecream = "Ice Cream",
-	martabak = "Martabak",
+	noodles = "Noodle Bar",
 }
 local VENDOR_AREAS = {
 	downtown = true,

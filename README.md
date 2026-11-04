@@ -52,6 +52,10 @@ The server decides every outcome. Clients send requests through one RemoteFuncti
 - `E` / tap prompt: search, sell counter, upgrade shop
 - `F` / DIG button: Perfect Dig tap
 - `B` bag, `C` collection book, `G` Drop & Run, `Esc` close panel
+- `M` / tap the radar: full map. Drag to move, scroll or pinch to zoom, tap a pin
+  for details and **Set GPS**, or use **Go to** for the nearest Hideout, open
+  dumpster, store, quest or mission. The radar (top right) turns with the
+  camera, so up is the way you face; the N badge shows north.
 
 ## Checks
 

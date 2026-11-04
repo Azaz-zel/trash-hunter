@@ -1355,33 +1355,34 @@ local function dressStreets(k: Kit, parent: Instance)
 	end
 end
 
--- Street vendor (kaki lima) stall on the curb: a cart under a striped
--- canopy with its goods on top and a name board on both sides. Frame: origin
--- on the curb, +Z toward the shops; the vendor stands at +X (Pedestrians).
+-- Street vendor stall on the curb: a steel cart under a striped canopy with
+-- its goods on top, a name board on both sides and a neon trim that glows at
+-- night. Frame: origin on the curb, +Z toward the shops; the vendor stands
+-- at +X (Pedestrians).
 local VENDOR_LOOK = {
-	bakso = {
-		body = Color3.fromRGB(235, 232, 220),
-		roof = Color3.fromRGB(200, 40, 40),
+	hotdog = {
+		body = Color3.fromRGB(205, 210, 215),
+		roof = Color3.fromRGB(220, 40, 40),
 		goods = "pot",
 	},
-	satay = {
-		body = Color3.fromRGB(120, 80, 50),
-		roof = Color3.fromRGB(230, 150, 30),
+	tacos = {
+		body = Color3.fromRGB(60, 140, 90),
+		roof = Color3.fromRGB(250, 170, 30),
 		goods = "grill",
 	},
-	fruit = {
-		body = Color3.fromRGB(150, 110, 70),
-		roof = Color3.fromRGB(40, 150, 70),
-		goods = "fruit",
-	},
-	hotdog = {
-		body = Color3.fromRGB(220, 220, 225),
+	halal = {
+		body = Color3.fromRGB(205, 210, 215),
 		roof = Color3.fromRGB(240, 200, 40),
-		goods = "pot",
+		goods = "grill",
+	},
+	pretzel = {
+		body = Color3.fromRGB(150, 95, 50),
+		roof = Color3.fromRGB(40, 90, 170),
+		goods = "pretzel",
 	},
 	coffee = {
-		body = Color3.fromRGB(70, 50, 40),
-		roof = Color3.fromRGB(150, 90, 50),
+		body = Color3.fromRGB(45, 40, 40),
+		roof = Color3.fromRGB(30, 30, 34),
 		goods = "cups",
 	},
 	news = {
@@ -1394,22 +1395,27 @@ local VENDOR_LOOK = {
 		roof = Color3.fromRGB(240, 120, 170),
 		goods = "cups",
 	},
-	martabak = {
-		body = Color3.fromRGB(220, 200, 150),
-		roof = Color3.fromRGB(230, 90, 30),
-		goods = "grill",
+	noodles = {
+		body = Color3.fromRGB(30, 30, 40),
+		roof = Color3.fromRGB(20, 20, 28),
+		goods = "pot",
 	},
 }
-local FRUIT = {
-	Color3.fromRGB(230, 60, 40),
-	Color3.fromRGB(250, 180, 30),
-	Color3.fromRGB(110, 190, 60),
-	Color3.fromRGB(250, 220, 60),
+-- Neon trim colour per stall (cyberpunk edge on the night streets).
+local VENDOR_NEON = {
+	hotdog = Color3.fromRGB(255, 70, 70),
+	tacos = Color3.fromRGB(255, 170, 40),
+	halal = Color3.fromRGB(255, 220, 60),
+	pretzel = Color3.fromRGB(80, 170, 255),
+	coffee = Color3.fromRGB(255, 120, 60),
+	news = Color3.fromRGB(90, 200, 255),
+	icecream = Color3.fromRGB(255, 110, 220),
+	noodles = Color3.fromRGB(0, 240, 255),
 }
 
 local function vendorStall(k: Kit, parent: Instance, cf: CFrame, kind: string)
 	local C, M = k.C, k.M
-	local look = VENDOR_LOOK[kind] or VENDOR_LOOK.bakso
+	local look = VENDOR_LOOK[kind] or VENDOR_LOOK.hotdog
 	local base = cf * CFrame.new(0, k.WALK_TOP, 1.6)
 	local model = Instance.new("Model")
 	model.Name = "VendorStall"
@@ -1474,6 +1480,18 @@ local function vendorStall(k: Kit, parent: Instance, cf: CFrame, kind: string)
 		Material = M.Neon,
 		CanCollide = false,
 	})
+	-- Neon trim along the canopy edges.
+	for _, z in { -1.95, 1.95 } do
+		local trim = k.box(
+			model,
+			"StallNeon",
+			base * CFrame.new(0, 8.1, z),
+			Vector3.new(7.6, 0.15, 0.15),
+			VENDOR_NEON[kind] or C.white,
+			M.Neon
+		)
+		trim.CanCollide = false
+	end
 	-- Name board under the canopy, readable from the street and the walk.
 	local board = k.box(
 		model,
@@ -1524,14 +1542,16 @@ local function vendorStall(k: Kit, parent: Instance, cf: CFrame, kind: string)
 		smoke.RiseVelocity = 3
 		smoke.Size = 1.5
 		smoke.Parent = grill
-	elseif look.goods == "fruit" then
-		for i = 0, 7 do
+	elseif look.goods == "pretzel" then
+		for i = 0, 5 do
 			k.part(model, {
-				Name = "StallFruit",
-				Shape = Enum.PartType.Ball,
-				Size = Vector3.new(0.8, 0.8, 0.8),
-				CFrame = top * CFrame.new(-2.4 + (i % 4) * 1.6, 0.4, if i < 4 then -0.6 else 0.6),
-				Color = FRUIT[i % #FRUIT + 1],
+				Name = "StallPretzel",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(0.35, 1.1, 1.1),
+				CFrame = top
+					* CFrame.new(-2.2 + (i % 3) * 1.5, 0.2, if i < 3 then -0.6 else 0.6)
+					* CFrame.Angles(0, 0, math.rad(90)),
+				Color = Color3.fromRGB(170, 100, 40),
 				Material = M.SmoothPlastic,
 			})
 		end
@@ -1660,7 +1680,7 @@ local function buildHangouts(k: Kit, parent: Instance)
 				M.Metal
 			)
 		elseif h.kind == "vendor" then
-			vendorStall(k, parent, cf, h.label or "bakso")
+			vendorStall(k, parent, cf, h.label or "hotdog")
 		end
 	end
 end
