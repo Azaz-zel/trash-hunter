@@ -91,3 +91,23 @@ Enum = setmetatable({}, {
 	end,
 })
 load("ItemModels").selfCheck()
+
+-- Economy guards: the boost cap holds and the published odds add up.
+local Loot = load("Loot")
+local function sum(t)
+	local n = 0
+	for _, x in t do
+		n += x
+	end
+	return n
+end
+check(math.abs(sum(Loot.odds(0)) - 1) < 1e-9, "odds add up to 100%")
+local capped = Loot.odds(99)
+local atCap = Loot.odds(Config.Boost.MAX)
+check(capped[#capped] == atCap[#atCap], "boost above the cap gives the capped odds")
+check(atCap[#atCap] < 0.005, `Secret per bag at the cap is {atCap[#atCap]}, must stay under 0.5%`)
+local f1 = Loot.featured(0)
+local f2 = Loot.featured(7 * 86400)
+check(Items.ById[f1] ~= nil and Items.ById[f1].season == nil, "featured item is a real, non-seasonal item")
+check(f1 ~= f2, "featured item changes week to week")
+print(`Secret at cap: {string.format("%.3f", atCap[#atCap] * 100)}%`)

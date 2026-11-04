@@ -97,6 +97,11 @@ local function request(player: Player, userId: any): (boolean, string?)
 	if not near(player, target, TC.RANGE) then
 		return false, "Get closer to trade."
 	end
+	-- One open request per target, so nobody can be spammed with popups.
+	local open = invites[target]
+	if open and open.expires > os.clock() then
+		return false, `{target.DisplayName} already has a request open.`
+	end
 	invites[target] = { from = player, expires = os.clock() + TC.REQUEST_SECONDS }
 	Router.send(target, "tradeInvite", { from = player.DisplayName, seconds = TC.REQUEST_SECONDS })
 	return true, `Trade request sent to {target.DisplayName}.`

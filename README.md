@@ -43,10 +43,28 @@ and an owner of several chooses which one to live in. Players never clash
 over a house: a profile stores house *types*, and each server hands every
 player one of Sunset Ln's lots when they join and builds their type there.
 
+### Localization
+
+Turn on automatic translation (Creator Dashboard > Localization) with
+Indonesian as a target, and keep text capture on: every on-screen string is
+plain English text that Roblox can capture and translate.
+
+### Security model
+
+Clients send requests through one RemoteFunction; `Router` rejects any
+payload that is not a small flat value or table and rate limits every
+action. Every handler re-checks distance, ownership and state on the server.
+`Guard` pulls players back when they move faster than walking or driving
+allows (teleport exploits). Loot is rolled on the server, the summed luck
+boost is capped (`Config.Boost.MAX`), Perfect Dig bots lose the bonus, house
+likes count once per account, trades are re-validated before the swap, saves
+use a session lock and Robux receipts are saved before they are granted.
+
 ### Tests
 
 `python3 tests/run.py path/to/luau` runs the shared-module self-checks, the
-city layout rules and a five-minute traffic simulation in the plain Luau CLI
+city layout and economy rules, the Router's payload and rate-limit checks and
+a five-minute traffic simulation in the plain Luau CLI
 (CI downloads it).
 
 ## Structure

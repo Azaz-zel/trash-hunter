@@ -118,7 +118,6 @@ type Lot = { cf: CFrame, owner: Player?, folder: Folder }
 
 local lots: { Lot } = {}
 local lotOf: { [Player]: Lot } = {}
-local likedBy: { [Player]: { [Player]: boolean } } = {} -- owner -> likers this server
 
 local Housing = {}
 
@@ -659,10 +658,6 @@ end
 local function release(player: Player)
 	local lot = lotOf[player]
 	lotOf[player] = nil
-	likedBy[player] = nil
-	for _, set in likedBy do
-		set[player] = nil
-	end
 	if lot then
 		lot.owner = nil
 		render(lot)
@@ -791,15 +786,15 @@ local function like(player: Player, index: any): (boolean, string?)
 	if Guard.distance(player, (lot.cf * CFrame.new(-6, 0, 2)).Position) > LIKE_RANGE then
 		return false, nil
 	end
-	local set = likedBy[owner]
-	if not set then
-		set = {}
-		likedBy[owner] = set
-	end
-	if set[player] then
+	-- Once per account, ever: remembered by user id in the owner's save, so
+	-- rejoining (or a new server) cannot like the same house again.
+	if table.find(ownerProfile.likers, player.UserId) then
 		return false, "You already liked this house."
 	end
-	set[player] = true
+	table.insert(ownerProfile.likers, player.UserId)
+	while #ownerProfile.likers > Config.MAX_LIKERS do
+		table.remove(ownerProfile.likers, 1)
+	end
 	ownerProfile.likes += 1
 	render(lot)
 	Router.send(owner, "liked", { by = player.DisplayName, likes = ownerProfile.likes })
@@ -819,6 +814,17 @@ local function visit(player: Player, userId: any): (boolean, string?)
 		or (tonumber(player:GetAttribute("Wanted")) or 0) > 0
 	then
 		return false, "Not with the law on your tail."
+	end
+	-- No free exit from the guarded yard or a dig in progress.
+	local root = Guard.root(player)
+	if
+		(root and Guard.inRedZone(root.Position))
+		or (tonumber(player:GetAttribute("Suspicion")) or 0) > 0
+	then
+		return false, "Lose the guards' attention first."
+	end
+	if (tonumber(player:GetAttribute("Digging")) or 0) > 0 or Guard.isFlagged(player) then
+		return false, "Finish what you're doing first."
 	end
 	Guard.teleport(player, (lot.cf * CFrame.new(0, 0, SETBACK / 2)).Position)
 	return true, nil

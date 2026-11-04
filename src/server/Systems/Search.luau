@@ -53,6 +53,10 @@ local sessions: { [Player]: Session } = {}
 local cooldowns: { [Player]: { [Model]: number } } = {}
 local lastPrompt: { [Player]: number } = {}
 local combos: { [Player]: { n: number, last: number } } = {}
+-- Recent Perfect Dig offsets per player (|tap - zone centre|), for bot checks.
+local tapHistory: { [Player]: { number } } = {}
+local BOT_WINDOW = 10 -- taps looked at
+local BOT_SPREAD = 0.012 -- humans are never this precise ten times running
 local tokenCounter = 0
 
 local Search = {}
@@ -159,7 +163,7 @@ local function boostFor(player: Player, session: Session): number
 	if profile and profile.luckUntil > os.time() then
 		boost += luck.HOUR_BOOST
 	end
-	return boost
+	return math.min(boost, Config.Boost.MAX)
 end
 
 -- A bag's look: 1 light, 2 medium, 3 heavy. Correlates with rarity, but noisy.
@@ -196,6 +200,21 @@ local function rollBags(player: Player, session: Session, profile: any)
 		if pityRarity then
 			local lucky = rng:NextInteger(1, count)
 			bags[lucky] = Loot.roll(rng, boost, pityRarity, city)
+			looks[lucky] = { weight = weightOf(bags[lucky]) }
+		end
+	end
+	-- Daily bonus: the first dig of each UTC day hides at least one Rare.
+	local today = math.floor(os.time() / 86400)
+	if not force and session.depth == 0 and profile.dailyDig ~= today then
+		local best = 1
+		for i, bag in bags do
+			if bag.rarity > bags[best].rarity then
+				best = i
+			end
+		end
+		if bags[best].rarity < 3 then
+			local lucky = rng:NextInteger(1, count)
+			bags[lucky] = Loot.roll(rng, boost, 3, city)
 			looks[lucky] = { weight = weightOf(bags[lucky]) }
 		end
 	end
@@ -294,6 +313,28 @@ local function digTap(player: Player, at: any): (boolean, any)
 		then "perfect"
 		elseif off <= S.GOOD_WIDTH / 2 then "good"
 		else "miss"
+	-- Auto-tappers hit the dead centre every time; people scatter. Ten
+	-- near-centre taps in a row count as a bot: no Perfect bonus, logged.
+	local history = tapHistory[player] or {}
+	tapHistory[player] = history
+	table.insert(history, off)
+	while #history > BOT_WINDOW do
+		table.remove(history, 1)
+	end
+	if #history == BOT_WINDOW and session.grade == "perfect" then
+		local worst = 0
+		for _, o in history do
+			worst = math.max(worst, o)
+		end
+		if worst < BOT_SPREAD then
+			session.grade = "good"
+			if not player:GetAttribute("SuspectAutoDig") then
+				player:SetAttribute("SuspectAutoDig", true)
+				warn(`[Search] {player.Name} lands machine-perfect digs; Perfect bonus withheld`)
+				Analytics.event(player, "SuspectAutoDig")
+			end
+		end
+	end
 	if session.grade == "perfect" then
 		Analytics.event(player, "PerfectDig")
 		Ranks.add(player, Config.Levels.PERFECT_XP)
@@ -342,6 +383,7 @@ pick = function(player: Player, index: any): (boolean, string?)
 	session.pending = roll
 	-- Combo: the first pick at each dumpster counts.
 	if session.depth == 0 then
+		profile.dailyDig = math.floor(os.time() / 86400)
 		local now = os.clock()
 		local c = combos[player]
 		local n = if c and now - c.last < S.COMBO_WINDOW then math.min(S.COMBO_MAX, c.n + 1) else 1
@@ -600,6 +642,7 @@ function Search.start()
 		cooldowns[player] = nil
 		lastPrompt[player] = nil
 		combos[player] = nil
+		tapHistory[player] = nil
 	end)
 
 	-- Fresh drops: refill a few dumpsters now and then, with sparkles.

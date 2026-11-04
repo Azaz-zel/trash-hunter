@@ -23,6 +23,39 @@ function Loot.weights(boost: number): { number }
 	return out
 end
 
+-- Chance of each rarity for one bag, as fractions (published in the Odds
+-- window: Roblox requires odds for paid luck). Boost is capped like Search does.
+function Loot.odds(boost: number): { number }
+	local w = Loot.weights(math.min(boost, Config.Boost.MAX))
+	local total = 0
+	for _, x in w do
+		total += x
+	end
+	local out = {}
+	for i, x in w do
+		out[i] = x / total
+	end
+	return out
+end
+
+-- The featured item of the week (UTC weeks from Monday): a Rare-to-Legendary
+-- Maple item that drops three times as often within its rarity this week.
+function Loot.featured(now: number?): (string, number)
+	local t = now or os.time()
+	local week = math.floor((t / 86400 + 3) / 7) -- 1970-01-01 was a Thursday
+	local pool = {}
+	for _, item in Items.List do
+		if not item.city and not item.season and item.rarity >= 3 and item.rarity <= 5 then
+			table.insert(pool, item)
+		end
+	end
+	table.sort(pool, function(a, b)
+		return a.id < b.id
+	end)
+	local ends = (week + 1) * 7 * 86400 - 3 * 86400
+	return pool[week % #pool + 1].id, ends
+end
+
 function Loot.rollRarity(rng: Random, boost: number): number
 	local weights = Loot.weights(boost)
 	local total = 0
@@ -52,6 +85,15 @@ function Loot.roll(rng: Random, boost: number, forceRarity: number?, city: strin
 	end
 	if #pool == 0 then
 		pool = bucket
+	end
+	-- The featured item counts three times in its bucket this week.
+	local featured = Loot.featured()
+	for _, it in pool do
+		if it.id == featured then
+			table.insert(pool, it)
+			table.insert(pool, it)
+			break
+		end
 	end
 	local item = pool[rng:NextInteger(1, #pool)]
 	local mutation: string? = nil

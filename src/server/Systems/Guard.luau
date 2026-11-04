@@ -12,6 +12,10 @@ local World = Config.World
 local SAMPLE = 0.25
 
 local lastPos: { [Player]: Vector3 } = {}
+-- Last place each player stood legitimately, and the body it was measured
+-- on (a respawn is a new body, not a teleport).
+local lastGood: { [Player]: Vector3 } = {}
+local lastRoot: { [Player]: BasePart } = {}
 local flaggedUntil: { [Player]: number } = {}
 -- Server-initiated teleports (capture) must not trip the check.
 local ignoreUntil: { [Player]: number } = {}
@@ -121,6 +125,11 @@ function Guard.start()
 				lastPos[player] = nil
 				continue
 			end
+			if lastRoot[player] ~= root then
+				lastRoot[player] = root
+				lastPos[player] = nil
+				lastGood[player] = nil
+			end
 			local pos = flat(root.Position)
 			local prev = lastPos[player]
 			lastPos[player] = pos
@@ -134,7 +143,20 @@ function Guard.start()
 				then
 					flaggedUntil[player] = now + Config.Guard.FLAG_SECONDS
 					warn(`[Guard] {player.Name} moved at {math.floor(speed)} studs/s`)
+					-- On foot: pull them back to where they last stood legitimately,
+					-- so a teleport exploit never reaches a counter or a dumpster.
+					local good = lastGood[player]
+					if not seated and good then
+						root.AssemblyLinearVelocity = Vector3.zero
+						root:PivotTo(CFrame.new(good))
+						lastPos[player] = flat(good)
+						ignoreUntil[player] = now + 0.5
+					end
+				elseif not seated then
+					lastGood[player] = root.Position
 				end
+			elseif not prev then
+				lastGood[player] = root.Position
 			end
 			-- Replicated so the client can enable Hideout-only buttons.
 			player:SetAttribute("InHideout", Guard.inHideout(player))
@@ -144,6 +166,8 @@ function Guard.start()
 
 	Players.PlayerRemoving:Connect(function(player)
 		lastPos[player] = nil
+		lastGood[player] = nil
+		lastRoot[player] = nil
 		flaggedUntil[player] = nil
 		ignoreUntil[player] = nil
 	end)

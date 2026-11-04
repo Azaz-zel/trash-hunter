@@ -38,6 +38,8 @@ export type PlayerProfile = {
 	houses: { [string]: boolean }, -- house types owned (always the Trailer)
 	home: { BagItem }, -- house storage; the best of it stands on the pedestals
 	likes: number, -- likes other players gave the house
+	likers: { number }, -- user ids that liked it (once per account, ever)
+	dailyDig: number, -- UTC day of the last daily first-dig bonus
 	stats: { [string]: number }, -- searches, rares, earned (only grow; permits read them)
 	streak: number, -- consecutive login days
 	lastLogin: number, -- UTC day number of the last streak reward
@@ -106,6 +108,7 @@ export type State = {
 	luckUntil: number,
 	rerolls: number,
 	story: StoryState,
+	dailyDig: number,
 }
 
 return nil

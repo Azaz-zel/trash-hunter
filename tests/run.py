@@ -3,8 +3,8 @@
 
 The CLI cannot read files at run time, so each test is bundled with
 tests/shim.luau (Roblox datatype stand-ins), a small module loader and the
-source of every module it may require (src/shared/*.luau and the client
-Traffic controller). Inside a test, `load("Config")` returns a module.
+source of every module it may require (src/shared/*.luau, the client Traffic
+controller and the server Router). Inside a test, `load("Config")` returns a module.
 
 Usage: python3 tests/run.py [path/to/luau]
 """
@@ -18,6 +18,7 @@ LUAU = sys.argv[1] if len(sys.argv) > 1 else "luau"
 
 MODULES = {os.path.splitext(os.path.basename(p))[0]: p for p in glob.glob(os.path.join(ROOT, "src/shared/*.luau"))}
 MODULES["Traffic"] = os.path.join(ROOT, "src/client/Controllers/Traffic.luau")
+MODULES["Router"] = os.path.join(ROOT, "src/server/Router.luau")
 
 
 def module_source(name, path):

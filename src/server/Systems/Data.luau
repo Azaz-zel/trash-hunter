@@ -233,6 +233,18 @@ local function reconcile(raw: any): Profile
 		houses = houses,
 		home = home,
 		likes = math.max(math.floor(tonumber(data.likes) or 0), 0),
+		likers = (function()
+			local out = {}
+			if typeof(data.likers) == "table" then
+				for _, id in data.likers do
+					if typeof(id) == "number" and #out < Config.MAX_LIKERS then
+						table.insert(out, math.floor(id))
+					end
+				end
+			end
+			return out
+		end)(),
+		dailyDig = math.floor(tonumber(data.dailyDig) or 0),
 		stats = stats,
 		streak = math.max(math.floor(tonumber(data.streak) or 0), 0),
 		lastLogin = math.floor(tonumber(data.lastLogin) or 0),
@@ -475,6 +487,7 @@ function Data.snapshot(profile: Profile, player: Player?): Types.State
 		luckUntil = profile.luckUntil,
 		rerolls = profile.rerolls,
 		story = profile.story,
+		dailyDig = profile.dailyDig,
 	}
 end
 

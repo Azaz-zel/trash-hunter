@@ -801,6 +801,10 @@ return table.freeze({
 		PER_DEEPER = 1,
 		FRIEND = 0.25,
 		HEAVY = 1, -- heavy dumpsters need two players to open
+		-- Cap on the summed boost. Every bonus stacked (yard, deeper, heavy,
+		-- fresh, combo, Perfect, crew, luck) would reach ~9.9 and make Secrets
+		-- 15000x likelier (6% per bag); 4.0 keeps the top end rare.
+		MAX = 4.0,
 	}),
 
 	-- Pedestrians offer trades for one item in your backpack.
@@ -820,6 +824,7 @@ return table.freeze({
 	}),
 
 	SHELF_SLOTS = 3,
+	MAX_LIKERS = 400, -- liker ids remembered per house (oldest drop off)
 
 	Suspicion = table.freeze({
 		SEARCH_RATE = 14, -- per second while digging in a red zone

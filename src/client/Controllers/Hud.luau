@@ -10,6 +10,7 @@ local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local Config = require(Shared:WaitForChild("Config"))
 local Items = require(Shared:WaitForChild("Items"))
 local Levels = require(Shared:WaitForChild("Levels"))
+local Loot = require(Shared:WaitForChild("Loot"))
 local Ui = require(script.Parent.Parent.Ui)
 local Store = require(script.Parent.Parent.Store)
 
@@ -40,6 +41,8 @@ local levelBadge: TextLabel
 local xpFill: Frame
 local eventChip: TextLabel
 local luckChip: TextLabel
+local dailyChip: TextLabel
+local featuredChip: TextLabel
 local levelUp: Frame
 local levelUpTitle: TextLabel
 local levelUpSub: TextLabel
@@ -309,6 +312,26 @@ local function build()
 	Ui.stroke(1, Color3.fromRGB(80, 160, 255)).Parent = eventChip
 	Ui.new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }).Parent =
 		eventChip
+	local function chipLabel(order: number, bg: Color3, fg: Color3): TextLabel
+		local c = Ui.label("", 13, {
+			AutomaticSize = Enum.AutomaticSize.X,
+			Size = UDim2.fromOffset(0, 28),
+			BackgroundColor3 = bg,
+			BackgroundTransparency = 0.1,
+			Font = Ui.FONT,
+			TextColor3 = fg,
+			Visible = false,
+			LayoutOrder = order,
+			Parent = chips,
+		})
+		Ui.corner(8).Parent = c
+		Ui.stroke(1, fg).Parent = c
+		Ui.new("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }).Parent =
+			c
+		return c
+	end
+	dailyChip = chipLabel(5, Color3.fromRGB(50, 30, 60), Color3.fromRGB(230, 150, 255))
+	featuredChip = chipLabel(6, Color3.fromRGB(50, 44, 16), Color3.fromRGB(255, 220, 110))
 	luckChip = Ui.label("", 13, {
 		AutomaticSize = Enum.AutomaticSize.X,
 		Size = UDim2.fromOffset(0, 28),
@@ -666,6 +689,17 @@ local function renderChips()
 	if luckLeft > 0 then
 		luckChip.Text = `🍀 Lucky Hour {math.ceil(luckLeft / 60)}m`
 	end
+	-- Daily first-dig bonus and the featured item of the week.
+	local today = math.floor(workspace:GetServerTimeNow() / 86400)
+	dailyChip.Visible = state ~= nil and state.dailyDig ~= today
+	dailyChip.Text = "🎁 First dig today hides a Rare"
+	local featuredId, ends = Loot.featured(workspace:GetServerTimeNow())
+	local item = Items.ById[featuredId]
+	featuredChip.Visible = item ~= nil
+	if item then
+		local days = math.max(0, math.ceil((ends - workspace:GetServerTimeNow()) / 86400))
+		featuredChip.Text = `⭐ Featured: {item.name} · {days}d`
+	end
 	local eventName = tostring(workspace:GetAttribute("EventName") or "")
 	eventChip.Visible = eventName ~= ""
 	eventChip.Text = `🎉 {eventName}`
@@ -683,6 +717,14 @@ local function renderChips()
 	end
 	freshChip.Visible = count > 0
 	freshChip.Text = `✨ {count} fresh drop{if count == 1 then "" else "s"}`
+	-- At most four chips (two rows), most urgent first.
+	local shownCount = 0
+	for _, chip in { comboChip, luckChip, eventChip, freshChip, dailyChip, featuredChip } do
+		if chip.Visible then
+			shownCount += 1
+			chip.Visible = shownCount <= 4
+		end
+	end
 end
 
 local levelToken = 0

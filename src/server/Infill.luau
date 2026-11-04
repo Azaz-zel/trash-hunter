@@ -1475,7 +1475,7 @@ local function diner(k: Kit, parent: Instance, cf: CFrame)
 	k.sign(
 		sign,
 		Enum.NormalId.Front,
-		pick(k, { "MOON DINER", "ROUTE 9 EATS", "STARLITE DINER", "MEL'S 24/7" }),
+		pick(k, { "MOON DINER", "ROUTE 9 EATS", "STARLITE DINER", "MAX'S 24/7" }),
 		Color3.fromRGB(20, 20, 26),
 		Color3.fromRGB(255, 80, 120)
 	)

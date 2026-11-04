@@ -260,6 +260,19 @@ local function renderHouses(state: any, order: number): number
 end
 
 local function renderRobux(state: any, order: number): number
+	-- Paid luck: the odds are one tap away (Roblox requires them published).
+	product(
+		order,
+		{ color = Color3.fromRGB(150, 110, 220), text = "%" },
+		"Drop odds",
+		"Exact chances per bag, with and without luck boosts",
+		"View",
+		true,
+		function()
+			Store.emit("openOdds", nil)
+		end
+	)
+	order += 1
 	section("Game passes", order)
 	local i = 0
 	for key, pass in Config.Robux.Passes do

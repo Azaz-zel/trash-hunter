@@ -730,6 +730,20 @@ local function build()
 		ZIndex = 3,
 		Parent = bagsFrame,
 	}, { Ui.corner(8), Ui.stroke(1, Color3.fromRGB(180, 130, 255)) })
+	local oddsButton: TextButton = Ui.new("TextButton", {
+		Position = UDim2.fromOffset(12, 8),
+		Size = UDim2.fromOffset(56, 28),
+		BackgroundColor3 = C.panelLight,
+		Font = Ui.FONT,
+		TextSize = 13,
+		TextColor3 = C.cream,
+		Text = "Odds",
+		ZIndex = 3,
+		Parent = bagsFrame,
+	}, { Ui.corner(8) })
+	oddsButton.Activated:Connect(function()
+		Store.emit("openOdds", nil)
+	end)
 	rerollButton.Activated:Connect(function()
 		if not picking then
 			task.spawn(Store.action, "reroll")

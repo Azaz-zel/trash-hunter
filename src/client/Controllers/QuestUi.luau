@@ -224,7 +224,7 @@ local function build()
 	tracker = Ui.new("Frame", {
 		Name = "Tracker",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(18, 142), -- under the HUD card and its chips
+		Position = UDim2.fromOffset(18, 178), -- under the HUD card and two rows of chips
 		Size = UDim2.fromOffset(320, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Parent = gui,

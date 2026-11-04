@@ -73,6 +73,10 @@ local function invite(player: Player, userId: any): (boolean, string?)
 	if mine and #mine.members >= CC.MAX then
 		return false, `Crews hold {CC.MAX} players.`
 	end
+	local open = invites[target]
+	if open and open.expires > os.clock() then
+		return false, `{target.DisplayName} already has an invite open.`
+	end
 	invites[target] = { from = player, expires = os.clock() + 20 }
 	Router.send(target, "crewInvite", { from = player.DisplayName })
 	return true, `Crew invite sent to {target.DisplayName}.`
