@@ -31,6 +31,8 @@ local Rarities: { Rarity } = {
 	{ name = "Epic", color = Color3.fromRGB(176, 96, 255), weight = 3.2 },
 	{ name = "Legendary", color = Color3.fromRGB(255, 152, 40), weight = 0.12 },
 	{ name = "Jackpot", color = Color3.fromRGB(255, 216, 0), weight = 0.012 },
+	{ name = "Mythic", color = Color3.fromRGB(255, 60, 120), weight = 0.003 },
+	{ name = "Secret", color = Color3.fromRGB(120, 255, 230), weight = 0.0004 },
 }
 
 local List: { Item } = {
@@ -60,6 +62,23 @@ local List: { Item } = {
 	{ id = "limited_console", name = "Limited Edition Console", rarity = 6, value = 2500 },
 	{ id = "gaming_pc", name = "Golden Gaming PC", rarity = 6, value = 3000 },
 
+	{ id = "pizzabox", name = "Old Pizza Box", rarity = 1, value = 3 },
+	{ id = "newspaper", name = "Soggy Newspaper", rarity = 1, value = 2 },
+	{ id = "brokenlamp", name = "Broken Lamp", rarity = 1, value = 4 },
+	{ id = "radio", name = "Pocket Radio", rarity = 2, value = 16 },
+	{ id = "sneakers", name = "Worn Sneakers", rarity = 2, value = 18 },
+	{ id = "teddy", name = "Teddy Bear", rarity = 2, value = 13 },
+	{ id = "camera", name = "Film Camera", rarity = 3, value = 60 },
+	{ id = "vinyl", name = "Vinyl Record", rarity = 3, value = 48 },
+	{ id = "drone", name = "Toy Drone", rarity = 3, value = 65 },
+	{ id = "headphones", name = "Studio Headphones", rarity = 4, value = 200 },
+	{ id = "trophy", name = "Bowling Trophy", rarity = 4, value = 170 },
+	{ id = "goldwatch", name = "Gold Watch", rarity = 5, value = 900 },
+	{ id = "diamondring", name = "Diamond Ring", rarity = 6, value = 3500 },
+	{ id = "neonkatana", name = "Neon Katana", rarity = 7, value = 12000 },
+	{ id = "cyberarm", name = "Cybernetic Arm", rarity = 7, value = 15000 },
+	{ id = "alienegg", name = "Alien Egg", rarity = 8, value = 50000 },
+
 	-- Port Haven: worth a bit more, found only in Port Haven dumpsters.
 	{ id = "rope", name = "Frayed Rope", rarity = 1, value = 4, city = "port" },
 	{ id = "net", name = "Torn Fishing Net", rarity = 1, value = 4, city = "port" },
@@ -81,6 +100,12 @@ local List: { Item } = {
 	{ id = "figurehead", name = "Mermaid Figurehead", rarity = 5, value = 750, city = "port" },
 
 	{ id = "chest", name = "Pirate Treasure Chest", rarity = 6, value = 3800, city = "port" },
+	{ id = "seashell", name = "Spiral Seashell", rarity = 1, value = 5, city = "port" },
+	{ id = "snorkel", name = "Snorkel Mask", rarity = 2, value = 17, city = "port" },
+	{ id = "flaregun", name = "Flare Gun", rarity = 3, value = 70, city = "port" },
+	{ id = "doubloons", name = "Doubloon Pouch", rarity = 4, value = 230, city = "port" },
+	{ id = "krakeneye", name = "Kraken Eye", rarity = 7, value = 14000, city = "port" },
+	{ id = "mermaidcrown", name = "Mermaid's Crown", rarity = 8, value = 60000, city = "port" },
 }
 
 -- Ordered rarest first: the roll checks Golden before Shiny.

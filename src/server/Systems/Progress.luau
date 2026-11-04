@@ -1,12 +1,15 @@
 --!strict
--- Long-term progress: lifetime stats (which unlock district permits), the
--- daily login streak and the daily quests handed out by NPC quest givers.
+-- Long-term progress: lifetime stats, the daily login streak, the daily
+-- quests handed out by quest givers, and the permit missions: each district's
+-- dumpsters stay locked until the player finds that district's contact,
+-- takes their mission, finishes it and reports back.
 -- Other systems report what happened through Progress.track.
 
 local Shared = game:GetService("ReplicatedStorage").Shared
 local Config = require(Shared.Config)
 local Quests = require(Shared.Quests)
 local Types = require(Shared.Types)
+local Items = require(Shared.Items)
 local Router = require(script.Parent.Parent.Router)
 local Npc = require(script.Parent.Parent.Npc)
 local Data = require(script.Parent.Data)
@@ -59,11 +62,6 @@ function Progress.track(player: Player, kind: string, e: Event)
 	if not profile then
 		return
 	end
-	local before: { [string]: boolean } = {}
-	for id in Config.Gates do
-		before[id] = Quests.permitted(profile.stats, id)
-	end
-
 	local stats = profile.stats
 	if kind == "search" then
 		stats.searches += 1
@@ -89,23 +87,124 @@ function Progress.track(player: Player, kind: string, e: Event)
 		end
 	end
 
-	for id in Config.Gates do
-		if not before[id] and Quests.permitted(profile.stats, id) then
-			Router.send(player, "permit", { district = districtName(id) })
+	-- The permit mission in progress.
+	local active = profile.mission
+	local m = active and Quests.missionById(active.id)
+	if active and m and active.progress < m.n then
+		local searched = kind == "search"
+			and (
+				(m.kind == "search" and (m.inDistrict == nil or e.district == m.inDistrict))
+				or (m.kind == "find" and (e.rarity or 0) >= m.rarity)
+			)
+		local step = if searched
+			then 1
+			elseif kind == "earn" and m.kind == "earn" then e.amount or 0
+			else 0
+		if step > 0 then
+			active.progress = math.min(m.n, active.progress + step)
+			if active.progress >= m.n then
+				local contact = Config.Contacts[m.contact]
+				Router.send(
+					player,
+					"missionReady",
+					{ contact = contact.name, district = districtName(m.district) }
+				)
+			end
 		end
 	end
 end
 
--- Locked dumpsters say what the permit needs and how far along the player is.
+-- Locked dumpsters say whom to talk to for the permit.
 function Progress.gateMessage(player: Player, districtId: string?): string?
 	local profile = Data.get(player)
-	local gate = districtId and Config.Gates[districtId]
-	if not profile or not gate or Quests.permitted(profile.stats, districtId) then
+	if not profile or Quests.permitted(profile.permits, districtId) then
 		return nil
 	end
-	local have = math.min(profile.stats[gate.stat] or 0, gate.need)
-	local shown = if gate.stat == "earned" then `${have}/${gate.need}` else `{have}/{gate.need}`
-	return `{districtName(districtId :: string)} permit needed: {gate.text} ({shown}).`
+	local m = Quests.missionFor(districtId)
+	local contact = Config.Contacts[m.contact]
+	local nextUp = Quests.nextMission(profile.permits)
+	if nextUp and nextUp.id ~= m.id then
+		return `{districtName(districtId :: string)} is locked. Earn the permits before it first.`
+	end
+	return `{districtName(districtId :: string)} is locked. Find {contact.name} for a permit mission (marked on your map).`
+end
+
+-- ─── permit missions ──────────────────────────────────────────────────────
+
+local function contactAt(player: Player, id: any): (any, string?)
+	if typeof(id) ~= "string" then
+		return nil, nil
+	end
+	local contact = Config.Contacts[id]
+	if not contact then
+		return nil, nil
+	end
+	if Guard.isFlagged(player) or Guard.distance(player, contact.pos) > Config.CONTACT_RANGE then
+		return nil, `Talk to {contact.name} up close.`
+	end
+	return contact, nil
+end
+
+local function missionAccept(player: Player, id: any): (boolean, string?)
+	local profile = Data.get(player)
+	local contact, message = contactAt(player, id)
+	if not profile or not contact then
+		return false, message
+	end
+	local m = Quests.nextMission(profile.permits)
+	if not m or m.contact ~= id then
+		return false, `{contact.name} has nothing for you right now.`
+	end
+	if profile.mission and profile.mission.id == m.id then
+		return false, "You're already on it."
+	end
+	profile.mission = { id = m.id, progress = 0 }
+	Data.push(player)
+	return true, nil
+end
+
+-- "bring" missions hand over the cheapest item that qualifies.
+local function cheapestAtLeast(profile: Types.PlayerProfile, rarity: number): Types.BagItem?
+	local best: Types.BagItem? = nil
+	local bestValue = math.huge
+	for _, entry in profile.backpack do
+		local item = Items.ById[entry.id]
+		if item and item.rarity >= rarity then
+			local v = Items.value(entry.id, entry.mutation)
+			if v < bestValue then
+				best, bestValue = entry, v
+			end
+		end
+	end
+	return best
+end
+
+local function missionTurnIn(player: Player, id: any): (boolean, string?)
+	local profile = Data.get(player)
+	local contact, message = contactAt(player, id)
+	if not profile or not contact then
+		return false, message
+	end
+	local active = profile.mission
+	local m = active and Quests.missionById(active.id)
+	if not active or not m or m.contact ~= id then
+		return false, nil
+	end
+	if m.kind == "bring" then
+		local entry = cheapestAtLeast(profile, m.rarity)
+		if not entry then
+			return false, "You don't have anything good enough in your backpack."
+		end
+		Data.removeItem(profile.backpack, entry.uid)
+	elseif active.progress < m.n then
+		return false, "Not done yet."
+	end
+	profile.permits[m.district] = true
+	profile.mission = nil
+	profile.cash += m.reward
+	Data.push(player)
+	Router.send(player, "permit", { district = districtName(m.district), cash = m.reward })
+	return true, nil
 end
 
 local function giverAt(player: Player, index: any): (any, string?)
@@ -219,15 +318,47 @@ local function spawnGivers()
 	end
 end
 
+local function spawnContacts()
+	local folder = Instance.new("Folder")
+	folder.Name = "Contacts"
+	folder.Parent = workspace:WaitForChild("Town")
+	local rng = Random.new(19)
+	for id, contact in Config.Contacts do
+		local npc = Npc.new(
+			"civilian",
+			contact.name,
+			CFrame.new(contact.pos + Vector3.new(0, 3.2, 0)),
+			folder,
+			rng
+		)
+		if not npc then
+			continue
+		end
+		npc.root.Anchored = true
+		npc.model:SetAttribute("Contact", id)
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "MissionPrompt"
+		prompt.ActionText = "Talk"
+		prompt.ObjectText = contact.name
+		prompt.HoldDuration = 0
+		prompt.MaxActivationDistance = Config.CONTACT_RANGE - 2
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = npc.root
+	end
+end
+
 function Progress.init()
 	Router.on("questAccept", 0.3, accept)
 	Router.on("questClaim", 0.3, claim)
+	Router.on("missionAccept", 0.3, missionAccept)
+	Router.on("missionTurnIn", 0.3, missionTurnIn)
 	Data.onLoaded(grantStreak)
 end
 
 function Progress.start()
 	workspace:SetAttribute("QuestDay", Quests.today())
 	task.spawn(spawnGivers)
+	task.spawn(spawnContacts)
 	task.spawn(function()
 		while true do
 			task.wait(30)

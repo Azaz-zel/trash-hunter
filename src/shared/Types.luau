@@ -32,6 +32,13 @@ export type PlayerProfile = {
 	streak: number, -- consecutive login days
 	lastLogin: number, -- UTC day number of the last streak reward
 	quests: { [string]: Quest }, -- by giver id; only today's entries matter
+	permits: { [string]: boolean }, -- districts opened by finishing their mission
+	mission: Mission?, -- the permit mission in progress
+}
+
+export type Mission = {
+	id: string,
+	progress: number,
 }
 
 export type Quest = {
@@ -64,6 +71,8 @@ export type State = {
 	stats: { [string]: number },
 	streak: number,
 	quests: { [string]: Quest },
+	permits: { [string]: boolean },
+	mission: Mission?,
 }
 
 return nil

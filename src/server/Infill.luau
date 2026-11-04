@@ -1096,62 +1096,205 @@ local function clearTrees(box: CFrame, size: Vector3, params: OverlapParams)
 	end
 end
 
-local function flatStreets(): { CityPlan.Road }
-	local out = {}
-	for _, road in CityPlan.ROADS do
-		if road.kind == "street" and road.y0 == road.y1 then
-			table.insert(out, road)
-		end
-	end
-	return out
-end
-
--- Walks both sides of every street, packing lots shoulder to shoulder.
+-- Walks both sides of every street edge, packing lots shoulder to shoulder.
+-- Lots follow the street: on a curve each lot turns with it; on the hills a
+-- rock plinth fills the slope under the building.
 local function fillLots(k: Kit, parent: Instance): number
 	local params = OverlapParams.new()
 	params.FilterType = Enum.RaycastFilterType.Include
 	params.FilterDescendantsInstances = { workspace:WaitForChild("Town") }
 	local built = 0
-	for _, road in flatStreets() do
+	for _, e in CityPlan.EDGES do
+		if e.kind == "freeway" then
+			continue
+		end
 		for _, side in { -1, 1 } do
-			local along = road.from + 12
-			while along < road.to - 12 do
+			-- Keep clear of junction corners and the cul-de-sac bulb.
+			local s = (if e.a.bulb then CityPlan.BULB_R + 12 else e.a.gap) + 14
+			local stop = e.length - (if e.b.bulb then CityPlan.BULB_R + 12 else e.b.gap) - 14
+			while s < stop do
 				local step = 8
-				local probe = CityPlan.lotFrame(road, along, side) * CFrame.new(0, 0, 20)
+				local probe = CityPlan.frameAt(e, s, side) * CFrame.new(0, 0, 20)
 				local district = CityPlan.district(probe.Position)
 				if district and district.tier > 0 and CityPlan.onLand(probe.Position) then
 					local plan = planFor(k, district.id)
-					if plan then
-						-- Centre the lot on `along + width / 2` so it starts at `along`.
-						local base = CityPlan.lotFrame(road, along + plan.width / 2, side)
+					if plan and s + plan.width <= stop then
+						local base = CityPlan.frameAt(e, s + plan.width / 2, side)
 							* CFrame.new(0, 0, 1)
 						local far = base * CFrame.new(0, 0, plan.depth)
 						local inside = CityPlan.district(far.Position)
-						local center = base * CFrame.new(0, 12, plan.depth / 2)
-						-- Bottom 0.05 above the street so paved slabs count but lawn does not.
+						local center = base * CFrame.new(0, 12.3, plan.depth / 2)
 						local size = Vector3.new(plan.width, 23.9, plan.depth)
 						if
 							inside
 							and inside.id == district.id
 							and CityPlan.onLand(far.Position)
+							and CityPlan.clearance(far.Position) > 6
+							and CityPlan.clearance(
+								(base * CFrame.new(plan.width / 2 - 2, 0, plan.depth)).Position
+							) > 4
+							and CityPlan.clearance(
+								(base * CFrame.new(-plan.width / 2 + 2, 0, plan.depth)).Position
+							) > 4
 							and not CityPlan.reserved(center.Position, plan.width / 2)
 							and not blocked(center, size, params)
 						then
 							clearTrees(center, size, params)
+							-- On a slope, a plinth reaches down to the lowest ground under the lot.
+							local lowest = base.Position.Y
+							for _, corner in { { -1, 0 }, { 1, 0 }, { -1, 1 }, { 1, 1 } } do
+								local c = (base * CFrame.new(
+									corner[1] * plan.width / 2,
+									0,
+									corner[2] * plan.depth
+								)).Position
+								lowest = math.min(lowest, CityPlan.hillY(c.X, c.Z))
+							end
+							if base.Position.Y > 0.5 then
+								local h = base.Position.Y - lowest + 2
+								k.part(parent, {
+									Name = "Plinth",
+									Size = Vector3.new(plan.width, h, plan.depth),
+									CFrame = base * CFrame.new(0, -h / 2 + 0.2, plan.depth / 2),
+									Color = Color3.fromRGB(150, 140, 124),
+									Material = k.M.Cobblestone,
+								})
+							end
 							plan.build(k, parent, base)
 							built += 1
 							step = plan.width + 1
 							if built % 40 == 0 then
-								task.wait() -- keep the server responsive while the city builds
+								task.wait()
 							end
 						end
 					end
 				end
-				along += step
+				s += step
 			end
 		end
 	end
 	return built
+end
+
+-- Second pass: fills what is left inside the blocks (backyards, courtyards,
+-- vacant corners) so no block sits empty: gardens with a shed or pool in the
+-- suburbs, parking lots in town, container stacks in the industrial areas,
+-- and trees on the hills.
+local function fillInteriors(k: Kit, parent: Instance)
+	local M = k.M
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { workspace:WaitForChild("Town") }
+	local cell = 46
+	local count = 0
+	for x = -2200, 2660, cell do
+		for z = -1980, 2030, cell do
+			local pos = Vector3.new(x + k.rng:NextNumber(-8, 8), 0, z + k.rng:NextNumber(-8, 8))
+			local d = CityPlan.district(pos)
+			if
+				not d
+				or not CityPlan.onLand(pos)
+				or CityPlan.clearance(pos) < 22
+				or CityPlan.reserved(pos, 10)
+			then
+				continue
+			end
+			local y = CityPlan.hillY(pos.X, pos.Z)
+			pos = Vector3.new(pos.X, y, pos.Z)
+			local box = CFrame.new(pos + Vector3.new(0, 12.3, 0))
+			if blocked(box, Vector3.new(cell - 6, 23.9, cell - 6), params) then
+				continue
+			end
+			count += 1
+			if count % 80 == 0 then
+				task.wait()
+			end
+			local roll = k.rng:NextNumber()
+			if d.id == "hills" or d.id == "beach" then
+				for _ = 1, 3 do
+					k.tree(
+						parent,
+						pos + Vector3.new(k.rng:NextNumber(-16, 16), 0, k.rng:NextNumber(-16, 16)),
+						k.rng:NextNumber(1, 1.4),
+						nil,
+						if d.id == "beach" then "palm" else nil
+					)
+				end
+			elseif d.id == "industrial" or d.id == "docks" then
+				if roll < 0.5 and k.containerYard then
+					k.containerYard(parent, pos.X - 10, pos.Z + 12, 2, 1)
+				else
+					k.box(
+						parent,
+						"Pallets",
+						CFrame.new(pos),
+						Vector3.new(12, 3, 8),
+						Color3.fromRGB(150, 112, 70),
+						M.WoodPlanks
+					)
+					k.box(
+						parent,
+						"Drums",
+						CFrame.new(pos + Vector3.new(10, 0, 8)),
+						Vector3.new(4, 5, 4),
+						Color3.fromRGB(40, 90, 150),
+						M.Metal
+					)
+				end
+			elseif d.id == "downtown" or d.id == "midtown" or d.id == "oldport" then
+				-- A small parking lot with a couple of cars.
+				k.part(parent, {
+					Name = "ParkingLot",
+					Size = Vector3.new(cell - 8, 0.3, cell - 8),
+					CFrame = CFrame.new(pos + Vector3.new(0, 0.15, 0)),
+					Color = k.C.asphaltLight,
+					Material = M.Asphalt,
+				})
+				for q = -1, 1, 2 do
+					if k.rng:NextNumber() < 0.7 then
+						parkedCar(k, parent, CFrame.new(pos + Vector3.new(q * 8, 0.3, 0)))
+					end
+				end
+			else
+				-- Backyard: a few trees, sometimes a shed or a pool.
+				for _ = 1, 2 do
+					k.tree(
+						parent,
+						pos + Vector3.new(k.rng:NextNumber(-15, 15), 0, k.rng:NextNumber(-15, 15)),
+						k.rng:NextNumber(0.8, 1.1)
+					)
+				end
+				if roll < 0.3 then
+					k.box(
+						parent,
+						"Shed",
+						CFrame.new(pos + Vector3.new(6, 0, 6)),
+						Vector3.new(8, 7, 6),
+						pick(k, PALETTE),
+						M.WoodPlanks
+					)
+				elseif roll < 0.5 then
+					local pool = k.box(
+						parent,
+						"Pool",
+						CFrame.new(pos + Vector3.new(0, 0, 4)),
+						Vector3.new(16, 0.5, 9),
+						Color3.fromRGB(60, 170, 210),
+						M.Glass
+					)
+					pool.Transparency = 0.2
+					k.box(
+						parent,
+						"PoolDeck",
+						CFrame.new(pos + Vector3.new(0, -0.1, 4)),
+						Vector3.new(20, 0.5, 13),
+						Color3.fromRGB(220, 214, 200),
+						M.Concrete
+					)
+				end
+			end
+		end
+	end
 end
 
 -- ─── streetscape ──────────────────────────────────────────────────────────
@@ -1168,53 +1311,146 @@ local function dressStreets(k: Kit, parent: Instance)
 				params
 			)
 		do
-			if hit.CanCollide and hit.Name ~= "Lawn" then
+			if
+				hit.CanCollide
+				and hit.Name ~= "Lawn"
+				and hit.Name ~= "Sidewalk"
+				and hit.Name ~= "Corner"
+			then
 				return false
 			end
 		end
 		return true
 	end
-	for _, road in flatStreets() do
-		local crossings = CityPlan.crossings(road)
-		local function nearCrossing(along: number): boolean
-			for _, c in crossings do
-				if math.abs(c - along) < 30 then
-					return true
-				end
-			end
-			return false
+	local i = 0
+	for _, e in CityPlan.EDGES do
+		if e.kind == "freeway" then
+			continue
 		end
-		local i = 0
-		local along = road.from + 20
-		local y = road.y0 + k.WALK_TOP
-		while along < road.to - 20 do
+		local s = e.a.gap + 20
+		local stop = e.length - e.b.gap - 20
+		local spacing = if e.w >= 30 then 90 else 120
+		while s < stop do
 			i += 1
-			if not nearCrossing(along) then
-				local side = if i % 2 == 0 then 1 else -1
-				local off = side * (road.w / 2 + 1.6)
-				local pos = if road.axis == "X"
-					then Vector3.new(along, y, road.at + off)
-					else Vector3.new(road.at + off, y, along)
-				-- Lamp arm reaches over the road: yaw so local -Z points at it.
-				local yaw = if road.axis == "X"
-					then (if side > 0 then 0 else 180)
-					else (if side > 0 then 90 else -90)
-				if CityPlan.onLand(pos) and free(pos) then
-					k.streetLight(parent, pos, yaw, i % 3 == 0)
-				end
-				local edge = -side * (road.w / 2 + 4)
-				local extra = if road.axis == "X"
-					then Vector3.new(along + 12, y, road.at + edge)
-					else Vector3.new(road.at + edge, y, along + 12)
-				if CityPlan.onLand(extra) and free(extra) then
-					if i % 3 == 0 then
-						k.hydrant(parent, extra)
-					elseif i % 3 == 1 then
-						k.trashCan(parent, extra, Color3.fromRGB(40, 60, 46))
-					end
+			local side = if i % 2 == 0 then 1 else -1
+			local p, t = CityPlan.pointAt(e, s)
+			local right = Vector3.new(-t.Z, 0, t.X) * side
+			local pos = p + right * (e.w / 2 + 1.6) + Vector3.new(0, k.WALK_TOP, 0)
+			-- The lamp arm (local -Z) reaches over the road.
+			local inward = -right
+			local yaw = math.deg(math.atan2(-inward.X, -inward.Z))
+			if CityPlan.onLand(pos) and free(pos) then
+				k.streetLight(parent, pos, yaw, i % 3 == 0)
+			end
+			local extra = p - right * (e.w / 2 + 4) + t * 12 + Vector3.new(0, k.WALK_TOP, 0)
+			if CityPlan.onLand(extra) and free(extra) then
+				if i % 3 == 0 then
+					k.hydrant(parent, extra)
+				elseif i % 3 == 1 then
+					k.trashCan(parent, extra, Color3.fromRGB(40, 60, 46))
 				end
 			end
-			along += if road.w >= 30 then 100 else 130
+			s += spacing
+		end
+	end
+end
+
+-- Benches, bus shelters and food carts where people hang out.
+local function buildHangouts(k: Kit, parent: Instance)
+	local C, M = k.C, k.M
+	for _, h in CityPlan.HANGOUTS do
+		local cf = h.cf
+		if h.kind == "busstop" then
+			-- Glass shelter with a bench and an ad panel.
+			k.box(
+				parent,
+				"ShelterRoof",
+				cf * CFrame.new(0, 8, 2),
+				Vector3.new(12, 0.4, 5),
+				C.darkMetal,
+				M.Metal
+			)
+			for _, x in { -5.6, 5.6 } do
+				k.box(
+					parent,
+					"ShelterPost",
+					cf * CFrame.new(x, 0, 3.8),
+					Vector3.new(0.4, 8, 0.4),
+					C.darkMetal,
+					M.Metal
+				)
+			end
+			local glass = k.box(
+				parent,
+				"ShelterGlass",
+				cf * CFrame.new(0, 0.5, 4.2),
+				Vector3.new(11, 7, 0.2),
+				C.glass,
+				M.Glass
+			)
+			glass.Transparency = 0.6
+			if k.billboard then
+				k.billboard(
+					parent,
+					cf * CFrame.new(6.4, 4, 2) * CFrame.Angles(0, math.rad(90), 0),
+					4,
+					6
+				)
+			end
+			k.bench(parent, cf * CFrame.new(0, 0, 3))
+			local sign = k.box(
+				parent,
+				"BusSign",
+				cf * CFrame.new(-7, 0, 0),
+				Vector3.new(0.3, 9, 0.3),
+				C.metal,
+				M.Metal
+			)
+			k.box(
+				parent,
+				"BusPlate",
+				cf * CFrame.new(-7, 8, 0),
+				Vector3.new(0.2, 2, 2),
+				Color3.fromRGB(30, 90, 170),
+				M.SmoothPlastic
+			)
+			local _ = sign
+		elseif h.kind == "foodcart" then
+			local color = if k.NEON then pick(k, k.NEON) else C.signRed
+			k.box(
+				parent,
+				"Cart",
+				cf * CFrame.new(0, 1.2, 2),
+				Vector3.new(7, 4, 4),
+				C.white,
+				M.Metal
+			)
+			for _, x in { -2.5, 2.5 } do
+				k.part(parent, {
+					Name = "CartWheel",
+					Shape = Enum.PartType.Cylinder,
+					Size = Vector3.new(0.6, 2.4, 2.4),
+					CFrame = cf * CFrame.new(x, 1.2, 4.2) * CFrame.Angles(0, math.rad(90), 0),
+					Color = C.ink,
+					Material = M.Rubber,
+				})
+			end
+			k.part(parent, {
+				Name = "CartUmbrella",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(0.4, 9, 9),
+				CFrame = cf * CFrame.new(0, 9, 2) * CFrame.Angles(0, 0, math.rad(90)),
+				Color = color,
+				Material = M.Fabric,
+			})
+			k.box(
+				parent,
+				"CartPole",
+				cf * CFrame.new(0, 5, 2),
+				Vector3.new(0.3, 4, 0.3),
+				C.metal,
+				M.Metal
+			)
 		end
 	end
 end
@@ -1223,8 +1459,10 @@ function Infill.build(k: Kit, parent: Instance): number
 	local folder = Instance.new("Folder")
 	folder.Name = "Infill"
 	folder.Parent = parent
+	buildHangouts(k, folder)
 	local built = fillLots(k, folder)
 	dressStreets(k, folder)
+	fillInteriors(k, folder)
 	-- Shop interiors still glow (neon), but only one in three casts real light:
 	-- hundreds of lights cost too much on phones.
 	local n = 0

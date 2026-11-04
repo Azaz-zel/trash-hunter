@@ -964,18 +964,25 @@ local function buildBeach(k: Kit, parent: Instance)
 	local folder = Instance.new("Folder")
 	folder.Name = "Westshore"
 	folder.Parent = parent
-	local b = CityPlan.BEACH
-	-- Boardwalk along the sand's inland edge.
-	k.part(folder, {
-		Name = "Boardwalk",
-		Size = Vector3.new(10, 0.6, b.z1 - b.z0),
-		CFrame = CFrame.new(b.x1 - 5, 0.3, (b.z0 + b.z1) / 2),
-		Color = Color3.fromRGB(150, 116, 84),
-		Material = M.WoodPlanks,
-	})
-	for z = b.z0 + 60, b.z1 - 60, 140 do
-		-- Lifeguard tower and a couple of umbrellas.
-		local stand = CFrame.new(b.x0 + 50, 0, z)
+	-- Boardwalk and palms follow the winding coast, just seaward of Ocean Dr.
+	for z = -1980, 2020, 20 do
+		local a = Vector3.new(CityPlan.sandEdge(z) - 5, 0.3, z)
+		local b = Vector3.new(CityPlan.sandEdge(z + 20) - 5, 0.3, z + 20)
+		k.part(folder, {
+			Name = "Boardwalk",
+			Size = Vector3.new(10, 0.6, (b - a).Magnitude + 0.5),
+			CFrame = CFrame.lookAt((a + b) / 2, b),
+			Color = Color3.fromRGB(150, 116, 84),
+			Material = M.WoodPlanks,
+		})
+	end
+	for z = -1960, 2000, 46 do
+		k.tree(folder, Vector3.new(CityPlan.sandEdge(z) - 13, 0, z), 1.1, nil, "palm")
+	end
+	for z = -1900, 1950, 150 do
+		local shore = -2235
+		-- Lifeguard tower, umbrellas and towels on the sand.
+		local stand = CFrame.new(shore + 40, 0, z)
 		for _, sx in { -2, 2 } do
 			for _, sz in { -2, 2 } do
 				k.box(
@@ -1005,30 +1012,31 @@ local function buildBeach(k: Kit, parent: Instance)
 			M.SmoothPlastic
 		)
 		for i = 1, 3 do
-			local u = CFrame.new(b.x0 + 20 + i * 18, 0, z + 40 + (i % 2) * 14)
-			k.box(folder, "UmbrellaPole", u, Vector3.new(0.3, 7, 0.3), C.white, M.Metal)
-			k.part(folder, {
-				Name = "Umbrella",
-				Shape = Enum.PartType.Cylinder,
-				Size = Vector3.new(0.6, 10, 10),
-				CFrame = u * CFrame.new(0, 7, 0) * CFrame.Angles(0, 0, math.rad(90)),
-				Color = NEON[k.rng:NextInteger(1, #NEON)],
-				Material = M.Fabric,
-			})
-			k.box(
-				folder,
-				"Towel",
-				u * CFrame.new(3, 0.1, 3),
-				Vector3.new(3, 0.1, 6),
-				NEON[k.rng:NextInteger(1, #NEON)],
-				M.Fabric
-			)
+			local u = CFrame.new(shore + 70 + i * 16, 0, z + 40 + (i % 2) * 14)
+			if u.X < CityPlan.sandEdge(u.Z) - 16 then
+				k.box(folder, "UmbrellaPole", u, Vector3.new(0.3, 7, 0.3), C.white, M.Metal)
+				k.part(folder, {
+					Name = "Umbrella",
+					Shape = Enum.PartType.Cylinder,
+					Size = Vector3.new(0.6, 10, 10),
+					CFrame = u * CFrame.new(0, 7, 0) * CFrame.Angles(0, 0, math.rad(90)),
+					Color = NEON[k.rng:NextInteger(1, #NEON)],
+					Material = M.Fabric,
+				})
+				k.box(
+					folder,
+					"Towel",
+					u * CFrame.new(3, 0.1, 3),
+					Vector3.new(3, 0.1, 6),
+					NEON[k.rng:NextInteger(1, #NEON)],
+					M.Fabric
+				)
+			end
 		end
-		k.tree(folder, Vector3.new(b.x1 - 14, 0, z + 70), 1.2, nil, "palm")
 	end
 	-- Pier out into the ocean, with an arcade strip and the Ferris wheel.
 	local pz = -200
-	local x0, x1 = b.x0 - 340, b.x1
+	local x0, x1 = -2600, CityPlan.sandEdge(pz) - 10
 	k.part(folder, {
 		Name = "Pier",
 		Size = Vector3.new(x1 - x0, 1, 34),
@@ -1036,7 +1044,7 @@ local function buildBeach(k: Kit, parent: Instance)
 		Color = Color3.fromRGB(140, 108, 78),
 		Material = M.WoodPlanks,
 	})
-	for x = x0 + 8, b.x0, 20 do
+	for x = x0 + 8, -2250, 20 do
 		for _, sz in { -15, 15 } do
 			k.part(folder, {
 				Name = "Piling",
@@ -1059,7 +1067,7 @@ local function buildBeach(k: Kit, parent: Instance)
 		)
 	end
 	for i = 0, 4 do
-		local stall = CFrame.new(b.x0 - 40 - i * 30, 2, pz - 10)
+		local stall = CFrame.new(-2290 - i * 30, 2, pz - 10)
 		k.box(
 			folder,
 			"Arcade",
@@ -1085,49 +1093,23 @@ local function buildBeach(k: Kit, parent: Instance)
 		)
 	end
 	ferrisWheel(k, folder, Vector3.new(x0 + 60, 40, pz + 4))
-	-- Palms along Ocean Dr.
-	for z = b.z0 + 30, b.z1 - 30, 46 do
-		k.tree(folder, Vector3.new(b.x1 - 2, 0, z), 1.1, nil, "palm")
-	end
 end
 
-local function buildPlateau(k: Kit, parent: Instance)
-	local M = k.M
-	local p = CityPlan.PLATEAU
+-- Vista Hills: the big letters on the slope above the city.
+local function buildHills(k: Kit, parent: Instance)
 	local folder = Instance.new("Folder")
 	folder.Name = "VistaHills"
 	folder.Parent = parent
-	local rock = Color3.fromRGB(120, 108, 92)
-	local blocks = {
-		{ x0 = p.x0, x1 = p.gorge.x0, z0 = p.z0, z1 = p.gorge.z1 },
-		{ x0 = p.gorge.x1, x1 = p.x1, z0 = p.z0, z1 = p.gorge.z1 },
-		{ x0 = p.x0, x1 = p.x1, z0 = p.gorge.z1, z1 = p.z1 },
-	}
-	for _, r in blocks do
-		rectPart(k, folder, "Cliff", r, 0, p.height - 0.4, rock, M.Rock)
-		-- The grass top is named Lawn so infill treats it as open ground.
-		local top = rectPart(
-			k,
-			folder,
-			"Lawn",
-			r,
-			p.height - 0.42,
-			0.4,
-			Color3.fromRGB(96, 128, 66),
-			M.Grass
-		)
-		top.CanCollide = true
-	end
-	-- Big letters on the cliff face above the city.
 	local word = "VISTA"
 	for i = 1, #word do
+		local x, z = -1300 + i * 30, 1330
 		local letter = k.box(
 			folder,
 			"HillLetter",
-			CFrame.new(-1200 + i * 26, p.height - 2, p.z0 + 30) * CFrame.Angles(math.rad(-15), 0, 0),
-			Vector3.new(22, 26, 1),
+			CFrame.new(x, CityPlan.hillY(x, z) - 3, z) * CFrame.Angles(math.rad(-20), 0, 0),
+			Vector3.new(24, 30, 1.5),
 			Color3.fromRGB(245, 245, 240),
-			M.SmoothPlastic
+			k.M.SmoothPlastic
 		)
 		k.sign(
 			letter,
@@ -1136,19 +1118,6 @@ local function buildPlateau(k: Kit, parent: Instance)
 			Color3.fromRGB(245, 245, 240),
 			Color3.fromRGB(30, 30, 30)
 		)
-	end
-	-- Pines along the cliff edge and the back of the plateau.
-	for x = p.x0 + 20, p.x1 - 20, 34 do
-		if x < p.gorge.x0 - 30 or x > p.gorge.x1 + 30 then
-			k.tree(
-				folder,
-				Vector3.new(x, p.height, p.z0 + 10 + k.rng:NextNumber(0, 8)),
-				1.1,
-				nil,
-				"pine"
-			)
-		end
-		k.tree(folder, Vector3.new(x, p.height, p.z1 - 12), 1.3, nil, "pine")
 	end
 end
 
@@ -1234,7 +1203,7 @@ function CityDistricts.build(parent: Instance, k: Kit)
 	buildPlaza(k, parent)
 	buildPark(k, parent)
 	buildBeach(k, parent)
-	buildPlateau(k, parent)
+	buildHills(k, parent)
 	buildIsland(k, parent)
 end
 

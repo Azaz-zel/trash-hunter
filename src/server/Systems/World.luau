@@ -14,10 +14,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Districts = require(ReplicatedStorage.Shared.Districts)
-local MapData = require(ReplicatedStorage.Shared.MapData)
 local CityPlan = require(ReplicatedStorage.Shared.CityPlan)
 local CityDistricts = require(script.Parent.Parent.CityDistricts)
 local Infill = require(script.Parent.Parent.Infill)
+local Roads = require(script.Parent.Parent.Roads)
 local Npc = require(script.Parent.Parent.Npc)
 
 local W = Config.World
@@ -28,7 +28,7 @@ local M = Enum.Material
 local ROAD_W = 34
 local WALK_W = 10
 local ROAD_TOP = 0.2
-local WALK_TOP = 0.7
+local WALK_TOP = 0.24 -- sidewalks sit flush with the street
 
 local C = {
 	asphalt = Color3.fromRGB(58, 60, 64),
@@ -192,20 +192,9 @@ end
 
 -- ─── trees & street props ──────────────────────────────────────────────────
 
--- True when a point is within `half` studs of a road's centre line.
-local function onRoad(pos: Vector3, half: number): boolean
-	for _, road in MapData.ROADS do
-		local along = if road.axis == "X" then pos.X else pos.Z
-		local across = if road.axis == "X" then pos.Z else pos.X
-		if
-			math.abs(across - road.at) < half
-			and along > road.from - half
-			and along < road.to + half
-		then
-			return true
-		end
-	end
-	return false
+-- True when a point is within `margin` studs of the asphalt.
+local function onRoad(pos: Vector3, margin: number): boolean
+	return CityPlan.clearance(pos) < margin
 end
 
 -- Tree kinds give the town some variety; weights favour broadleaf trees.
@@ -241,7 +230,7 @@ end
 -- kind: nil picks one at random. Trees never grow on the asphalt.
 local function tree(parent: Instance, pos: Vector3, scale: number?, leaves: number?, kind: string?)
 	-- Street trees stand at the outer sidewalk edge (2 studs in); nearer ones go.
-	if onRoad(pos, ROAD_W / 2 + WALK_W - 3) then
+	if onRoad(pos, WALK_W - 3) then
 		return
 	end
 	local model = Instance.new("Model")
@@ -552,354 +541,6 @@ local function wire(parent: Instance, a: Vector3, b: Vector3)
 	end
 end
 
--- ─── roads ─────────────────────────────────────────────────────────────────
-
-type Road = CityPlan.Road
-
-local ROADS: { Road } = CityPlan.ROADS
-
-type Cross = { at: number, half: number, other: Road }
-
--- Roads meeting this one at the same height, with the half-width of the
--- hole they cut into its sidewalks.
-local function crossingsOf(road: Road): { Cross }
-	local out = {}
-	for _, other in ROADS do
-		if
-			other.axis ~= road.axis
-			and other.kind == "street"
-			and other.at >= road.from - 1
-			and other.at <= road.to + 1
-			and road.at >= other.from - 1
-			and road.at <= other.to + 1
-			and math.abs(CityPlan.roadY(road, other.at) - CityPlan.roadY(other, road.at)) < 1
-		then
-			table.insert(out, { at = other.at, half = other.w / 2 + WALK_W, other = other })
-		end
-	end
-	table.sort(out, function(a, b)
-		return a.at < b.at
-	end)
-	return out
-end
-
--- Whether `road` runs on past `at` in direction `dir` (-1 or 1).
-local function extendsToward(road: Road, at: number, dir: number): boolean
-	return if dir > 0 then road.to > at + road.w / 2 else road.from < at - road.w / 2
-end
-
--- Spans of [from, to] with a hole around each cut.
-local function spans(from: number, to: number, cuts: { Cross }): { { number } }
-	local out = {}
-	local cursor = from
-	for _, c in cuts do
-		if c.at - c.half > cursor then
-			table.insert(out, { cursor, c.at - c.half })
-		end
-		cursor = math.max(cursor, c.at + c.half)
-	end
-	if to > cursor then
-		table.insert(out, { cursor, to })
-	end
-	return out
-end
-
-local function alongCF(
-	road: Road,
-	a: number,
-	b: number,
-	offset: number,
-	y: number
-): (CFrame, number)
-	local mid = (a + b) / 2
-	local length = b - a
-	if road.axis == "X" then
-		return CFrame.new(mid, y, road.at + offset), length
-	end
-	return CFrame.new(road.at + offset, y, mid) * CFrame.Angles(0, math.rad(90), 0), length
-end
-
--- A flat street: asphalt, curbs, sidewalks (holed only where a road branches
--- off on that side), corner squares, markings, manholes and crosswalks.
-local function buildRoad(parent: Instance, road: Road)
-	local y = road.y0
-	local w = road.w
-	local asphaltCf, length = alongCF(road, road.from, road.to, 0, y + ROAD_TOP / 2)
-	part(parent, {
-		Name = "Road",
-		Size = Vector3.new(length, ROAD_TOP, w),
-		CFrame = asphaltCf,
-		Color = C.asphalt,
-		Material = M.Asphalt,
-	})
-	local cuts = crossingsOf(road)
-	for _, side in { -1, 1 } do
-		local sideCuts = {}
-		for _, c in cuts do
-			if extendsToward(c.other, road.at, side) then
-				table.insert(sideCuts, c)
-			end
-		end
-		for _, sp in spans(road.from, road.to, sideCuts) do
-			local cf, len =
-				alongCF(road, sp[1], sp[2], side * (w / 2 + WALK_W / 2), y + WALK_TOP / 2)
-			part(parent, {
-				Name = "Sidewalk",
-				Size = Vector3.new(len, WALK_TOP, WALK_W),
-				CFrame = cf,
-				Color = C.concrete,
-				Material = M.Concrete,
-			})
-			local curbCf, curbLen = alongCF(road, sp[1], sp[2], side * (w / 2 + 0.3), y + 0.45)
-			part(parent, {
-				Name = "Curb",
-				Size = Vector3.new(curbLen, 0.9, 0.6),
-				CFrame = curbCf,
-				Color = Color3.fromRGB(196, 194, 188),
-				Material = M.Concrete,
-			})
-		end
-	end
-	-- Markings between intersections.
-	local plain = {}
-	for _, c in cuts do
-		table.insert(plain, { at = c.at, half = c.other.w / 2 + 2, other = c.other })
-	end
-	for _, sp in spans(road.from, road.to, plain) do
-		if w >= 30 then
-			for _, z in { -0.35, 0.35 } do
-				local cf, len = alongCF(road, sp[1], sp[2], z, y + ROAD_TOP + 0.01)
-				part(parent, {
-					Name = "CenterLine",
-					Size = Vector3.new(len, 0.02, 0.3),
-					CFrame = cf,
-					Color = C.lineYellow,
-					CanCollide = false,
-				})
-			end
-			for _, z in { -w / 2 + 1.5, w / 2 - 1.5 } do
-				local cf, len = alongCF(road, sp[1], sp[2], z, y + ROAD_TOP + 0.01)
-				part(parent, {
-					Name = "EdgeLine",
-					Size = Vector3.new(len, 0.02, 0.3),
-					CFrame = cf,
-					Color = C.lineWhite,
-					CanCollide = false,
-				})
-			end
-			local along = sp[1] + 30
-			while along < sp[2] - 30 do
-				local cf = alongCF(road, along - 1, along + 1, 6, y + ROAD_TOP + 0.02)
-				part(parent, {
-					Name = "Manhole",
-					Shape = Enum.PartType.Cylinder,
-					Size = Vector3.new(0.05, 3.2, 3.2),
-					CFrame = cf * CFrame.Angles(0, 0, math.rad(90)),
-					Color = Color3.fromRGB(70, 70, 72),
-					Material = M.DiamondPlate,
-					CanCollide = false,
-				})
-				along += 140
-			end
-		else
-			-- Local streets: one dashed white centre line.
-			local along = sp[1] + 4
-			while along < sp[2] - 8 do
-				local cf = alongCF(road, along, along + 6, 0, y + ROAD_TOP + 0.01)
-				part(parent, {
-					Name = "CenterDash",
-					Size = Vector3.new(6, 0.02, 0.3),
-					CFrame = cf,
-					Color = C.lineWhite,
-					CanCollide = false,
-				})
-				along += 14
-			end
-		end
-	end
-	for _, c in cuts do
-		-- Corner squares where both roads continue: neither sidewalk covers them.
-		if road.axis == "X" then
-			for _, sz in { -1, 1 } do
-				for _, sx in { -1, 1 } do
-					if extendsToward(c.other, road.at, sz) and extendsToward(road, c.at, sx) then
-						part(parent, {
-							Name = "SidewalkCorner",
-							Size = Vector3.new(WALK_W, WALK_TOP, WALK_W),
-							CFrame = CFrame.new(
-								c.at + sx * (c.other.w / 2 + WALK_W / 2),
-								y + WALK_TOP / 2,
-								road.at + sz * (w / 2 + WALK_W / 2)
-							),
-							Color = C.concrete,
-							Material = M.Concrete,
-						})
-					end
-				end
-			end
-		end
-		for _, side in { -1, 1 } do
-			local along = c.at + side * (c.other.w / 2 + 4)
-			if along < road.from or along > road.to then
-				continue
-			end
-			local stripes = math.floor(w / 3) - 1
-			for kk = -stripes / 2, stripes / 2 do
-				local cf = alongCF(road, along - 3, along + 3, kk * 3, y + ROAD_TOP + 0.01)
-				part(parent, {
-					Name = "Crosswalk",
-					Size = Vector3.new(6, 0.02, 1.6),
-					CFrame = cf,
-					Color = C.lineWhite,
-					CanCollide = false,
-				})
-			end
-		end
-	end
-end
-
--- Elevated or sloped deck (freeway, ramps, the bridge): barriers, a neon
--- strip, and pillars down to the ground (towers and cables over water).
-local function buildDeck(parent: Instance, road: Road)
-	local function point(along: number): Vector3
-		local y = CityPlan.roadY(road, along)
-		return if road.axis == "X"
-			then Vector3.new(along, y, road.at)
-			else Vector3.new(road.at, y, along)
-	end
-	local a, b = point(road.from), point(road.to)
-	local frame = CFrame.lookAt((a + b) / 2, b)
-	local len = (b - a).Magnitude
-	local w = road.w
-	local freeway = road.kind == "freeway"
-	part(parent, {
-		Name = "Road",
-		Size = Vector3.new(w, 1.6, len),
-		CFrame = frame * CFrame.new(0, ROAD_TOP - 0.8, 0),
-		Color = C.asphalt,
-		Material = M.Asphalt,
-	})
-	for _, sx in { -1, 1 } do
-		part(parent, {
-			Name = "Barrier",
-			Size = Vector3.new(1.2, 3, len),
-			CFrame = frame * CFrame.new(sx * (w / 2 + 0.6), ROAD_TOP + 1.5, 0),
-			Color = C.concrete,
-			Material = M.Concrete,
-		})
-		if freeway then
-			local strip = part(parent, {
-				Name = "NeonStrip",
-				Size = Vector3.new(0.3, 0.3, len),
-				CFrame = frame * CFrame.new(sx * (w / 2 + 0.6), ROAD_TOP + 3.1, 0),
-				Color = Color3.fromRGB(0, 220, 255),
-				Material = M.Neon,
-				CanCollide = false,
-			})
-			strip.CastShadow = false
-		end
-		part(parent, {
-			Name = "EdgeLine",
-			Size = Vector3.new(0.3, 0.02, len),
-			CFrame = frame * CFrame.new(sx * (w / 2 - 1.5), ROAD_TOP + 0.01, 0),
-			Color = C.lineWhite,
-			CanCollide = false,
-		})
-	end
-	part(parent, {
-		Name = "CenterLine",
-		Size = Vector3.new(0.4, 0.02, len),
-		CFrame = frame * CFrame.new(0, ROAD_TOP + 0.01, 0),
-		Color = C.lineYellow,
-		CanCollide = false,
-	})
-	local function overWater(pos: Vector3): boolean
-		for _, r in CityPlan.WATER do
-			if pos.X > r.x0 and pos.X < r.x1 and pos.Z > r.z0 and pos.Z < r.z1 then
-				return true
-			end
-		end
-		return false
-	end
-	local along = road.from + 30
-	while along < road.to - 10 do
-		local top = point(along)
-		local ground = CityPlan.groundY(top)
-		local height = top.Y - ground
-		if
-			height > 7
-			and not overWater(top)
-			and not onRoad(Vector3.new(top.X, ground, top.Z), 20)
-		then
-			part(parent, {
-				Name = "Pillar",
-				Size = Vector3.new(6, height - 1, 4),
-				CFrame = CFrame.new(top.X, ground + (height - 1) / 2, top.Z),
-				Color = Color3.fromRGB(150, 148, 142),
-				Material = M.Concrete,
-			})
-		end
-		along += 60
-	end
-	-- Suspension towers and cables where the deck crosses open water.
-	local towers = {}
-	for _, r in CityPlan.WATER do
-		local lo = math.max(road.from, if road.axis == "X" then r.x0 else r.z0)
-		local hi = math.min(road.to, if road.axis == "X" then r.x1 else r.z1)
-		local across = road.at
-		local inside = if road.axis == "X"
-			then across > r.z0 and across < r.z1
-			else across > r.x0 and across < r.x1
-		if inside and hi - lo > 60 then
-			table.insert(towers, lo + 30)
-			table.insert(towers, hi - 30)
-		end
-	end
-	for _, t in towers do
-		local top = point(t)
-		for _, sx in { -1, 1 } do
-			local base = (CFrame.lookAt(top, top + frame.LookVector) * CFrame.new(
-				sx * (w / 2 + 3),
-				0,
-				0
-			)).Position
-			part(parent, {
-				Name = "BridgeTower",
-				Size = Vector3.new(4, top.Y + 70, 4),
-				CFrame = CFrame.new(base.X, (top.Y + 70) / 2 - 10, base.Z),
-				Color = Color3.fromRGB(196, 60, 40),
-				Material = M.Metal,
-			})
-			local beacon = part(parent, {
-				Name = "TowerLight",
-				Size = Vector3.new(4.4, 2, 4.4),
-				CFrame = CFrame.new(base.X, top.Y + 60, base.Z),
-				Color = Color3.fromRGB(255, 40, 170),
-				Material = M.Neon,
-			})
-			beacon.CastShadow = false
-			-- Cables fanning down to the deck on both sides of the tower.
-			for _, dir in { -1, 1 } do
-				for i = 1, 4 do
-					local anchor = top
-						+ frame.LookVector * dir * i * 22
-						+ frame.RightVector * sx * (w / 2 + 1)
-					local from = Vector3.new(base.X, top.Y + 56, base.Z)
-					part(parent, {
-						Name = "Cable",
-						Size = Vector3.new(0.3, 0.3, (anchor - from).Magnitude),
-						CFrame = CFrame.lookAt((from + anchor) / 2, anchor),
-						Color = Color3.fromRGB(220, 220, 224),
-						Material = M.Metal,
-						CanCollide = false,
-					})
-				end
-			end
-		end
-	end
-end
-
--- Parking lot slab with painted stalls along X at each row Z. Returns stall spots.
 local function parkingLot(
 	parent: Instance,
 	center: Vector3,
@@ -1931,14 +1572,9 @@ local function buildMeridianYard(parent: Instance)
 		local alongX = math.abs(b.X - a.X) > math.abs(b.Z - a.Z)
 		local lo = if alongX then math.min(a.X, b.X) else math.min(a.Z, b.Z)
 		local hi = if alongX then math.max(a.X, b.X) else math.max(a.Z, b.Z)
-		local cuts: { Cross } = {}
-		if gap then
-			table.insert(
-				cuts,
-				{ at = (gap.Min + gap.Max) / 2, half = (gap.Max - gap.Min) / 2, other = ROADS[1] }
-			)
-		end
-		for _, s in spans(lo, hi, cuts) do
+		-- The fence runs lo..hi with an opening for the gate, if any.
+		local runs = if gap then { { lo, gap.Min }, { gap.Max, hi } } else { { lo, hi } }
+		for _, s in runs do
 			local len = s[2] - s[1]
 			local mid = (s[1] + s[2]) / 2
 			local pos = if alongX
@@ -2478,12 +2114,58 @@ local function setupEnvironment()
 		})
 		tiles(r, -9, 1, { Name = "Seabed", Color = Color3.fromRGB(80, 90, 70), Material = M.Sand })
 	end
-	tiles(
-		CityPlan.BEACH,
-		-0.5,
-		1.1,
-		{ Name = "Sand", Color = Color3.fromRGB(226, 206, 160), Material = M.Sand }
-	)
+	-- Sand from the shoreline up to the coastal drive's sidewalk.
+	for z = -1990, 2040, 30 do
+		local edge = math.min(CityPlan.sandEdge(z), CityPlan.sandEdge(z + 30))
+		local sand = Instance.new("Part")
+		sand.Name = "Sand"
+		sand.Anchored = true
+		sand.TopSurface = Enum.SurfaceType.Smooth
+		sand.Size = Vector3.new(edge + 2250 + 1, 1.1, 30.5)
+		sand.Position = Vector3.new((-2250 + edge) / 2, -0.5, z + 15)
+		sand.Color = Color3.fromRGB(226, 206, 160)
+		sand.Material = M.Sand
+		sand.Parent = lawn
+	end
+	-- Vista Hills: smooth terrain rising north of Hillside Ave.
+	task.spawn(function()
+		local res = 4
+		local x0, x1, z0, z1 = -2000, 1700, 1168, 2048
+		local yTop = 80
+		local ny = yTop // res
+		for cx = x0, x1 - 1, 256 do
+			local cx1 = math.min(cx + 256, x1)
+			local nx = (cx1 - cx) // res
+			local nz = (z1 - z0) // res
+			local mats, occ = {}, {}
+			for ix = 1, nx do
+				mats[ix], occ[ix] = {}, {}
+				for iy = 1, ny do
+					mats[ix][iy], occ[ix][iy] = {}, {}
+				end
+				local x = cx + (ix - 0.5) * res
+				for iz = 1, nz do
+					local z = z0 + (iz - 0.5) * res
+					local h = CityPlan.hillY(x, z)
+					for iy = 1, ny do
+						local bottom = (iy - 1) * res
+						local o = math.clamp((h - bottom) / res, 0, 1)
+						occ[ix][iy][iz] = o
+						mats[ix][iy][iz] = if o <= 0
+							then Enum.Material.Air
+							elseif h - bottom < 6 then Enum.Material.LeafyGrass
+							else Enum.Material.Ground
+					end
+				end
+			end
+			local region = Region3.new(
+				Vector3.new(cx, 0, z0),
+				Vector3.new(cx + nx * res, ny * res, z0 + nz * res)
+			)
+			terrain:WriteVoxels(region, res, mats, occ)
+			task.wait()
+		end
+	end)
 	local patchRng = Random.new(7)
 	local placed = 0
 	while placed < 160 do
@@ -2806,6 +2488,8 @@ local function buildStores(parent: Instance)
 end
 
 local kit = {
+	trafficLight = trafficLight,
+	stopSign = stopSign,
 	house = house,
 	onRoad = onRoad,
 	part = part,
@@ -2817,7 +2501,6 @@ local kit = {
 	tree = tree,
 	streetLight = streetLight,
 	hydrant = hydrant,
-	stopSign = stopSign,
 	bench = bench,
 	trashCan = trashCan,
 	gableRoof = gableRoof,
@@ -2852,30 +2535,7 @@ function World.init()
 	local streets = Instance.new("Folder")
 	streets.Name = "Streets"
 	streets.Parent = town
-	for _, road in ROADS do
-		if road.kind == "street" and road.y0 == road.y1 then
-			buildRoad(streets, road)
-		else
-			buildDeck(streets, road)
-		end
-	end
-
-	-- Traffic lights where two arterials cross.
-	local props = Instance.new("Folder")
-	props.Name = "Decor"
-	props.Parent = town
-	for _, road in ROADS do
-		if road.axis == "X" and road.kind == "street" and road.w >= 30 then
-			for _, c in crossingsOf(road) do
-				if c.other.w >= 30 then
-					local hw, ow = road.w / 2 + 3, c.other.w / 2 + 3
-					local y = road.y0 + WALK_TOP
-					trafficLight(props, Vector3.new(c.at + ow, y, road.at - hw), 0)
-					trafficLight(props, Vector3.new(c.at - ow, y, road.at + hw), 180)
-				end
-			end
-		end
-	end
+	Roads.build(kit, streets)
 
 	local districts = Instance.new("Folder")
 	districts.Name = "Districts"

@@ -11,16 +11,45 @@ function Quests.today(): number
 end
 
 -- Pool index offered by giver `i` on `day`. Givers are spaced 4 apart in an
--- 11-entry pool (offsets 0, 4, 8, 1), so the four givers never overlap.
+-- 11-entry pool (offsets 0, 4, 8, 1, 5, 9), so the six givers never overlap.
 function Quests.offer(i: number, day: number): number
 	local n = #Config.Quests.pool
 	return (day * 7 + (i - 1) * 4) % n + 1
 end
 
--- Whether the stats unlock a district's permit (true for districts without one).
-function Quests.permitted(stats: { [string]: number }, districtId: string?): boolean
-	local gate = districtId and Config.Gates[districtId]
-	return gate == nil or (stats[gate.stat] or 0) >= gate.need
+-- The permit mission for a district, if it has one.
+function Quests.missionFor(districtId: string?): any
+	for _, m in Config.Missions do
+		if m.district == districtId then
+			return m
+		end
+	end
+	return nil
+end
+
+-- Whether a district's dumpsters are open (districts without a mission always are).
+function Quests.permitted(permits: { [string]: boolean }?, districtId: string?): boolean
+	return Quests.missionFor(districtId) == nil
+		or (permits ~= nil and permits[districtId :: string] == true)
+end
+
+-- The next mission in the chain (the first whose district is still locked).
+function Quests.nextMission(permits: { [string]: boolean }?): any
+	for _, m in Config.Missions do
+		if not (permits and permits[m.district]) then
+			return m
+		end
+	end
+	return nil
+end
+
+function Quests.missionById(id: string?): any
+	for _, m in Config.Missions do
+		if m.id == id then
+			return m
+		end
+	end
+	return nil
 end
 
 function Quests.selfCheck()
@@ -32,9 +61,13 @@ function Quests.selfCheck()
 			seen[q] = true
 		end
 	end
-	assert(not Quests.permitted({ searches = 11 }, "midtown"), "midtown gate opened early")
-	assert(Quests.permitted({ searches = 12 }, "midtown"), "midtown gate stuck")
-	assert(Quests.permitted({}, "town"), "town should be open")
+	assert(not Quests.permitted({}, "midtown"), "midtown open without a permit")
+	assert(Quests.permitted({ midtown = true }, "midtown"), "midtown permit ignored")
+	assert(Quests.permitted({}, "southside"), "southside should be open")
+	assert(Quests.nextMission({}).district == "eastgate", "mission chain should start at Eastgate")
+	for _, m in Config.Missions do
+		assert(Config.Contacts[m.contact], `mission {m.id} has no contact`)
+	end
 end
 
 return Quests

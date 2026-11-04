@@ -118,6 +118,23 @@ local function reconcile(raw: any): Profile
 			end
 		end
 	end
+	local permits: { [string]: boolean } = {}
+	if typeof(data.permits) == "table" then
+		for _, m in Config.Missions do
+			if data.permits[m.district] == true then
+				permits[m.district] = true
+			end
+		end
+	end
+	local mission: Types.Mission? = nil
+	if typeof(data.mission) == "table" and typeof(data.mission.id) == "string" then
+		for _, m in Config.Missions do
+			if m.id == data.mission.id and not permits[m.district] then
+				mission =
+					{ id = m.id, progress = math.max(tonumber(data.mission.progress) or 0, 0) }
+			end
+		end
+	end
 	local houseLevel = math.clamp(math.floor(tonumber(data.houseLevel) or 0), 0, #Config.Houses)
 	return {
 		version = VERSION,
@@ -147,6 +164,8 @@ local function reconcile(raw: any): Profile
 		streak = math.max(math.floor(tonumber(data.streak) or 0), 0),
 		lastLogin = math.floor(tonumber(data.lastLogin) or 0),
 		quests = quests,
+		permits = permits,
+		mission = mission,
 	}
 end
 
@@ -368,6 +387,8 @@ function Data.snapshot(profile: Profile, player: Player?): Types.State
 		stats = profile.stats,
 		streak = profile.streak,
 		quests = profile.quests,
+		permits = profile.permits,
+		mission = profile.mission,
 	}
 end
 
